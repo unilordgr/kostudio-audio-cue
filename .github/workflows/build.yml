@@ -42,5 +42,4 @@ jobs:
           gh release delete latest --yes 2>/dev/null || true
           gh release create latest dist/*.exe \
             --title "Latest Build" \
-            --notes "Latest Windows portable build — just download and run, no installation needed." \
-            --prerelease
+            --notes "Latest Windows portable build — just download and run, no installation needed."
