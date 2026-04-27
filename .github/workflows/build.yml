@@ -1,0 +1,32 @@
+name: Build Windows Portable EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Windows portable .exe
+        run: npm run dist-win
+
+      - name: Upload portable EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: KostudioAudioCue-Windows-Portable
+          path: dist/*.exe
+          retention-days: 30

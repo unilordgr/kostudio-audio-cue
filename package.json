@@ -1,0 +1,30 @@
+{
+  "name": "kostudio-audio-cue",
+  "version": "1.0.0",
+  "description": "Kostudio Audio Cue — Live Performance Sound Manager",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist-win": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.kostudio.audiocue",
+    "productName": "Kostudio Audio Cue",
+    "files": [
+      "main.js",
+      "index.html"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3"
+  }
+}

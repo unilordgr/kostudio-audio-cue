@@ -1,0 +1,2028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kostudio Audio Cue</title>
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --border: #303030;
+  --text: #ffffff;
+  --muted: #909090;
+  --accent: #00d4ff;
+  --playing: #00ff99;
+  --loop-col: #ff9900;
+  --danger: #ff3355;
+  --save-col: #44cc88;
+  --fade-col: #aa66ff;
+  --shadow: rgba(0,0,0,.0);
+  --stack-w: 282px;
+  --footer-h: 30px;
+  --ui-scale: 1;
+}
+
+html[data-theme="light"] {
+  --bg: #eef2fa;
+  --surface: #ffffff;
+  --surface2: #e4eaf7;
+  --border: #c0ceea;
+  --text: #1a2040;
+  --muted: #6a7a9e;
+  --accent: #1d5fd8;
+  --playing: #14a356;
+  --loop-col: #d96600;
+  --danger: #d42040;
+  --save-col: #17996a;
+  --fade-col: #7a3fcf;
+  --shadow: rgba(0,10,60,.10);
+}
+
+html[data-theme="light"] body { background: linear-gradient(160deg,#eef2fa 0%,#e6edf8 100%); }
+html[data-theme="light"] .logo { text-shadow: 0 0 22px rgba(29,95,216,.4); }
+html[data-theme="light"] header,
+html[data-theme="light"] .stack-panel,
+html[data-theme="light"] footer { box-shadow: 0 1px 0 var(--border); }
+html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#f4f7ff 100%); }
+html[data-theme="light"] .pad { box-shadow: 0 2px 8px var(--shadow); }
+html[data-theme="light"] .pad.loaded { box-shadow: 0 3px 12px var(--shadow); }
+html[data-theme="light"] .pad.playing { box-shadow: 0 0 20px var(--c),0 4px 16px var(--shadow); }
+html[data-theme="light"] .pad.loaded .pad-tint  { opacity: .05; }
+html[data-theme="light"] .pad.playing .pad-tint { opacity: .1; }
+html[data-theme="light"] .shortcut-key { background: rgba(29,95,216,.07); }
+html[data-theme="light"] .sh-key { background: rgba(29,95,216,.07); }
+html[data-theme="light"] kbd { background: rgba(29,95,216,.08); border-color: rgba(29,95,216,.25); color: var(--accent); }
+html[data-theme="light"] .stack-item:hover { background: rgba(29,95,216,.05); }
+html[data-theme="light"] .stack-item.active { background: rgba(29,95,216,.09); }
+html[data-theme="light"] .modal-overlay { background: rgba(0,10,50,.45); }
+html[data-theme="light"] .modal-box { box-shadow: 0 24px 64px rgba(0,10,60,.22); }
+html[data-theme="light"] .proj-item { box-shadow: 0 1px 4px var(--shadow); }
+html[data-theme="light"] .sh-custom-row { box-shadow: 0 1px 4px var(--shadow); }
+html[data-theme="light"] .next-btn { background: linear-gradient(135deg,#f0f5ff 0%,#e8eeff 100%); }
+html[data-theme="light"] .next-btn:hover:not(:disabled) { background: var(--accent); }
+html[data-theme="light"] .pad-prog-fill { opacity: .85; }
+html[data-theme="light"] .playing-dot { box-shadow: 0 0 10px var(--playing),0 0 4px var(--playing); }
+html[data-theme="light"] .pad-add-tile:hover { background: rgba(29,95,216,.05); }
+html[data-theme="light"] .scene-tab.active { border-bottom-color: var(--surface); }
+html[data-theme="light"] .pad-vol-slider { background: var(--border); }
+
+.theme-btn {
+  padding: 5px 11px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all .2s;
+  line-height: 1;
+}
+.theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+#appWrap {
+  width: calc((100vw - var(--stack-w)) / var(--ui-scale));
+  height: calc((100vh - var(--footer-h)) / var(--ui-scale));
+  zoom: var(--ui-scale);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+#scaleCtrl {
+  position: fixed;
+  bottom: 10px;
+  left: 14px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 8px;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.logo {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-shadow: 0 0 30px rgba(0,212,255,.55);
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.hdr-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.hdr-btn {
+  padding: 5px 13px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.hdr-btn:hover       { border-color: var(--accent); color: var(--accent); }
+.hdr-btn.save:hover  { border-color: var(--save-col); color: var(--save-col); }
+.header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.vol-wrap { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+input[type=range] {
+  -webkit-appearance: none;
+  width: 84px; height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.stop-all {
+  padding: 5px 13px;
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.stop-all:hover { background: var(--danger); color: #fff; }
+
+/* Fade duration control */
+.fade-dur-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .5px;
+}
+.fade-dur-input {
+  width: 36px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 11px;
+  text-align: center;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.fade-dur-input::-webkit-inner-spin-button,
+.fade-dur-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.fade-dur-input:focus { border-color: var(--fade-col); }
+
+/* ── Main ── */
+main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.pads-section { flex: 1; min-height: 0; padding: 14px; overflow-y: auto; }
+.pads-grid {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 10px;
+}
+
+/* ── Pad ── */
+.pad {
+  --c: #444;
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  overflow: hidden;
+}
+.pad-tint {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: var(--c);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.pad.loaded .pad-tint  { opacity: .06; }
+.pad.playing .pad-tint { opacity: .13; }
+.pad.loaded  { border-color: var(--c); }
+.pad.playing { border-color: var(--c); box-shadow: 0 0 18px var(--c); }
+.pad.drag-over { border-color: var(--accent) !important; box-shadow: 0 0 12px rgba(0,212,255,.4); }
+
+.pad-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  position: relative;
+  z-index: 1;
+}
+.pad-name {
+  flex: 1;
+  font-size: 11.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.pad-name.empty       { color: var(--muted); font-weight: 400; font-style: italic; font-size: 11px; }
+.pad-name.needs-audio { color: var(--loop-col); font-weight: 500; font-style: italic; font-size: 11px; }
+.pad-name input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+  outline: none;
+}
+
+/* Color dot */
+.color-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,.18);
+  margin-top: 2px;
+  transition: transform .15s, border-color .15s;
+}
+.color-dot:hover { transform: scale(1.35); border-color: rgba(255,255,255,.5); }
+
+.shortcut-key {
+  flex-shrink: 0;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.shortcut-key:hover { border-color: var(--accent); color: var(--accent); }
+.shortcut-key.capturing { border-color: var(--loop-col); color: var(--loop-col); animation: blink .7s ease-in-out infinite; }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* Time row */
+.pad-time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+.pad-time-row > .pad-progress {
+  flex: 1;
+  cursor: pointer;
+}
+.pad-time-row > .pad-progress:hover .pad-prog-fill { filter: brightness(1.3); }
+.pad-time {
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 70px;
+  text-align: right;
+}
+
+.pad-progress {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.pad-prog-fill {
+  height: 100%;
+  background: var(--c);
+  border-radius: 2px;
+  width: 0%;
+  transition: filter .1s;
+}
+
+/* Vol row */
+.pad-vol-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+  z-index: 1;
+}
+.vol-label {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: .5px;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.pad-vol-slider {
+  -webkit-appearance: none;
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+}
+.pad-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--c);
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,.2);
+}
+.vol-pct {
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--muted);
+  flex-shrink: 0;
+  min-width: 26px;
+  text-align: right;
+}
+
+.pad-footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  position: relative;
+  z-index: 1;
+}
+.btn-sm {
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-sm:hover            { border-color: var(--accent); color: var(--accent); }
+.btn-sm.loop-on          { border-color: var(--loop-col); color: var(--loop-col); background: rgba(255,153,0,.08); }
+.btn-sm.fade-on          { border-color: var(--fade-col); color: var(--fade-col); background: rgba(170,102,255,.08); }
+.btn-sm.stack-btn        { margin-left: auto; }
+.btn-sm.play-stop        { min-width: 46px; }
+.btn-sm.play-stop:hover  { border-color: var(--accent); color: var(--accent); }
+.btn-sm.is-playing       { border-color: var(--danger); color: var(--danger); background: rgba(255,51,85,.08); }
+.btn-sm.is-playing:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-sm.clear-pad        { padding: 3px 6px; }
+.btn-sm.clear-pad:hover  { border-color: var(--danger); color: var(--danger); }
+
+.pad-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+.playing-dot {
+  position: absolute;
+  top: 9px; right: 9px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--playing);
+  box-shadow: 0 0 8px var(--playing);
+  animation: pulse 1s ease-in-out infinite;
+  z-index: 2;
+  transition: background .3s, box-shadow .3s;
+}
+.pad.fading .playing-dot {
+  background: var(--loop-col);
+  box-shadow: 0 0 8px var(--loop-col);
+}
+@keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:.65} }
+
+/* ── Stack panel ── */
+.stack-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: var(--footer-h);
+  width: var(--stack-w);
+  z-index: 10;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.stack-head {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.stack-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.clear-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+/* Scene tabs */
+.scene-tabs-wrap {
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+.scene-tabs-wrap::-webkit-scrollbar { display: none; }
+.scene-tab {
+  position: relative;
+  padding: 4px 9px;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--muted);
+  transition: all .12s;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.scene-tab:hover { color: var(--text); border-color: var(--border); }
+.scene-tab.active {
+  color: var(--accent);
+  border-color: var(--border);
+  border-bottom-color: var(--surface);
+  background: var(--surface);
+  margin-bottom: -1px;
+}
+.scene-tab-rm {
+  display: none;
+  position: absolute;
+  top: -5px; right: -5px;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 9px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  z-index: 2;
+}
+.scene-tab:hover .scene-tab-rm { display: flex; }
+.scene-add-btn {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  margin-bottom: 2px;
+  border-radius: 4px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  line-height: 1;
+}
+.scene-add-btn:hover { border-color: var(--accent); color: var(--accent); border-style: solid; }
+
+.stack-list { flex: 1; overflow-y: auto; padding: 8px; }
+.stack-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.8;
+}
+.stack-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  margin-bottom: 3px;
+  cursor: pointer;
+  transition: all .12s;
+}
+.stack-item:hover       { background: rgba(255,255,255,.04); border-color: var(--border); }
+.stack-item.active      { border-color: var(--accent); background: rgba(0,212,255,.07); }
+.stack-n   { width: 18px; font-size: 10px; color: var(--muted); text-align: right; flex-shrink: 0; }
+.stack-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.stack-lbl { flex: 1; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stack-rm  { opacity: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; transition: all .12s; }
+.stack-item:hover .stack-rm { opacity: 1; }
+.stack-rm:hover { color: var(--danger); }
+
+.stack-foot {
+  flex-shrink: 0;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.auto-row { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.auto-row span { font-size: 11.5px; color: var(--muted); }
+.toggle-sw {
+  width: 32px; height: 17px;
+  background: var(--border);
+  border-radius: 9px;
+  position: relative;
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.toggle-sw.on { background: var(--accent); }
+.toggle-sw::after {
+  content: '';
+  position: absolute;
+  width: 13px; height: 13px;
+  background: #fff;
+  border-radius: 50%;
+  top: 2px; left: 2px;
+  transition: left .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+.toggle-sw.on::after { left: 17px; }
+.next-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  transition: all .15s;
+}
+.next-btn:hover:not(:disabled) { background: var(--accent); color: #000; border-color: var(--accent); }
+.next-btn:disabled { opacity: .3; cursor: default; }
+
+/* ── Footer ── */
+footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: var(--stack-w);
+  height: var(--footer-h);
+  z-index: 10;
+  padding: 5px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.footer-left { display: flex; align-items: center; gap: 10px; }
+.scale-wrap  { display: flex; align-items: center; gap: 5px; }
+.scale-btn {
+  width: 18px; height: 18px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.scale-btn:hover { border-color: var(--accent); color: var(--accent); }
+.scale-val { font-family: monospace; font-size: 10px; color: var(--muted); min-width: 32px; text-align: center; }
+.scale-lbl { font-size: 10px; color: var(--muted); letter-spacing: .5px; }
+.status-txt { color: var(--text); opacity: .7; }
+.tips { display: flex; gap: 14px; }
+.tip { display: flex; align-items: center; gap: 4px; }
+kbd {
+  background: rgba(255,255,255,.08);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: monospace;
+  font-size: 10px;
+}
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  backdrop-filter: blur(3px);
+}
+.modal-overlay.hidden { display: none; }
+.modal-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 400px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0,0,0,.6);
+}
+.modal-hdr {
+  padding: 15px 18px 13px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.modal-title { font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--accent); text-transform: uppercase; }
+.modal-x { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 0 2px; transition: color .15s; }
+.modal-x:hover { color: var(--text); }
+.modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.modal-ftr { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+.modal-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 8px 11px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color .15s;
+  user-select: text;
+}
+.modal-input:focus { border-color: var(--accent); }
+.modal-label { display: block; font-size: 10.5px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 7px; }
+.modal-btn {
+  padding: 7px 18px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  transition: all .15s;
+}
+.modal-btn:hover         { border-color: var(--accent); color: var(--accent); }
+.modal-btn.primary       { border-color: var(--accent); color: var(--accent); }
+.modal-btn.primary:hover { background: var(--accent); color: #000; }
+.modal-btn.save-ok       { border-color: var(--save-col); color: var(--save-col); }
+.modal-btn.save-ok:hover { background: var(--save-col); color: #000; }
+
+.proj-list { display: flex; flex-direction: column; gap: 5px; }
+.proj-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all .12s;
+}
+.proj-item:hover { border-color: var(--accent); }
+.proj-meta { flex: 1; min-width: 0; }
+.proj-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-date { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.proj-del  { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0 3px; line-height: 1; transition: color .12s; flex-shrink: 0; }
+.proj-del:hover { color: var(--danger); }
+.proj-empty { text-align: center; padding: 28px 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+
+/* ── Add Cue tile ── */
+.pad-add-tile {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  min-height: 130px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all .2s;
+  background: transparent;
+}
+.pad-add-tile:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,.04); transform: scale(1.02); }
+.pad-add-tile .add-icon  { font-size: 28px; line-height: 1; font-weight: 300; }
+.pad-add-tile .add-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; }
+
+/* ── Shortcuts Modal ── */
+.sh-sec-hdr { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin: 14px 0 7px; display: flex; align-items: center; gap: 8px; }
+.sh-sec-hdr:first-child { margin-top: 0; }
+.sh-hint { font-size: 9.5px; font-weight: 400; letter-spacing: 0; text-transform: none; opacity: .6; }
+.sh-pad-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.sh-pad-row { display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 5px; border: 1px solid transparent; transition: border-color .12s; }
+.sh-pad-row:hover { border-color: var(--border); background: rgba(255,255,255,.02); }
+.sh-key {
+  flex-shrink: 0;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  min-width: 34px;
+  text-align: center;
+}
+.sh-key:hover       { border-color: var(--accent); color: var(--accent); }
+.sh-key.capturing   { border-color: var(--loop-col); color: var(--loop-col); animation: blink .7s ease-in-out infinite; }
+.sh-key.combo       { cursor: default; min-width: auto; }
+.sh-key.combo:hover { border-color: var(--border); color: var(--muted); }
+.sh-pad-name       { flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-pad-name.empty { color: var(--muted); font-style: italic; }
+.sh-custom-list { display: flex; flex-direction: column; gap: 3px; min-height: 10px; }
+.sh-custom-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); }
+.sh-actions { display: flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
+.sh-test, .sh-del { background: none; border: 1px solid var(--border); border-radius: 3px; color: var(--muted); cursor: pointer; font-size: 11px; padding: 2px 7px; transition: all .12s; line-height: 1.4; }
+.sh-test:hover { border-color: var(--accent); color: var(--accent); }
+.sh-del:hover  { border-color: var(--danger);  color: var(--danger); }
+.sh-add-btn { width: 100%; margin-top: 6px; padding: 7px; background: transparent; border: 1px dashed var(--border); color: var(--muted); border-radius: 5px; cursor: pointer; font-size: 11.5px; transition: all .15s; }
+.sh-add-btn:hover { border-color: var(--accent); color: var(--accent); border-style: solid; }
+.sh-add-form { display: flex; flex-direction: column; gap: 9px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-top: 6px; }
+.sh-add-row   { display: flex; align-items: center; gap: 8px; }
+.sh-add-label { font-size: 10.5px; color: var(--muted); width: 42px; flex-shrink: 0; }
+.sh-select { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 4px 8px; font-size: 12px; outline: none; cursor: pointer; }
+.sh-select:focus { border-color: var(--accent); }
+.sh-form-btns { display: flex; gap: 6px; justify-content: flex-end; }
+.sh-empty-msg { font-size: 11.5px; color: var(--muted); padding: 8px 0; font-style: italic; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+</style>
+</head>
+<body>
+
+<div id="scaleCtrl" class="scale-wrap">
+  <span class="scale-lbl">SCALE</span>
+  <button class="scale-btn" onclick="adjustScale(-0.05)" title="Zoom out">−</button>
+  <span class="scale-val" id="scaleVal">100%</span>
+  <button class="scale-btn" onclick="adjustScale(0.05)" title="Zoom in">+</button>
+</div>
+
+<div id="appWrap">
+
+<header>
+  <div class="logo">KOSTUDIO AUDIO CUE</div>
+  <div class="hdr-sep"></div>
+  <button class="hdr-btn save" onclick="showSaveModal()">💾 Save</button>
+  <button class="hdr-btn"      onclick="showLoadModal()">📂 Load</button>
+  <button class="hdr-btn"      onclick="showShortcutsModal()">⌨ Shortcuts</button>
+  <button class="theme-btn"    onclick="toggleTheme()" id="themeBtn">DARK MODE</button>
+  <div class="header-right">
+    <div class="fade-dur-wrap">
+      <span>FADE</span>
+      <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
+             oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
+      <span>s</span>
+    </div>
+    <div class="hdr-sep"></div>
+    <div class="vol-wrap">
+      <span>VOL</span>
+      <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)">
+    </div>
+    <button class="stop-all" onclick="stopAll()">■ STOP ALL</button>
+  </div>
+</header>
+
+<main>
+  <div class="pads-section">
+    <div class="pads-grid" id="padsGrid"></div>
+  </div>
+
+</main>
+
+</div><!-- #appWrap -->
+
+<div class="stack-panel">
+  <div class="stack-head">
+    <span class="stack-title">Cue Stack</span>
+    <button class="clear-btn" onclick="clearStack()">Clear</button>
+  </div>
+  <div class="scene-tabs-wrap" id="sceneTabsWrap"></div>
+  <div class="stack-list" id="stackList"></div>
+  <div class="stack-foot">
+    <div class="auto-row" onclick="toggleAutoAdvance()">
+      <div class="toggle-sw" id="autoToggle"></div>
+      <span>Auto-advance</span>
+    </div>
+    <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled>NEXT CUE ▶</button>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-left">
+    <span class="status-txt" id="statusTxt">Click a pad or drop an audio file to load</span>
+  </div>
+  <div class="tips">
+    <div class="tip"><kbd>KEY</kbd> crossfade play</div>
+    <div class="tip"><kbd>SPACE</kbd> next cue</div>
+    <div class="tip">click bar to seek</div>
+    <div class="tip">dbl-click name to rename</div>
+  </div>
+</footer>
+
+<div class="modal-overlay hidden" id="modalOverlay" onclick="handleOverlayClick(event)">
+  <div class="modal-box" id="modalBox">
+    <div class="modal-hdr">
+      <span class="modal-title" id="modalTitle"></span>
+      <button class="modal-x" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-ftr" id="modalFtr"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Constants ─────────────────────────────────────────────
+const COLORS = [
+  '#00d4ff','#ff6b35','#ff3388','#44ff88',
+  '#ffcc00','#9966ff','#ff4444','#00ccaa',
+  '#ff99cc','#66aaff','#ffaa44','#88ee44'
+];
+const DEFAULT_KEYS = ['1','2','3','4','5','6','7','8','q','w','e','r'];
+
+// ── State ─────────────────────────────────────────────────
+let pads = DEFAULT_KEYS.map((key, i) => ({
+  id: i, key,
+  color:       COLORS[i % COLORS.length],
+  name:        '',
+  file:        null,
+  audio:       null,
+  loop:        false,
+  playing:     false,
+  vol:         1.0,
+  fadeEnabled: false,
+}));
+
+let scenes          = [{ id: 0, name: 'Scene 1', stack: [], stackIdx: -1 }];
+let sceneIdSeq      = 1;
+let currentSceneIdx = 0;
+
+let autoAdv         = false;
+let masterVol       = 1.0;
+let fadeDuration    = 2;
+let uiScale         = 1.0;
+let capturing       = null;
+let db              = null;
+let customShortcuts = [];
+let shortcutIdSeq   = 0;
+let capturingHotkey = false;
+let pendingCombo    = null;
+
+const fadeTimers  = {};
+let   asTimer     = null;   // autosave debounce
+
+function getScene() { return scenes[currentSceneIdx]; }
+
+// ── Boot ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  buildPads();
+  renderSceneTabs();
+  renderStack();
+  startRaf();
+  document.addEventListener('keydown', onKey);
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop',     e => e.preventDefault());
+  db = await initDB();
+  initTheme();
+  applyScale();
+  checkAutosave();
+});
+
+// ── IndexedDB ─────────────────────────────────────────────
+function initDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('cue-music', 2);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (d.objectStoreNames.contains('audio'))    d.deleteObjectStore('audio');
+      if (!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'name' });
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = rej;
+  });
+}
+function dbGet(store, key) {
+  return new Promise((res, rej) => {
+    const req = db.transaction(store,'readonly').objectStore(store).get(key);
+    req.onsuccess = () => res(req.result); req.onerror = rej;
+  });
+}
+function dbPut(store, value) {
+  return new Promise((res, rej) => {
+    const req = db.transaction(store,'readwrite').objectStore(store).put(value);
+    req.onsuccess = () => res(); req.onerror = rej;
+  });
+}
+function dbGetAll(store) {
+  return new Promise((res, rej) => {
+    const req = db.transaction(store,'readonly').objectStore(store).getAll();
+    req.onsuccess = () => res(req.result); req.onerror = rej;
+  });
+}
+function dbDelete(store, key) {
+  return new Promise((res, rej) => {
+    const req = db.transaction(store,'readwrite').objectStore(store).delete(key);
+    req.onsuccess = () => res(); req.onerror = rej;
+  });
+}
+
+// ── Fade engine ───────────────────────────────────────────
+const FADE_STEP_MS = 30;
+
+function startFade(id, targetVol, durationSec, onComplete) {
+  clearFadeTimer(id);
+  const pad = pads[id];
+  if (!pad?.audio) { onComplete?.(); return; }
+  if (!durationSec || durationSec <= 0) {
+    pad.audio.volume = targetVol;
+    onComplete?.();
+    return;
+  }
+  const startVol   = pad.audio.volume;
+  const totalSteps = Math.max(1, Math.round(durationSec * 1000 / FADE_STEP_MS));
+  let step = 0;
+
+  if (targetVol === 0) document.getElementById(`pad${id}`)?.classList.add('fading');
+
+  fadeTimers[id] = setInterval(() => {
+    step++;
+    const t = Math.min(step / totalSteps, 1);
+    if (pad.audio) pad.audio.volume = startVol + (targetVol - startVol) * t;
+    if (step >= totalSteps) {
+      clearFadeTimer(id);
+      if (pad.audio) pad.audio.volume = targetVol;
+      onComplete?.();
+    }
+  }, FADE_STEP_MS);
+}
+
+function clearFadeTimer(id) {
+  if (fadeTimers[id]) {
+    clearInterval(fadeTimers[id]);
+    delete fadeTimers[id];
+    document.getElementById(`pad${id}`)?.classList.remove('fading');
+  }
+}
+
+// ── Playback ──────────────────────────────────────────────
+function playPad(id, withFade = false) {
+  const pad = pads[id];
+  if (!pad.audio) return;
+  clearFadeTimer(id);
+  pad.audio.currentTime = 0;
+  const targetVol = pad.vol * masterVol;
+  if (withFade || pad.fadeEnabled) {
+    pad.audio.volume = 0;
+    pad.audio.play().catch(() => {});
+    pad.playing = true;
+    refreshPad(id);
+    setStatus(`Playing "${pad.name}"`);
+    startFade(id, targetVol, fadeDuration);
+  } else {
+    pad.audio.volume = targetVol;
+    pad.audio.play().catch(() => {});
+    pad.playing = true;
+    refreshPad(id);
+    setStatus(`Playing "${pad.name}"`);
+  }
+}
+
+function stopPad(id, withFade = false) {
+  const pad = pads[id];
+  if (!pad.audio) return;
+  if (withFade || pad.fadeEnabled) {
+    startFade(id, 0, fadeDuration, () => {
+      if (pad.audio) {
+        pad.audio.pause();
+        pad.audio.currentTime = 0;
+        pad.audio.volume = pad.vol * masterVol;
+      }
+      pad.playing = false;
+      refreshPad(id);
+    });
+  } else {
+    clearFadeTimer(id);
+    pad.audio.pause();
+    pad.audio.currentTime = 0;
+    pad.playing = false;
+    refreshPad(id);
+  }
+}
+
+// Pad click: toggle this pad only, respects pad.fadeEnabled
+function togglePad(id) {
+  pads[id].playing ? stopPad(id) : playPad(id);
+}
+
+// Keyboard / shortcut: always crossfade (fade out others, fade in this)
+function togglePadCrossfade(id) {
+  const pad = pads[id];
+  if (!pad.file) return;
+  if (pad.playing) {
+    stopPad(id, true);
+  } else {
+    pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
+    playPad(id, true);
+  }
+}
+
+function stopAll() {
+  pads.forEach(p => { if (p.playing) stopPad(p.id, false); });
+  setStatus('All stopped');
+}
+
+function setMasterVolume(v) {
+  masterVol = parseFloat(v);
+  pads.forEach(p => { if (p.audio && !fadeTimers[p.id]) p.audio.volume = p.vol * masterVol; });
+  scheduleAutosave();
+}
+
+function setPadVolume(id, v) {
+  pads[id].vol = parseFloat(v);
+  if (pads[id].audio && !fadeTimers[id]) pads[id].audio.volume = pads[id].vol * masterVol;
+  const pct = document.getElementById(`pvol-pct-${id}`);
+  if (pct) pct.textContent = Math.round(pads[id].vol * 100) + '%';
+  scheduleAutosave();
+}
+
+function toggleFadeEnabled(id) {
+  pads[id].fadeEnabled = !pads[id].fadeEnabled;
+  refreshPad(id);
+  scheduleAutosave();
+}
+
+function toggleLoop(id) {
+  const pad = pads[id];
+  pad.loop = !pad.loop;
+  if (pad.audio) pad.audio.loop = pad.loop;
+  refreshPad(id);
+  scheduleAutosave();
+}
+
+// ── Color picker ──────────────────────────────────────────
+function openColorPicker(id) {
+  const inp = document.createElement('input');
+  inp.type = 'color';
+  inp.value = pads[id].color;
+  inp.style.cssText = 'position:fixed;opacity:0;pointer-events:none;width:0;height:0;';
+  document.body.appendChild(inp);
+  inp.addEventListener('input',  () => { pads[id].color = inp.value; refreshPad(id); });
+  inp.addEventListener('change', () => { pads[id].color = inp.value; refreshPad(id); document.body.removeChild(inp); scheduleAutosave(); });
+  inp.addEventListener('cancel', () => { try { document.body.removeChild(inp); } catch {} });
+  inp.click();
+}
+
+// ── File loading ──────────────────────────────────────────
+function browseFile(padId) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'audio/*';
+  inp.onchange = () => inp.files[0] && loadFile(padId, inp.files[0]);
+  inp.click();
+}
+
+function loadFile(padId, file) {
+  const pad = pads[padId];
+  clearFadeTimer(padId);
+  if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
+  attachAudio(pad, file);
+  pad.name    = pad.name || stripExt(file.name);
+  pad.playing = false;
+  refreshPad(padId);
+  setStatus(`Loaded "${pad.name}"`);
+  scheduleAutosave();
+}
+
+function attachAudio(pad, file) {
+  const audio   = new Audio(URL.createObjectURL(file));
+  audio.loop    = pad.loop;
+  audio.volume  = pad.vol * masterVol;
+  audio.preload = 'auto';
+  audio.addEventListener('ended', () => {
+    if (!pad.loop) {
+      pad.playing = false;
+      refreshPad(pad.id);
+      setStatus(`"${pad.name}" finished`);
+      if (autoAdv) checkAutoAdvance(pad.id);
+    }
+  });
+  pad.file  = file;
+  pad.audio = audio;
+}
+
+// ── Clear pad ─────────────────────────────────────────────
+function clearPad(id) {
+  const pad = pads[id];
+  if (!pad.file) return;
+  clearFadeTimer(id);
+  if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
+  scenes.forEach(s => {
+    s.stack = s.stack.filter(item => item.padId !== id);
+    if (s.stackIdx >= s.stack.length) s.stackIdx = s.stack.length - 1;
+  });
+  pad.file = null; pad.audio = null; pad.name = ''; pad.playing = false;
+  refreshPad(id);
+  renderStack();
+  setStatus(`Pad ${id + 1} cleared`);
+  scheduleAutosave();
+}
+
+// ── Cue Stack ─────────────────────────────────────────────
+function addToStack(padId) {
+  const pad = pads[padId];
+  if (!pad.file) return;
+  getScene().stack.push({ padId });
+  renderStack();
+  setStatus(`"${pad.name}" added to stack (#${getScene().stack.length})`);
+  scheduleAutosave();
+}
+
+function removeFromStack(i) {
+  const s = getScene();
+  s.stack.splice(i, 1);
+  if (s.stackIdx >= s.stack.length) s.stackIdx = s.stack.length - 1;
+  renderStack();
+  scheduleAutosave();
+}
+
+function clearStack() {
+  const s = getScene();
+  s.stack = []; s.stackIdx = -1;
+  renderStack();
+  setStatus('Stack cleared');
+  scheduleAutosave();
+}
+
+function nextCue() {
+  const s = getScene();
+  if (!s.stack.length) return;
+  if (s.stackIdx >= 0 && s.stack[s.stackIdx]) stopPad(s.stack[s.stackIdx].padId, true);
+  s.stackIdx = (s.stackIdx + 1) % s.stack.length;
+  const item = s.stack[s.stackIdx];
+  if (item) { playPad(item.padId, true); renderStack(); }
+}
+
+function playStackItem(i) {
+  const s = getScene();
+  if (s.stackIdx >= 0 && i !== s.stackIdx && s.stack[s.stackIdx]) stopPad(s.stack[s.stackIdx].padId, true);
+  s.stackIdx = i;
+  playPad(s.stack[i].padId, true);
+  renderStack();
+}
+
+function checkAutoAdvance(finishedPadId) {
+  const s = getScene();
+  if (s.stackIdx < 0 || !s.stack[s.stackIdx]) return;
+  if (s.stack[s.stackIdx].padId === finishedPadId) setTimeout(nextCue, 250);
+}
+
+function toggleAutoAdvance() {
+  autoAdv = !autoAdv;
+  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
+  scheduleAutosave();
+}
+
+function renderStack() {
+  const s    = getScene();
+  const list = document.getElementById('stackList');
+  const btn  = document.getElementById('nextBtn');
+  btn.disabled = !s.stack.length;
+  if (!s.stack.length) {
+    list.innerHTML = '<div class="stack-empty">Use <strong>+ Stack</strong> on any loaded pad<br>to build your cue sequence</div>';
+    return;
+  }
+  list.innerHTML = s.stack.map((item, i) => {
+    const pad    = pads[item.padId];
+    const active = i === s.stackIdx;
+    return `<div class="stack-item${active ? ' active' : ''}" onclick="playStackItem(${i})">
+      <span class="stack-n">${i + 1}</span>
+      <div class="stack-dot" style="background:${pad.color}"></div>
+      <span class="stack-lbl">${escHtml(pad.name || 'Unnamed')}</span>
+      <span class="stack-rm" onclick="event.stopPropagation();removeFromStack(${i})">×</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Scenes ────────────────────────────────────────────────
+function switchScene(idx) {
+  currentSceneIdx = idx;
+  renderSceneTabs();
+  renderStack();
+}
+
+function addScene() {
+  const id = sceneIdSeq++;
+  scenes.push({ id, name: `Scene ${scenes.length + 1}`, stack: [], stackIdx: -1 });
+  switchScene(scenes.length - 1);
+  scheduleAutosave();
+}
+
+function removeScene(idx) {
+  if (scenes.length <= 1) return;
+  scenes.splice(idx, 1);
+  if (currentSceneIdx >= scenes.length) currentSceneIdx = scenes.length - 1;
+  renderSceneTabs();
+  renderStack();
+  scheduleAutosave();
+}
+
+function renameScene(idx) {
+  const scene  = scenes[idx];
+  const nameEl = document.querySelector(`[data-scene-idx="${idx}"] .scene-name`);
+  if (!nameEl) return;
+  const old = scene.name;
+  const inp = document.createElement('input');
+  inp.value = old;
+  inp.style.cssText = 'width:70px;background:transparent;border:none;border-bottom:1px solid var(--accent);color:inherit;font-size:11px;outline:none;';
+  inp.onclick = e => e.stopPropagation();
+  const commit = () => { scene.name = inp.value.trim() || old; renderSceneTabs(); scheduleAutosave(); };
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') renderSceneTabs(); });
+  inp.addEventListener('blur', commit);
+  nameEl.innerHTML = '';
+  nameEl.appendChild(inp);
+  inp.focus(); inp.select();
+}
+
+function renderSceneTabs() {
+  const wrap = document.getElementById('sceneTabsWrap');
+  if (!wrap) return;
+  wrap.innerHTML = scenes.map((s, i) => `
+    <div class="scene-tab${i === currentSceneIdx ? ' active' : ''}"
+         data-scene-idx="${i}"
+         onclick="switchScene(${i})"
+         ondblclick="renameScene(${i})">
+      <span class="scene-name">${escHtml(s.name)}</span>
+      ${scenes.length > 1 ? `<span class="scene-tab-rm" onclick="event.stopPropagation();removeScene(${i})">×</span>` : ''}
+    </div>`).join('') +
+    `<button class="scene-add-btn" onclick="addScene()" title="Add scene">+</button>`;
+}
+
+// ── Pad DOM ───────────────────────────────────────────────
+function buildPads() {
+  const grid = document.getElementById('padsGrid');
+  grid.innerHTML = '';
+  pads.forEach(p => {
+    const el = document.createElement('div');
+    el.id = `pad${p.id}`;
+    refreshPadEl(el, p);
+    grid.appendChild(el);
+  });
+  const tile = document.createElement('div');
+  tile.className = 'pad-add-tile';
+  tile.title     = 'Add a new cue pad';
+  tile.innerHTML = '<div class="add-icon">+</div><div class="add-label">Add Cue</div>';
+  tile.addEventListener('click', addPad);
+  grid.appendChild(tile);
+}
+
+function addPad() {
+  const id = pads.length;
+  pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, loop: false, playing: false, vol: 1.0, fadeEnabled: false });
+  buildPads();
+  requestAnimationFrame(() => document.getElementById(`pad${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  setStatus(`Cue pad ${id + 1} added`);
+  scheduleAutosave();
+}
+
+function refreshPadEl(el, pad) {
+  el.className = ['pad', pad.file ? 'loaded' : '', pad.playing ? 'playing' : ''].filter(Boolean).join(' ');
+  el.style.setProperty('--c', pad.color);
+
+  const capClass  = capturing === pad.id ? ' capturing' : '';
+  const keyLabel  = capturing === pad.id ? '…' : (pad.key ? escHtml(pad.key.toUpperCase()) : '—');
+  const nameLabel = pad.file ? escHtml(pad.name) : (pad.name ? `${escHtml(pad.name)} ⚠` : 'Click or drop file');
+  const nameClass = pad.file ? '' : (pad.name ? ' needs-audio' : ' empty');
+  const volPct    = Math.round(pad.vol * 100);
+
+  el.innerHTML = `
+    <div class="pad-tint"></div>
+    ${pad.playing ? '<div class="playing-dot"></div>' : ''}
+    <div class="pad-top">
+      <div class="pad-name${nameClass}" id="pname${pad.id}">${nameLabel}</div>
+      <div class="color-dot" data-action="color" style="background:${pad.color}" title="Change colour"></div>
+      <div class="shortcut-key${capClass}" data-action="capture">${keyLabel}</div>
+    </div>
+    <div class="pad-time-row">
+      <div class="pad-progress" id="pbar${pad.id}"><div class="pad-prog-fill" id="prog${pad.id}"></div></div>
+      <span class="pad-time" id="ptime${pad.id}">--:-- / --:--</span>
+    </div>
+    ${pad.file ? `
+    <div class="pad-footer">
+      <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
+      <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle">↓ FADE</button>
+      <button class="btn-sm play-stop${pad.playing ? ' is-playing' : ''}" data-action="play-stop">${pad.playing ? '■ STOP' : '▶ PLAY'}</button>
+      <button class="btn-sm stack-btn" data-action="stack">+ Stack</button>
+      <button class="btn-sm clear-pad" data-action="clear" title="Remove audio">✕</button>
+    </div>
+    <div class="pad-vol-row">
+      <span class="vol-label">VOL</span>
+      <input class="pad-vol-slider" type="range" min="0" max="1" step="0.01" value="${pad.vol}"
+             id="pvol-${pad.id}" title="Pad volume: ${volPct}%">
+      <span class="vol-pct" id="pvol-pct-${pad.id}">${volPct}%</span>
+    </div>` : `
+    <div class="pad-footer">
+      <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
+    </div>
+    <div class="pad-hint">+ drop audio</div>`}
+  `;
+
+  // Button delegation
+  el.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      switch (btn.dataset.action) {
+        case 'loop':         toggleLoop(pad.id);        break;
+        case 'fade-toggle':  toggleFadeEnabled(pad.id); break;
+        case 'play-stop':    togglePad(pad.id);         break;
+        case 'stack':        addToStack(pad.id);        break;
+        case 'clear':        clearPad(pad.id);          break;
+        case 'capture':      startCapture(pad.id);      break;
+        case 'color':        openColorPicker(pad.id);   break;
+      }
+    });
+  });
+
+  // Volume slider — must use 'input', not click
+  const volSlider = document.getElementById(`pvol-${pad.id}`);
+  if (volSlider) {
+    volSlider.addEventListener('input', e => { e.stopPropagation(); setPadVolume(pad.id, e.target.value); });
+    volSlider.addEventListener('click', e => e.stopPropagation());
+  }
+
+  // Click-to-seek on progress bar
+  const pbar = document.getElementById(`pbar${pad.id}`);
+  if (pbar) {
+    pbar.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!pad.audio?.duration) return;
+      const rect = pbar.getBoundingClientRect();
+      pad.audio.currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * pad.audio.duration;
+    });
+  }
+
+  document.getElementById(`pname${pad.id}`)?.addEventListener('dblclick', () => startRename(pad.id));
+
+  el.addEventListener('click', e => {
+    if (e.target.closest('[data-action],input')) return;
+    pad.file ? togglePad(pad.id) : browseFile(pad.id);
+  });
+  el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', ()  => el.classList.remove('drag-over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) loadFile(pad.id, e.dataTransfer.files[0]);
+  });
+}
+
+function refreshPad(id) {
+  const el = document.getElementById(`pad${id}`);
+  if (el) refreshPadEl(el, pads[id]);
+}
+
+// ── RAF: progress bar + time display ─────────────────────
+function fmt(secs) {
+  const s = Math.floor(secs);
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
+function startRaf() {
+  (function tick() {
+    pads.forEach(pad => {
+      if (!pad.audio || !pad.file) return;
+      const bar    = document.getElementById(`prog${pad.id}`);
+      const timeEl = document.getElementById(`ptime${pad.id}`);
+      const dur = pad.audio.duration;
+      const cur = pad.audio.currentTime;
+      if (bar)    bar.style.width = (dur ? cur / dur * 100 : 0) + '%';
+      if (timeEl) timeEl.textContent = dur ? `${fmt(cur)} / ${fmt(dur)}` : '--:-- / --:--';
+    });
+    requestAnimationFrame(tick);
+  })();
+}
+
+// ── Rename ────────────────────────────────────────────────
+function startRename(id) {
+  const pad    = pads[id];
+  if (!pad.file) return;
+  const nameEl = document.getElementById(`pname${id}`);
+  if (!nameEl) return;
+  const inp = document.createElement('input');
+  inp.value   = pad.name;
+  inp.onclick = e => e.stopPropagation();
+  const commit = () => { pad.name = inp.value.trim() || pad.name; refreshPad(id); renderStack(); scheduleAutosave(); };
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') refreshPad(id); });
+  inp.addEventListener('blur', commit);
+  nameEl.classList.remove('empty');
+  nameEl.innerHTML = '';
+  nameEl.appendChild(inp);
+  inp.focus(); inp.select();
+}
+
+// ── Keyboard ──────────────────────────────────────────────
+function getCombo(e) {
+  const parts = [];
+  if (e.ctrlKey)  parts.push('Ctrl');
+  if (e.altKey)   parts.push('Alt');
+  if (e.shiftKey && !['Shift','Control','Alt','Meta'].includes(e.key)) parts.push('Shift');
+  if (!['Control','Alt','Shift','Meta'].includes(e.key)) {
+    const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+    parts.push(key);
+  }
+  return parts.join('+');
+}
+
+function onKey(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const modalOpen = !document.getElementById('modalOverlay').classList.contains('hidden');
+
+  if (capturingHotkey) {
+    if (['Control','Alt','Shift','Meta'].includes(e.key)) return;
+    e.preventDefault();
+    if (e.key === 'Escape') { cancelHotkeyCapture(); return; }
+    pendingCombo = getCombo(e);
+    capturingHotkey = false;
+    const btn = document.getElementById('captureComboBtn');
+    if (btn) { btn.textContent = pendingCombo; btn.classList.remove('capturing'); }
+    document.getElementById('sh-pad-select')?.removeAttribute('disabled');
+    return;
+  }
+
+  if (capturing !== null) {
+    e.preventDefault();
+    if (e.key === 'Escape') { endCapture(capturing); return; }
+    const newKey   = e.key.toLowerCase();
+    const conflict = pads.find(p => p.id !== capturing && p.key === newKey);
+    if (conflict) { conflict.key = pads[capturing].key; refreshPad(conflict.id); }
+    pads[capturing].key = newKey;
+    endCapture(capturing);
+    return;
+  }
+
+  if (modalOpen) return;
+
+  if (e.key === ' ') { e.preventDefault(); nextCue(); return; }
+
+  const combo  = getCombo(e);
+  const custom = customShortcuts.find(s => s.combo === combo);
+  if (custom?.padId != null && pads[custom.padId]?.file) {
+    e.preventDefault();
+    togglePadCrossfade(custom.padId);
+    return;
+  }
+
+  if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+    const k   = e.key.toLowerCase();
+    const pad = pads.find(p => p.key && p.key === k);
+    if (pad?.file) { e.preventDefault(); togglePadCrossfade(pad.id); }
+  }
+}
+
+// ── Shortcut capture ──────────────────────────────────────
+function startCapture(id) {
+  if (capturing !== null && capturing !== id) endCapture(capturing);
+  capturing = id;
+  refreshPad(id);
+  setStatus('Press any key to assign shortcut — Esc to cancel');
+}
+
+function endCapture(id) {
+  capturing = null;
+  refreshPad(id);
+  const badge = document.getElementById(`sh-pad-key-${id}`);
+  if (badge) { badge.textContent = pads[id].key.toUpperCase(); badge.classList.remove('capturing'); }
+  setStatus('Shortcut saved');
+  scheduleAutosave();
+}
+
+// ── Save / Load ───────────────────────────────────────────
+function sanitizeFilename(n) {
+  return String(n).replace(/[^\w.\- ]/g, '_').trim() || 'project';
+}
+
+async function saveProject(name) {
+  if (!name.trim()) return;
+  name = name.trim();
+  if (!window.showDirectoryPicker) { setStatus('Folder save requires Chrome or Edge'); return; }
+  let dirHandle;
+  try {
+    const parent = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'documents' });
+    dirHandle    = await parent.getDirectoryHandle(sanitizeFilename(name), { create: true });
+  } catch (e) { if (e.name !== 'AbortError') setStatus('Could not create project folder'); return; }
+
+  setStatus('Copying audio files…');
+  const padConfigs = [];
+  for (const p of pads) {
+    const pc = { id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, audioFile: null };
+    if (p.file) {
+      const fname = `pad_${p.id}_${sanitizeFilename(p.file.name)}`;
+      try {
+        const fh = await dirHandle.getFileHandle(fname, { create: true });
+        const w  = await fh.createWritable();
+        await w.write(p.file); await w.close();
+        pc.audioFile = fname;
+      } catch (err) { console.warn('Audio copy failed pad', p.id, err); }
+    }
+    padConfigs.push(pc);
+  }
+
+  const config = {
+    name, version: 3, savedAt: Date.now(),
+    masterVol, autoAdv, fadeDuration, uiScale,
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
+    currentSceneIdx,
+    customShortcuts,
+    pads: padConfigs,
+  };
+  try {
+    const fh = await dirHandle.getFileHandle('cue-project.json', { create: true });
+    const w  = await fh.createWritable();
+    await w.write(JSON.stringify(config, null, 2)); await w.close();
+  } catch (e) { setStatus('Failed to write project config'); return; }
+
+  await dbPut('projects', { name, savedAt: Date.now(), dirHandle });
+  localStorage.removeItem('cue-autosave');
+  closeModal();
+  setStatus(`"${name}" saved — ${padConfigs.filter(p => p.audioFile).length} audio file(s)`);
+}
+
+async function loadProject(name) {
+  const entry = await dbGet('projects', name);
+  if (!entry?.dirHandle) { setStatus('Project entry not found'); return; }
+  let perm;
+  try   { perm = await entry.dirHandle.requestPermission({ mode: 'readwrite' }); }
+  catch { perm = 'denied'; }
+  if (perm !== 'granted') { showBrowsePrompt(name); return; }
+  await doLoadFromFolder(entry.dirHandle, name);
+}
+
+async function doLoadFromFolder(dirHandle, projectName) {
+  let config;
+  try {
+    const fh = await dirHandle.getFileHandle('cue-project.json');
+    config   = JSON.parse(await (await fh.getFile()).text());
+  } catch { setStatus('No cue-project.json found in this folder'); return; }
+
+  pads.forEach(p => { clearFadeTimer(p.id); if (p.audio) { p.audio.pause(); p.audio.src = ''; } });
+
+  pads = config.pads.map(pc => ({
+    id:          pc.id,
+    key:         pc.key         ?? '',
+    color:       pc.color       ?? COLORS[pc.id % COLORS.length],
+    name:        pc.name        ?? '',
+    file:        null, audio: null,
+    loop:        pc.loop        ?? false,
+    playing:     false,
+    vol:         pc.vol         ?? 1.0,
+    fadeEnabled: pc.fadeEnabled ?? false,
+  }));
+
+  const missing = [];
+  for (const pc of config.pads) {
+    const pad = pads[pc.id];
+    if (!pad || !pc.audioFile) continue;
+    try {
+      const fh = await dirHandle.getFileHandle(pc.audioFile);
+      attachAudio(pad, await fh.getFile());
+    } catch { missing.push({ padId: pc.id, fileName: pc.audioFile, padName: pc.name }); }
+  }
+
+  if (config.version >= 3 && config.scenes) {
+    scenes = config.scenes.map(s => ({
+      id: s.id, name: s.name,
+      stack:    (s.stack || []).map(padId => ({ padId })),
+      stackIdx: s.stackIdx ?? -1,
+    }));
+    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
+    currentSceneIdx = Math.min(config.currentSceneIdx ?? 0, scenes.length - 1);
+  } else {
+    scenes = [{ id: 0, name: 'Scene 1', stack: (config.stack || []).map(padId => ({ padId })), stackIdx: config.stackIdx ?? -1 }];
+    sceneIdSeq = 1; currentSceneIdx = 0;
+  }
+
+  autoAdv         = config.autoAdv      ?? false;
+  masterVol       = config.masterVol    ?? 1;
+  fadeDuration    = config.fadeDuration ?? 2;
+  uiScale         = config.uiScale      ?? 1.0;
+  customShortcuts = config.customShortcuts ?? [];
+  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
+
+  document.getElementById('volSlider').value    = masterVol;
+  document.getElementById('fadeDurInput').value = fadeDuration;
+  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
+  applyScale();
+
+  buildPads();
+  renderSceneTabs();
+  renderStack();
+
+  if (projectName) await dbPut('projects', { name: projectName, savedAt: config.savedAt ?? Date.now(), dirHandle });
+  localStorage.removeItem('cue-autosave');
+  closeModal();
+
+  if (missing.length) {
+    setStatus(`Loaded — ${missing.length} audio file(s) not found`);
+    showMissingFilesDialog(missing, projectName ?? config.name);
+  } else {
+    setStatus(`"${config.name}" loaded — ${config.pads.filter(p => p.audioFile).length} sound(s) ready`);
+  }
+}
+
+function showMissingFilesDialog(missing, projectName) {
+  openModal('FILES NOT FOUND',
+    `<div style="line-height:1.7">
+      <p style="font-size:13px;margin-bottom:12px">The following audio files were not found:</p>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:14px;">
+        ${missing.map(f => `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;">
+          <span style="background:${pads[f.padId]?.color||'#888'};width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block"></span>
+          <span style="font-size:12px">${escHtml(f.padName||'Pad '+(f.padId+1))}</span>
+          <span style="font-size:10.5px;color:var(--muted);margin-left:auto;font-family:monospace">${escHtml(f.fileName)}</span>
+        </div>`).join('')}
+      </div>
+      <p style="font-size:12px;color:var(--muted)">Browse to the folder containing these files to reload them.</p>
+    </div>`,
+    `<button class="modal-btn" onclick="closeModal()">Skip</button>
+     <button class="modal-btn primary" onclick="browseForFiles('${escAttr(projectName??'')}')">Browse for Folder…</button>`
+  );
+}
+
+function showBrowsePrompt(projectName) {
+  openModal('FOLDER ACCESS NEEDED',
+    `<p style="font-size:13px;line-height:1.7">Permission denied.<br>
+     <span style="font-size:12px;color:var(--muted)">Browse to the saved project folder to load it.</span></p>`,
+    `<button class="modal-btn" onclick="closeModal()">Cancel</button>
+     <button class="modal-btn primary" onclick="browseForFiles('${escAttr(projectName)}')">Browse for Folder…</button>`
+  );
+}
+
+async function browseForFiles(projectName) {
+  closeModal();
+  try {
+    const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    await doLoadFromFolder(dirHandle, projectName || null);
+  } catch (e) { if (e.name !== 'AbortError') setStatus('Could not open folder'); }
+}
+
+async function deleteProject(name, e) {
+  e.stopPropagation();
+  await dbDelete('projects', name);
+  showLoadModal();
+}
+
+// ── Modal UI ──────────────────────────────────────────────
+function openModal(title, bodyHTML, ftrHTML) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML    = bodyHTML;
+  document.getElementById('modalFtr').innerHTML     = ftrHTML;
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+  capturingHotkey = false; pendingCombo = null;
+  if (capturing !== null) { capturing = null; buildPads(); }
+}
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+function showSaveModal() {
+  const defaultName = `Project ${new Date().toLocaleDateString('en-GB')}`;
+  openModal('SAVE PROJECT',
+    `<label class="modal-label">Project name</label>
+     <input class="modal-input" id="saveNameInput" type="text" value="${escHtml(defaultName)}" placeholder="My Show">
+     <p style="margin-top:11px;font-size:11px;color:var(--muted);line-height:1.7">
+       You will be asked to choose a location.<br>
+       A folder named after the project will be created there,<br>
+       and all loaded audio files will be copied into it.
+     </p>`,
+    `<button class="modal-btn" onclick="closeModal()">Cancel</button>
+     <button class="modal-btn save-ok" onclick="saveProject(document.getElementById('saveNameInput').value)">💾 Save &amp; Choose Folder</button>`
+  );
+  requestAnimationFrame(() => { const inp = document.getElementById('saveNameInput'); if (inp) { inp.focus(); inp.select(); } });
+}
+
+async function showLoadModal() {
+  openModal('LOAD PROJECT', '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading…</div>', '');
+  const projects = await dbGetAll('projects');
+  projects.sort((a, b) => b.savedAt - a.savedAt);
+  const bodyHTML = projects.length
+    ? `<div class="proj-list">${projects.map(p => `
+        <div class="proj-item" onclick="loadProject('${escAttr(p.name)}')">
+          <div class="proj-meta">
+            <div class="proj-name">${escHtml(p.name)}</div>
+            <div class="proj-date">${new Date(p.savedAt).toLocaleString()}</div>
+          </div>
+          <button class="proj-del" title="Remove from list" onclick="deleteProject('${escAttr(p.name)}',event)">×</button>
+        </div>`).join('')}</div>`
+    : `<div class="proj-empty">No saved projects yet.<br>Use <strong>Save</strong> to create one.</div>`;
+  document.getElementById('modalBody').innerHTML = bodyHTML;
+  document.getElementById('modalFtr').innerHTML  =
+    `<button class="modal-btn" onclick="browseForFiles('')">Browse Folder…</button>
+     <button class="modal-btn" onclick="closeModal()">Close</button>`;
+}
+
+// ── Shortcuts manager ─────────────────────────────────────
+function showShortcutsModal() {
+  openModal('SHORTCUTS', '', `<button class="modal-btn" onclick="closeModal()">Close</button>`);
+  renderShortcutsModal();
+}
+
+function renderShortcutsModal() {
+  const padRows = pads.map(p => `
+    <div class="sh-pad-row">
+      <div class="sh-key${capturing === p.id ? ' capturing' : ''}"
+           onclick="capturePadKeyFromModal(${p.id})"
+           id="sh-pad-key-${p.id}">${capturing === p.id ? '…' : escHtml(p.key.toUpperCase())}</div>
+      <div class="sh-pad-name${p.file ? '' : ' empty'}">${p.file ? escHtml(p.name) : 'empty'}</div>
+    </div>`).join('');
+
+  const customRows = customShortcuts.length
+    ? customShortcuts.map(s => {
+        const pad = pads[s.padId];
+        const lbl = pad?.file ? escHtml(pad.name) : `Pad ${s.padId + 1}`;
+        return `<div class="sh-custom-row">
+          <div class="sh-key combo">${escHtml(s.combo)}</div>
+          <div class="sh-pad-name">${lbl}</div>
+          <div class="sh-actions">
+            <button class="sh-test" onclick="togglePadCrossfade(${s.padId})" title="Play/Stop">▶</button>
+            <button class="sh-del"  onclick="removeCustomShortcut(${s.id})" title="Delete">×</button>
+          </div>
+        </div>`;
+      }).join('')
+    : '<div class="sh-empty-msg">No custom hotkeys added yet.</div>';
+
+  const padOptions = pads.map(p => `<option value="${p.id}">${p.file ? escHtml(p.name) : `Pad ${p.id + 1} (empty)`}</option>`).join('');
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="sh-sec-hdr">Pad Shortcuts <span class="sh-hint">— click a key badge to remap</span></div>
+    <div class="sh-pad-grid">${padRows}</div>
+    <div class="sh-sec-hdr" style="margin-top:16px">Custom Hotkeys
+      <span class="sh-hint">— Ctrl / Alt / Shift + key, F1–F12, etc.</span>
+    </div>
+    <div class="sh-custom-list" id="sh-custom-list">${customRows}</div>
+    <div class="sh-add-form" id="sh-add-form" style="display:none">
+      <div class="sh-add-row">
+        <span class="sh-add-label">Key</span>
+        <div class="sh-key capturing" id="captureComboBtn" onclick="startHotkeyCapture()" style="cursor:pointer">Press key…</div>
+      </div>
+      <div class="sh-add-row">
+        <span class="sh-add-label">Sound</span>
+        <select class="sh-select" id="sh-pad-select">${padOptions}</select>
+      </div>
+      <div class="sh-form-btns">
+        <button class="modal-btn" onclick="cancelHotkeyCapture()">Cancel</button>
+        <button class="modal-btn primary" onclick="confirmAddHotkey()">+ Add</button>
+      </div>
+    </div>
+    <button class="sh-add-btn" id="sh-add-btn" onclick="showAddHotkeyForm()">+ Add Hotkey</button>
+  `;
+}
+
+function capturePadKeyFromModal(padId) {
+  if (capturing !== null && capturing !== padId) endCapture(capturing);
+  capturing = padId;
+  const badge = document.getElementById(`sh-pad-key-${padId}`);
+  if (badge) { badge.textContent = '…'; badge.classList.add('capturing'); }
+  setStatus('Press any key to assign — Esc to cancel');
+}
+
+function showAddHotkeyForm() {
+  pendingCombo = null; capturingHotkey = false;
+  document.getElementById('sh-add-form').style.display = 'flex';
+  document.getElementById('sh-add-btn').style.display  = 'none';
+  startHotkeyCapture();
+}
+function startHotkeyCapture() {
+  capturingHotkey = true; pendingCombo = null;
+  const btn = document.getElementById('captureComboBtn');
+  if (btn) { btn.textContent = '…'; btn.classList.add('capturing'); }
+  setStatus('Press any key combination — Esc to cancel');
+}
+function cancelHotkeyCapture() {
+  capturingHotkey = false; pendingCombo = null;
+  document.getElementById('sh-add-form').style.display = 'none';
+  document.getElementById('sh-add-btn').style.display  = '';
+  setStatus('');
+}
+function confirmAddHotkey() {
+  if (!pendingCombo) { setStatus('Press a key first'); return; }
+  const padId = parseInt(document.getElementById('sh-pad-select').value, 10);
+  if (customShortcuts.find(s => s.combo === pendingCombo)) { setStatus(`"${pendingCombo}" is already assigned`); return; }
+  customShortcuts.push({ id: shortcutIdSeq++, combo: pendingCombo, padId });
+  pendingCombo = null; capturingHotkey = false;
+  renderShortcutsModal();
+  setStatus(`Hotkey "${customShortcuts[customShortcuts.length - 1].combo}" added`);
+}
+function removeCustomShortcut(id) {
+  customShortcuts = customShortcuts.filter(s => s.id !== id);
+  renderShortcutsModal();
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+function stripExt(name) { return name.replace(/\.[^/.]+$/, ''); }
+function setStatus(msg) { const el = document.getElementById('statusTxt'); if (el) el.textContent = msg; }
+
+// ── UI Scale ──────────────────────────────────────────────
+function adjustScale(delta) {
+  uiScale = Math.min(2.0, Math.max(0.5, Math.round((uiScale + delta) * 100) / 100));
+  applyScale();
+  scheduleAutosave();
+}
+function applyScale() {
+  document.documentElement.style.setProperty('--ui-scale', uiScale);
+  const el = document.getElementById('scaleVal');
+  if (el) el.textContent = Math.round(uiScale * 100) + '%';
+}
+
+// ── Autosave ──────────────────────────────────────────────
+function scheduleAutosave() {
+  clearTimeout(asTimer);
+  asTimer = setTimeout(saveAutosave, 1500);
+}
+function saveAutosave() {
+  const data = {
+    savedAt: Date.now(),
+    masterVol, autoAdv, fadeDuration, uiScale,
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
+    currentSceneIdx,
+    customShortcuts,
+    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, hasAudio: !!p.file })),
+  };
+  try { localStorage.setItem('cue-autosave', JSON.stringify(data)); } catch {}
+}
+function checkAutosave() {
+  let data;
+  try { data = JSON.parse(localStorage.getItem('cue-autosave')); } catch {}
+  if (!data) return;
+  showRestoreDialog(data);
+}
+function showRestoreDialog(data) {
+  const ago = fmtAgo(Date.now() - data.savedAt);
+  const padsWithAudio = (data.pads || []).filter(p => p.hasAudio).length;
+  openModal('RESTORE SESSION?',
+    `<div style="line-height:1.7;font-size:13px">
+      <p>An unsaved session was found from <strong>${ago}</strong>.</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">
+        ${padsWithAudio} loaded sound${padsWithAudio !== 1 ? 's' : ''} — names, settings, scenes and stack order will be restored.<br>
+        Audio files cannot be recovered; pads that had audio will show a <span style="color:var(--loop-col)">⚠</span> warning — drop the files back onto them.
+      </p>
+    </div>`,
+    `<button class="modal-btn" onclick="localStorage.removeItem('cue-autosave');closeModal()">Discard</button>
+     <button class="modal-btn primary" onclick="restoreSessionData(JSON.parse(localStorage.getItem('cue-autosave')));localStorage.removeItem('cue-autosave');closeModal()">Restore</button>`
+  );
+}
+function restoreSessionData(data) {
+  if (!data) return;
+  masterVol    = data.masterVol    ?? 1;
+  autoAdv      = data.autoAdv      ?? false;
+  fadeDuration = data.fadeDuration ?? 2;
+  uiScale      = data.uiScale      ?? 1.0;
+
+  if (data.pads) {
+    while (pads.length < data.pads.length) {
+      const id = pads.length;
+      pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, loop: false, playing: false, vol: 1.0, fadeEnabled: false });
+    }
+    data.pads.forEach(pc => {
+      const pad = pads[pc.id];
+      if (!pad) return;
+      pad.key         = pc.key         ?? pad.key;
+      pad.name        = pc.name        ?? pad.name;
+      pad.loop        = pc.loop        ?? pad.loop;
+      pad.vol         = pc.vol         ?? pad.vol;
+      pad.fadeEnabled = pc.fadeEnabled ?? pad.fadeEnabled;
+      pad.color       = pc.color       ?? pad.color;
+    });
+  }
+
+  if (data.scenes) {
+    scenes = data.scenes.map(s => ({
+      id: s.id, name: s.name,
+      stack:    (s.stack || []).map(padId => ({ padId })),
+      stackIdx: s.stackIdx ?? -1,
+    }));
+    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
+    currentSceneIdx = Math.min(data.currentSceneIdx ?? 0, scenes.length - 1);
+  }
+
+  customShortcuts = data.customShortcuts ?? [];
+  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
+
+  document.getElementById('volSlider').value    = masterVol;
+  document.getElementById('fadeDurInput').value = fadeDuration;
+  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
+  applyScale();
+  buildPads();
+  renderSceneTabs();
+  renderStack();
+  setStatus('Session restored — re-drop any audio files shown with ⚠');
+}
+function fmtAgo(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.floor(m / 60)}h ago`;
+}
+
+// ── Theme ─────────────────────────────────────────────────
+function initTheme() { applyTheme(localStorage.getItem('cue-theme') || 'light'); }
+function toggleTheme() { applyTheme((document.documentElement.dataset.theme || 'dark') === 'dark' ? 'light' : 'dark'); }
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('cue-theme', theme);
+  const btn = document.getElementById('themeBtn');
+  if (btn) { btn.textContent = theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'; }
+}
+</script>
+</body>
+</html>
