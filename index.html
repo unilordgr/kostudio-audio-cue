@@ -825,6 +825,61 @@ kbd {
 .sh-form-btns { display: flex; gap: 6px; justify-content: flex-end; }
 .sh-empty-msg { font-size: 11.5px; color: var(--muted); padding: 8px 0; font-style: italic; }
 
+/* ── Transport Controls ── */
+.pad-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+.transport-pp {
+  flex: 1;
+  height: 36px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.transport-pp .t-icon { font-size: 13px; line-height: 1; }
+.transport-pp:hover { border-color: var(--c); color: var(--c); background: rgba(255,255,255,.08); }
+.transport-pp.is-playing {
+  background: var(--c);
+  border-color: var(--c);
+  color: #000;
+}
+.transport-pp.is-paused {
+  border-color: var(--c);
+  color: var(--c);
+  background: rgba(255,255,255,.04);
+}
+.transport-stop {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.transport-stop:hover { border-color: var(--danger); color: var(--danger); background: rgba(255,51,85,.08); }
+html[data-theme="light"] .transport-pp.is-playing { color: #fff; }
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -936,6 +991,7 @@ let pads = DEFAULT_KEYS.map((key, i) => ({
   filePath:    null,
   loop:        false,
   playing:     false,
+  paused:      false,
   vol:         1.0,
   fadeEnabled: false,
 }));
@@ -1058,28 +1114,34 @@ function playPad(id, withFade = false) {
   const pad = pads[id];
   if (!pad.audio) return;
   clearFadeTimer(id);
-  pad.audio.currentTime = 0;
-  const targetVol = pad.vol * masterVol;
-  if (withFade || pad.fadeEnabled) {
-    pad.audio.volume = 0;
-    pad.audio.play().catch(() => {});
-    pad.playing = true;
-    refreshPad(id);
-    setStatus(`Playing "${pad.name}"`);
-    startFade(id, targetVol, fadeDuration);
-  } else {
-    pad.audio.volume = targetVol;
-    pad.audio.play().catch(() => {});
-    pad.playing = true;
-    refreshPad(id);
-    setStatus(`Playing "${pad.name}"`);
-  }
+  const resuming   = pad.paused;
+  const targetVol  = pad.vol * masterVol;
+  if (!resuming) pad.audio.currentTime = 0;
+  const useFade = !resuming && (withFade || pad.fadeEnabled);
+  pad.audio.volume = useFade ? 0 : targetVol;
+  pad.audio.play().catch(() => {});
+  pad.playing = true;
+  pad.paused  = false;
+  refreshPad(id);
+  setStatus(`${resuming ? 'Resumed' : 'Playing'} "${pad.name}"`);
+  if (useFade) startFade(id, targetVol, fadeDuration);
+}
+
+function pausePad(id) {
+  const pad = pads[id];
+  if (!pad.audio || !pad.playing) return;
+  clearFadeTimer(id);
+  pad.audio.pause();
+  pad.playing = false;
+  pad.paused  = true;
+  refreshPad(id);
+  setStatus(`"${pad.name}" paused`);
 }
 
 function stopPad(id, withFade = false) {
   const pad = pads[id];
   if (!pad.audio) return;
-  if (withFade || pad.fadeEnabled) {
+  if (withFade) {
     startFade(id, 0, fadeDuration, () => {
       if (pad.audio) {
         pad.audio.pause();
@@ -1087,6 +1149,7 @@ function stopPad(id, withFade = false) {
         pad.audio.volume = pad.vol * masterVol;
       }
       pad.playing = false;
+      pad.paused  = false;
       refreshPad(id);
     });
   } else {
@@ -1094,13 +1157,20 @@ function stopPad(id, withFade = false) {
     pad.audio.pause();
     pad.audio.currentTime = 0;
     pad.playing = false;
+    pad.paused  = false;
     refreshPad(id);
   }
 }
 
-// Pad click: toggle this pad only, respects pad.fadeEnabled
+// Pad click: play/pause this pad, fade out any other playing pad
 function togglePad(id) {
-  pads[id].playing ? stopPad(id) : playPad(id);
+  const pad = pads[id];
+  if (pad.playing) {
+    pausePad(id);
+  } else {
+    pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
+    playPad(id);
+  }
 }
 
 // Keyboard / shortcut: always crossfade (fade out others, fade in this)
@@ -1190,6 +1260,7 @@ function attachAudio(pad, file) {
   audio.addEventListener('ended', () => {
     if (!pad.loop) {
       pad.playing = false;
+      pad.paused  = false;
       refreshPad(pad.id);
       setStatus(`"${pad.name}" finished`);
       if (autoAdv) checkAutoAdvance(pad.id);
@@ -1366,7 +1437,7 @@ function buildPads() {
 
 function addPad() {
   const id = pads.length;
-  pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, filePath: null, loop: false, playing: false, vol: 1.0, fadeEnabled: false });
+  pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, filePath: null, loop: false, playing: false, paused: false, vol: 1.0, fadeEnabled: false });
   buildPads();
   requestAnimationFrame(() => document.getElementById(`pad${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   setStatus(`Cue pad ${id + 1} added`);
@@ -1396,10 +1467,16 @@ function refreshPadEl(el, pad) {
       <span class="pad-time" id="ptime${pad.id}">--:-- / --:--</span>
     </div>
     ${pad.file ? `
+    <div class="pad-transport">
+      <button class="transport-pp${pad.playing ? ' is-playing' : pad.paused ? ' is-paused' : ''}" data-action="playpause">
+        <span class="t-icon">${pad.playing ? '⏸' : '▶'}</span>
+        <span>${pad.playing ? 'PAUSE' : pad.paused ? 'RESUME' : 'PLAY'}</span>
+      </button>
+      <button class="transport-stop" data-action="stop" title="Stop & rewind">■</button>
+    </div>
     <div class="pad-footer">
       <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
       <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle">↓ FADE</button>
-      <button class="btn-sm play-stop${pad.playing ? ' is-playing' : ''}" data-action="play-stop">${pad.playing ? '■ STOP' : '▶ PLAY'}</button>
       <button class="btn-sm stack-btn" data-action="stack">+ Stack</button>
       <button class="btn-sm clear-pad" data-action="clear" title="Remove audio">✕</button>
     </div>
@@ -1422,7 +1499,8 @@ function refreshPadEl(el, pad) {
       switch (btn.dataset.action) {
         case 'loop':         toggleLoop(pad.id);        break;
         case 'fade-toggle':  toggleFadeEnabled(pad.id); break;
-        case 'play-stop':    togglePad(pad.id);         break;
+        case 'playpause':    togglePad(pad.id);         break;
+        case 'stop':         stopPad(pad.id, false);    break;
         case 'stack':        addToStack(pad.id);        break;
         case 'clear':        clearPad(pad.id);          break;
         case 'capture':      startCapture(pad.id);      break;
