@@ -12,6 +12,7 @@
     "productName": "Kostudio Audio Cue",
     "files": [
       "main.js",
+      "preload.js",
       "index.html"
     ],
     "win": {

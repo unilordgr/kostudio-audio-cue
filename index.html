@@ -846,8 +846,9 @@ kbd {
 <header>
   <div class="logo">KOSTUDIO AUDIO CUE</div>
   <div class="hdr-sep"></div>
-  <button class="hdr-btn save" onclick="showSaveModal()">💾 Save</button>
-  <button class="hdr-btn"      onclick="showLoadModal()">📂 Load</button>
+  <button class="hdr-btn save" onclick="handleSave()">💾 Save</button>
+  <button class="hdr-btn save" onclick="handleSaveAs()">💾 Save As</button>
+  <button class="hdr-btn"      onclick="handleLoad()">📂 Load</button>
   <button class="hdr-btn"      onclick="showShortcutsModal()">⌨ Shortcuts</button>
   <button class="theme-btn"    onclick="toggleTheme()" id="themeBtn">DARK MODE</button>
   <div class="header-right">
@@ -932,6 +933,7 @@ let pads = DEFAULT_KEYS.map((key, i) => ({
   name:        '',
   file:        null,
   audio:       null,
+  filePath:    null,
   loop:        false,
   playing:     false,
   vol:         1.0,
@@ -955,6 +957,8 @@ let pendingCombo    = null;
 
 const fadeTimers  = {};
 let   asTimer     = null;   // autosave debounce
+let   currentSavePath = null; // last save path (Electron)
+const IS_ELECTRON = !!(typeof window !== 'undefined' && window.electronAPI);
 
 function getScene() { return scenes[currentSceneIdx]; }
 
@@ -1170,6 +1174,7 @@ function loadFile(padId, file) {
   clearFadeTimer(padId);
   if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
   attachAudio(pad, file);
+  pad.filePath = file.path || null;
   pad.name    = pad.name || stripExt(file.name);
   pad.playing = false;
   refreshPad(padId);
@@ -1361,7 +1366,7 @@ function buildPads() {
 
 function addPad() {
   const id = pads.length;
-  pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, loop: false, playing: false, vol: 1.0, fadeEnabled: false });
+  pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, filePath: null, loop: false, playing: false, vol: 1.0, fadeEnabled: false });
   buildPads();
   requestAnimationFrame(() => document.getElementById(`pad${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   setStatus(`Cue pad ${id + 1} added`);
@@ -1804,6 +1809,202 @@ async function showLoadModal() {
      <button class="modal-btn" onclick="closeModal()">Close</button>`;
 }
 
+// ── Save / Load routing ───────────────────────────────────
+function handleSave() {
+  if (IS_ELECTRON) {
+    currentSavePath ? doElectronSave(currentSavePath) : doElectronSaveAs();
+  } else {
+    showSaveModal();
+  }
+}
+function handleSaveAs() {
+  if (IS_ELECTRON) { doElectronSaveAs(); }
+  else             { showSaveModal(); }
+}
+function handleLoad() {
+  if (IS_ELECTRON) { loadElectronProject(); }
+  else             { showLoadModal(); }
+}
+
+// ── Electron Save ─────────────────────────────────────────
+async function doElectronSaveAs() {
+  const defaultPath = currentSavePath || 'My Show.cuepro';
+  const savePath = await window.electronAPI.showSaveDialog(defaultPath);
+  if (!savePath) return;
+  await doElectronSave(savePath);
+}
+
+async function doElectronSave(savePath) {
+  const projectName = savePath.replace(/.*[\\/]/, '').replace(/\.cuepro$/i, '');
+  const config = {
+    name: projectName, version: 4, savedAt: Date.now(),
+    masterVol, autoAdv, fadeDuration, uiScale,
+    scenes: scenes.map(s => ({
+      id: s.id, name: s.name,
+      stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
+    })),
+    currentSceneIdx, customShortcuts,
+    pads: pads.map(p => ({
+      id: p.id, key: p.key, name: p.name,
+      loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color,
+      audioPath: p.filePath || null
+    }))
+  };
+  try {
+    await window.electronAPI.writeTextFile(savePath, JSON.stringify(config, null, 2));
+    currentSavePath = savePath;
+    localStorage.removeItem('cue-autosave');
+    setStatus(`Saved — "${projectName}"`);
+  } catch (e) {
+    setStatus('Save failed: ' + e.message);
+  }
+}
+
+// ── Electron Load ─────────────────────────────────────────
+async function loadElectronProject() {
+  const loadPath = await window.electronAPI.showOpenFileDialog();
+  if (!loadPath) return;
+
+  let config;
+  try {
+    const text = await window.electronAPI.readTextFile(loadPath);
+    config = JSON.parse(text);
+  } catch { setStatus('Could not read project file'); return; }
+
+  pads.forEach(p => { clearFadeTimer(p.id); if (p.audio) { p.audio.pause(); p.audio.src = ''; } });
+
+  pads = (config.pads || []).map(pc => ({
+    id: pc.id, key: pc.key ?? '', color: pc.color ?? COLORS[pc.id % COLORS.length],
+    name: pc.name ?? '', file: null, audio: null, filePath: null,
+    loop: pc.loop ?? false, playing: false, vol: pc.vol ?? 1.0, fadeEnabled: pc.fadeEnabled ?? false
+  }));
+
+  const missing = [];
+  for (const pc of (config.pads || [])) {
+    const pad = pads.find(p => p.id === pc.id);
+    if (!pad || !pc.audioPath) continue;
+    try {
+      const exists = await window.electronAPI.fileExists(pc.audioPath);
+      if (exists) {
+        const buf      = await window.electronAPI.readFile(pc.audioPath);
+        const fileName = pc.audioPath.replace(/.*[\\/]/, '');
+        attachAudio(pad, new File([new Blob([buf])], fileName));
+        pad.filePath = pc.audioPath;
+      } else {
+        missing.push({ padId: pc.id, audioPath: pc.audioPath, padName: pc.name });
+      }
+    } catch {
+      missing.push({ padId: pc.id, audioPath: pc.audioPath, padName: pc.name });
+    }
+  }
+
+  restoreElectronProjectSettings(config);
+  currentSavePath = loadPath;
+  localStorage.removeItem('cue-autosave');
+  buildPads(); renderSceneTabs(); renderStack();
+
+  if (missing.length) {
+    setStatus(`Loaded — ${missing.length} file(s) not found`);
+    showElectronMissingDialog(missing);
+  } else {
+    setStatus(`"${config.name}" loaded — ${pads.filter(p => p.file).length} sound(s) ready`);
+  }
+}
+
+function restoreElectronProjectSettings(config) {
+  if (config.scenes) {
+    scenes = config.scenes.map(s => ({
+      id: s.id, name: s.name,
+      stack: (s.stack || []).map(padId => ({ padId })),
+      stackIdx: s.stackIdx ?? -1
+    }));
+    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
+    currentSceneIdx = Math.min(config.currentSceneIdx ?? 0, scenes.length - 1);
+  } else {
+    scenes = [{ id: 0, name: 'Scene 1', stack: [], stackIdx: -1 }];
+    sceneIdSeq = 1; currentSceneIdx = 0;
+  }
+  autoAdv         = config.autoAdv         ?? false;
+  masterVol       = config.masterVol       ?? 1;
+  fadeDuration    = config.fadeDuration    ?? 2;
+  uiScale         = config.uiScale         ?? 1.0;
+  customShortcuts = config.customShortcuts ?? [];
+  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
+  document.getElementById('volSlider').value      = masterVol;
+  document.getElementById('fadeDurInput').value   = fadeDuration;
+  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
+  applyScale();
+}
+
+// ── Missing files dialog (Electron) ──────────────────────
+let _pendingMissing = [];
+
+function showElectronMissingDialog(missing) {
+  _pendingMissing = missing;
+  const rows = missing.map(f => {
+    const c = pads.find(p => p.id === f.padId)?.color || '#888';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="background:${c};width:7px;height:7px;border-radius:50%;flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600">${escHtml(f.padName || 'Pad ' + (f.padId + 1))}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(f.audioPath)}">${escHtml(f.audioPath)}</div>
+      </div>
+      <button class="modal-btn" id="locate-btn-${f.padId}" style="flex-shrink:0" onclick="electronLocateFile(${f.padId})">Locate…</button>
+    </div>`;
+  }).join('');
+
+  openModal('FILES NOT FOUND',
+    `<p style="font-size:13px;margin-bottom:12px">${missing.length} audio file(s) could not be found at their saved location:</p>
+     <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 12px;margin-bottom:4px">${rows}</div>
+     <p style="font-size:11px;color:var(--muted);margin-top:10px">Use <strong>Locate…</strong> per file, or <strong>Browse Folder</strong> if all files are in the same folder.</p>`,
+    `<button class="modal-btn" onclick="closeModal()">Skip All</button>
+     <button class="modal-btn primary" onclick="electronBrowseFolder()">Browse Folder…</button>`
+  );
+}
+
+async function electronLocateFile(padId) {
+  const filePath = await window.electronAPI.showOpenFileDialog();
+  if (!filePath) return;
+  const pad = pads[padId];
+  if (!pad) return;
+  try {
+    const buf      = await window.electronAPI.readFile(filePath);
+    const fileName = filePath.replace(/.*[\\/]/, '');
+    if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
+    attachAudio(pad, new File([new Blob([buf])], fileName));
+    pad.filePath = filePath;
+    refreshPad(padId);
+    renderStack();
+    const btn = document.getElementById(`locate-btn-${padId}`);
+    if (btn) { btn.textContent = '✓ Linked'; btn.disabled = true; btn.style.cssText += ';border-color:var(--save-col);color:var(--save-col)'; }
+    setStatus(`"${pad.name}" linked`);
+  } catch { setStatus('Could not load file'); }
+}
+
+async function electronBrowseFolder() {
+  const folder = await window.electronAPI.showOpenFolderDialog();
+  if (!folder) return;
+  let found = 0;
+  for (const f of _pendingMissing) {
+    const fileName = f.audioPath.replace(/.*[\\/]/, '');
+    const fullPath = await window.electronAPI.joinPath(folder, fileName);
+    if (!(await window.electronAPI.fileExists(fullPath))) continue;
+    const pad = pads[f.padId];
+    if (!pad) continue;
+    try {
+      const buf = await window.electronAPI.readFile(fullPath);
+      if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
+      attachAudio(pad, new File([new Blob([buf])], fileName));
+      pad.filePath = fullPath;
+      refreshPad(f.padId);
+      found++;
+    } catch {}
+  }
+  renderStack();
+  closeModal();
+  setStatus(`Reconnected ${found} of ${_pendingMissing.length} file(s)`);
+}
+
 // ── Shortcuts manager ─────────────────────────────────────
 function showShortcutsModal() {
   openModal('SHORTCUTS', '', `<button class="modal-btn" onclick="closeModal()">Close</button>`);
@@ -1931,7 +2132,7 @@ function scheduleAutosave() {
 function saveAutosave() {
   const data = {
     savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, uiScale,
+    masterVol, autoAdv, fadeDuration, uiScale, currentSavePath,
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
@@ -1962,10 +2163,11 @@ function showRestoreDialog(data) {
 }
 function restoreSessionData(data) {
   if (!data) return;
-  masterVol    = data.masterVol    ?? 1;
-  autoAdv      = data.autoAdv      ?? false;
-  fadeDuration = data.fadeDuration ?? 2;
-  uiScale      = data.uiScale      ?? 1.0;
+  masterVol       = data.masterVol    ?? 1;
+  autoAdv         = data.autoAdv      ?? false;
+  fadeDuration    = data.fadeDuration ?? 2;
+  uiScale         = data.uiScale      ?? 1.0;
+  currentSavePath = data.currentSavePath || null;
 
   if (data.pads) {
     while (pads.length < data.pads.length) {
