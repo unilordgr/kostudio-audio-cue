@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -24,9 +27,20 @@ jobs:
       - name: Build Windows portable .exe
         run: npm run dist-win
 
-      - name: Upload portable EXE
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: KostudioAudioCue-Windows-Portable
           path: dist/*.exe
           retention-days: 30
+
+      - name: Publish latest release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes 2>/dev/null || true
+          gh release create latest dist/*.exe \
+            --title "Latest Build" \
+            --notes "Latest Windows portable build — just download and run, no installation needed." \
+            --prerelease

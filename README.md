@@ -2,6 +2,12 @@
 
 A professional live performance audio cue manager. Load sounds onto pads, build cue sequences, and trigger them by keyboard shortcut or button — designed for theatre, events, and live shows.
 
+<p align="center">
+  <a href="https://github.com/unilordgr/kostudio-audio-cue/releases/latest">
+    <img src="https://img.shields.io/badge/⬇%20%20DOWNLOAD%20FOR%20WINDOWS-Portable%20.exe%20%E2%80%94%20no%20install%20needed-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows EXE">
+  </a>
+</p>
+
 ![Dark Mode](https://img.shields.io/badge/theme-dark%20%2F%20light-blue) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Browser-lightgrey) ![Portable](https://img.shields.io/badge/windows-portable%20.exe-green)
 
 ---
