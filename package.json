@@ -5,7 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist-win": "electron-builder --win"
+    "dist-win": "electron-builder --win",
+    "dist-mac": "electron-builder --mac"
   },
   "build": {
     "appId": "com.kostudio.audiocue",
@@ -22,6 +23,18 @@
           "arch": ["x64"]
         }
       ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.music"
+    },
+    "dmg": {
+      "title": "Kostudio Audio Cue"
     }
   },
   "devDependencies": {

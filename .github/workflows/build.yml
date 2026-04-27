@@ -1,4 +1,4 @@
-name: Build Windows Portable EXE
+name: Build Windows & Mac
 
 on:
   push:
@@ -27,19 +27,64 @@ jobs:
       - name: Build Windows portable .exe
         run: npm run dist-win
 
-      - name: Upload artifact
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KostudioAudioCue-Windows-Portable
+          name: windows-build
           path: dist/*.exe
-          retention-days: 30
+          retention-days: 7
 
-      - name: Publish latest release
-        shell: bash
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Mac DMG
+        run: npm run dist-mac
+
+      - name: Upload Mac artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-build
+          path: dist/*.dmg
+          retention-days: 7
+
+  publish-release:
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: release-files
+
+      - name: Download Mac build
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-build
+          path: release-files
+
+      - name: Publish release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete latest --yes 2>/dev/null || true
-          gh release create latest dist/*.exe \
+          gh release delete latest --yes --repo ${{ github.repository }} 2>/dev/null || true
+          gh release create latest release-files/* \
+            --repo ${{ github.repository }} \
             --title "Latest Build" \
-            --notes "Latest Windows portable build — just download and run, no installation needed."
+            --notes "Latest build for Windows & Mac — just download and run, no installation needed.
+
+          **Windows:** Download the \`.exe\` — portable, no install required.
+          **Mac:** Download the \`.dmg\`, open it, drag the app to Applications. On first launch right-click → Open if macOS warns you."
