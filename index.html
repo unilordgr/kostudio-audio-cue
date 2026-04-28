@@ -660,6 +660,26 @@ html[data-theme="light"] .prog-active-zone { background: rgba(0,0,0,.09); }
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
 .toggle-sw.on::after { left: 17px; }
+.play-cue-btn {
+  width: 100%;
+  padding: 11px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--playing);
+  color: var(--playing);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  transition: all .15s;
+}
+.play-cue-btn:hover:not(:disabled) { background: var(--playing); color: #000; }
+.play-cue-btn:disabled { opacity: .3; cursor: default; }
+.play-cue-btn.is-playing { border-color: var(--danger); color: var(--danger); }
+.play-cue-btn.is-playing:hover:not(:disabled) { background: var(--danger); color: #fff; }
+html[data-theme="light"] .play-cue-btn:hover:not(:disabled) { color: #fff; }
+html[data-theme="light"] .play-cue-btn.is-playing:hover:not(:disabled) { color: #fff; }
+
 .next-btn {
   width: 100%;
   padding: 10px;
@@ -1116,6 +1136,7 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
       <div class="toggle-sw" id="autoToggle"></div>
       <span>Auto-advance</span>
     </div>
+    <button class="play-cue-btn" id="playCueBtn" onclick="playCue()" disabled>▶ PLAY CUE</button>
     <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled>NEXT CUE ▶</button>
   </div>
 </div>
@@ -1338,6 +1359,7 @@ function stopPad(id, withFade = false) {
       pad.playing = false;
       pad.paused  = false;
       refreshPad(id);
+      updatePlayCueBtn();
     });
   } else {
     clearFadeTimer(id);
@@ -1346,6 +1368,7 @@ function stopPad(id, withFade = false) {
     pad.playing = false;
     pad.paused  = false;
     refreshPad(id);
+    updatePlayCueBtn();
   }
 }
 
@@ -1375,6 +1398,7 @@ function togglePadCrossfade(id) {
 function stopAll() {
   pads.forEach(p => { if (p.playing) stopPad(p.id, false); });
   setStatus('All stopped');
+  updatePlayCueBtn();
 }
 
 function setMasterVolume(v) {
@@ -1479,6 +1503,7 @@ function attachAudio(pad, file) {
       pad.playing = false;
       pad.paused  = false;
       refreshPad(pad.id);
+      updatePlayCueBtn();
       setStatus(`"${pad.name}" finished`);
       if (autoAdv) checkAutoAdvance(pad.id);
     }
@@ -1536,15 +1561,46 @@ function nextCue() {
   if (s.stackIdx >= 0 && s.stack[s.stackIdx]) stopPad(s.stack[s.stackIdx].padId, true);
   s.stackIdx = (s.stackIdx + 1) % s.stack.length;
   const item = s.stack[s.stackIdx];
-  if (item) { playPad(item.padId, true); renderStack(); }
+  if (item) { playPad(item.padId, true); renderStack(); updatePlayCueBtn(); }
 }
 
 function playStackItem(i) {
+  // Clicking a stack item only selects it — use PLAY CUE to start playback
   const s = getScene();
-  if (s.stackIdx >= 0 && i !== s.stackIdx && s.stack[s.stackIdx]) stopPad(s.stack[s.stackIdx].padId, true);
   s.stackIdx = i;
-  playPad(s.stack[i].padId, true);
   renderStack();
+}
+
+function playCue() {
+  const s = getScene();
+  if (s.stackIdx < 0 || !s.stack[s.stackIdx]) return;
+  const item = s.stack[s.stackIdx];
+  const pad  = pads[item.padId];
+  if (pad.playing) {
+    // Already playing → stop it
+    stopPad(item.padId, true);
+    updatePlayCueBtn();
+  } else {
+    // Stop everything, then play selected cue
+    pads.forEach(p => { if (p.playing) stopPad(p.id, false); });
+    playPad(item.padId, true);
+    updatePlayCueBtn();
+  }
+}
+
+function updatePlayCueBtn() {
+  const btn = document.getElementById('playCueBtn');
+  if (!btn) return;
+  const s = getScene();
+  const hasSelection = s.stackIdx >= 0 && !!s.stack[s.stackIdx];
+  btn.disabled = !hasSelection;
+  if (hasSelection && pads[s.stack[s.stackIdx].padId].playing) {
+    btn.textContent = '■ STOP CUE';
+    btn.classList.add('is-playing');
+  } else {
+    btn.textContent = '▶ PLAY CUE';
+    btn.classList.remove('is-playing');
+  }
 }
 
 function checkAutoAdvance(finishedPadId) {
@@ -1566,6 +1622,7 @@ function renderStack() {
   btn.disabled = !s.stack.length;
   if (!s.stack.length) {
     list.innerHTML = '<div class="stack-empty">Use <strong>+ Stack</strong> on any loaded pad<br>to build your cue sequence</div>';
+    updatePlayCueBtn();
     return;
   }
   list.innerHTML = s.stack.map((item, i) => {
@@ -1578,6 +1635,7 @@ function renderStack() {
       <span class="stack-rm" onclick="event.stopPropagation();removeFromStack(${i})">×</span>
     </div>`;
   }).join('');
+  updatePlayCueBtn();
 }
 
 // ── Scenes ────────────────────────────────────────────────

@@ -48,6 +48,9 @@ A professional live performance audio cue manager. Load sounds onto pads, build 
 
 ### Cue Stack
 - **Drag cues into a sequence** and step through them with `SPACE` or the Next Cue button
+- **Click to select** — clicking a stack item selects it without playing (highlights in blue)
+- **▶ PLAY CUE** — dedicated button plays the selected cue, stops all other audio first
+- **■ STOP CUE** — the same button transforms while playing; click again to stop with fade
 - **Multiple Scenes** — separate stacks per scene (e.g. Act 1, Act 2), tab-switched instantly
 - **Auto-advance** — automatically moves to the next cue when the current one finishes
 - **Stack text scale** — independently resize the cue stack text with − / + buttons
