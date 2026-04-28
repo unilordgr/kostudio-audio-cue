@@ -996,6 +996,61 @@ html[data-theme="light"] .inout-btn.set { background: rgba(0,0,0,.04); }
 }
 html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 0%,#ffffff 100%); }
 
+/* ── Update banner ── */
+#updateBanner {
+  position: fixed;
+  bottom: var(--footer-h);
+  left: 0;
+  right: var(--stack-w);
+  z-index: 500;
+  background: var(--surface2);
+  border-top: 1px solid var(--accent);
+  padding: 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  transform: translateY(100%);
+  transition: transform .3s ease;
+  pointer-events: none;
+}
+#updateBanner.visible {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.upd-icon { font-size: 14px; flex-shrink: 0; }
+.upd-label { flex: 1; color: var(--text); }
+.upd-bar-wrap {
+  width: 120px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.upd-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  width: 0%;
+  transition: width .3s;
+}
+.upd-pct { font-family: monospace; font-size: 10px; color: var(--muted); min-width: 32px; text-align: right; flex-shrink: 0; }
+.upd-dismiss {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 2px 9px;
+  cursor: pointer;
+  transition: all .12s;
+  flex-shrink: 0;
+}
+.upd-dismiss:hover { border-color: var(--accent); color: var(--accent); }
+.upd-success { border-top-color: var(--save-col); }
+.upd-success .upd-bar-fill { background: var(--save-col); }
+
 </style>
 </head>
 <body>
@@ -1080,6 +1135,14 @@ html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-ftr" id="modalFtr"></div>
   </div>
+</div>
+
+<div id="updateBanner">
+  <span class="upd-icon">⬇</span>
+  <span class="upd-label" id="updLabel">Downloading update…</span>
+  <div class="upd-bar-wrap"><div class="upd-bar-fill" id="updBar"></div></div>
+  <span class="upd-pct" id="updPct"></span>
+  <button class="upd-dismiss" onclick="document.getElementById('updateBanner').classList.remove('visible')">✕</button>
 </div>
 
 <script>
@@ -2506,6 +2569,44 @@ function fmtAgo(ms) {
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ago`;
   return `${Math.floor(m / 60)}h ago`;
+}
+
+// ── In-app update progress ────────────────────────────────
+if (typeof window !== 'undefined' && window.electronAPI?.onUpdateProgress) {
+  window.electronAPI.onUpdateProgress(({ percent, label }) => {
+    const banner = document.getElementById('updateBanner');
+    const lbl    = document.getElementById('updLabel');
+    const bar    = document.getElementById('updBar');
+    const pct    = document.getElementById('updPct');
+    banner.classList.remove('upd-success');
+    banner.classList.add('visible');
+    if (lbl) lbl.textContent = label || 'Downloading update…';
+    if (bar) bar.style.width = (percent >= 0 ? percent : 30) + '%';
+    if (pct) pct.textContent = percent >= 0 ? percent + '%' : '';
+    // Indeterminate animation when percent unknown
+    if (percent < 0 && bar) bar.style.transition = 'none';
+  });
+
+  window.electronAPI.onUpdateReady(({ message }) => {
+    const banner = document.getElementById('updateBanner');
+    const lbl    = document.getElementById('updLabel');
+    const bar    = document.getElementById('updBar');
+    const pct    = document.getElementById('updPct');
+    banner.classList.add('visible', 'upd-success');
+    if (lbl) lbl.textContent = message || 'Update ready!';
+    if (bar) bar.style.width = '100%';
+    if (pct) pct.textContent = '✓';
+  });
+
+  window.electronAPI.onUpdateError(({ message }) => {
+    const banner = document.getElementById('updateBanner');
+    const lbl    = document.getElementById('updLabel');
+    const bar    = document.getElementById('updBar');
+    banner.classList.add('visible');
+    if (lbl) lbl.textContent = '⚠ ' + (message || 'Update failed');
+    if (bar) bar.style.width = '0%';
+    setStatus('Update error: ' + (message || 'unknown'));
+  });
 }
 
 // ── Theme ─────────────────────────────────────────────────

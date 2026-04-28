@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, net } = require('electron');
-const path = require('path');
-const fs   = require('fs');
+const path    = require('path');
+const fs      = require('fs');
+const https   = require('https');
+const os      = require('os');
+const { spawn, exec } = require('child_process');
 
 app.commandLine.appendSwitch('enable-experimental-web-platform-features');
 
@@ -27,7 +30,6 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
-  // Check for updates a few seconds after launch so the UI is ready first
   setTimeout(() => checkForUpdates(), 4000);
 });
 
@@ -36,7 +38,7 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
-// ── Auto-update check ─────────────────────────────────────
+// ── Auto-update ───────────────────────────────────────────
 
 async function checkForUpdates() {
   try {
@@ -47,9 +49,9 @@ async function checkForUpdates() {
     if (!res.ok) return;
     const data = await res.json();
 
-    const latestTag = data.tag_name || '';          // e.g. "v1.2.0"
-    const latestVer = latestTag.replace(/^v/, '');  // "1.2.0"
-    const currentVer = app.getVersion();            // from package.json
+    const latestTag = data.tag_name || '';
+    const latestVer = latestTag.replace(/^v/, '');
+    const currentVer = app.getVersion();
 
     if (!latestVer || !isNewerVersion(latestVer, currentVer)) return;
 
@@ -60,20 +62,173 @@ async function checkForUpdates() {
       type: 'info',
       title: 'Update Available',
       message: `Kostudio Audio Cue ${latestTag} is available`,
-      detail: `You are running version ${currentVer}.\n\nWould you like to go to the download page?`,
-      buttons: ['Download Update', 'Later'],
+      detail: `You are running version ${currentVer}.\n\nThe update will download in the background — you can keep working.`,
+      buttons: ['Download Now', 'Later'],
       defaultId: 0,
       cancelId: 1,
     });
 
     if (response === 0) {
-      shell.openExternal(data.html_url);
+      downloadAndInstall(data, win);
     }
   } catch (e) {
-    // Silently ignore — no internet, rate limit, etc.
     console.log('Update check skipped:', e.message);
   }
 }
+
+async function downloadAndInstall(releaseData, win) {
+  const platform  = process.platform;
+  const arch      = process.arch;
+  const assets    = releaseData.assets || [];
+
+  // Pick the right asset
+  let asset;
+  if (platform === 'win32') {
+    asset = assets.find(a => a.name.endsWith('.exe'));
+  } else if (platform === 'darwin') {
+    // Prefer arm64 on Apple Silicon, fall back to x64
+    asset = assets.find(a => a.name.includes('arm64') && a.name.endsWith('.dmg'))
+         || assets.find(a => a.name.endsWith('.dmg'));
+  }
+
+  if (!asset) {
+    win.webContents.send('update-error', { message: 'No compatible download found for your platform.' });
+    return;
+  }
+
+  // Destination paths
+  const tmpDir  = os.tmpdir();
+  const destPath = path.join(tmpDir, asset.name);
+
+  win.webContents.send('update-download-progress', { percent: 0, label: `Downloading ${releaseData.tag_name}…` });
+
+  try {
+    await downloadFile(asset.browser_download_url, destPath, (downloaded, total) => {
+      const percent = total ? Math.round(downloaded / total * 100) : -1;
+      win.webContents.send('update-download-progress', { percent, label: `Downloading update… ${percent}%` });
+    });
+  } catch (e) {
+    win.webContents.send('update-error', { message: 'Download failed: ' + e.message });
+    return;
+  }
+
+  if (platform === 'win32') {
+    installWindows(destPath, win);
+  } else if (platform === 'darwin') {
+    installMac(destPath, win);
+  }
+}
+
+function installWindows(newExePath, win) {
+  if (!app.isPackaged) {
+    // Dev mode — just show done
+    win.webContents.send('update-ready', {
+      platform: 'win32-dev',
+      message: '(Dev mode) Update downloaded — would restart in production.'
+    });
+    return;
+  }
+
+  const currentExe = process.execPath;
+  const batPath    = path.join(os.tmpdir(), 'kostudio-updater.bat');
+
+  // Batch script: wait for app to exit, replace exe, relaunch
+  const bat = `@echo off
+chcp 65001 >nul
+timeout /t 3 /nobreak >nul
+:retry
+copy /y "${newExePath}" "${currentExe}" >nul 2>&1
+if errorlevel 1 (
+  timeout /t 1 /nobreak >nul
+  goto retry
+)
+start "" "${currentExe}"
+del "${newExePath}" >nul 2>&1
+del "%~f0" >nul 2>&1
+`;
+
+  fs.writeFileSync(batPath, bat, 'utf8');
+
+  win.webContents.send('update-ready', {
+    platform: 'win32',
+    message: 'Update ready — the app will restart now to apply it.'
+  });
+
+  // Give the renderer a moment to show the message, then quit
+  setTimeout(() => {
+    spawn('cmd.exe', ['/c', batPath], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    app.quit();
+  }, 2500);
+}
+
+function installMac(dmgPath, win) {
+  // Move DMG to ~/Downloads for visibility
+  const downloadsDir = path.join(os.homedir(), 'Downloads');
+  const destDmg      = path.join(downloadsDir, path.basename(dmgPath));
+
+  try { fs.copyFileSync(dmgPath, destDmg); } catch {}
+
+  // Try to mount and copy the .app automatically
+  exec(
+    `hdiutil attach "${destDmg}" -nobrowse -quiet && ` +
+    `cp -R "/Volumes/Kostudio Audio Cue/Kostudio Audio Cue.app" "/Applications/" 2>/dev/null; ` +
+    `hdiutil detach "/Volumes/Kostudio Audio Cue" -quiet 2>/dev/null || true`,
+    (err) => {
+      if (!err) {
+        win.webContents.send('update-ready', {
+          platform: 'darwin-auto',
+          message: 'Update installed! Relaunch the app from /Applications to use the new version.'
+        });
+      } else {
+        // Auto-copy failed — open the DMG so user can drag manually
+        shell.openPath(destDmg);
+        win.webContents.send('update-ready', {
+          platform: 'darwin-manual',
+          message: 'DMG opened — drag Kostudio Audio Cue to Applications to complete the update.'
+        });
+      }
+    }
+  );
+}
+
+// ── Download helper (streams with redirect following) ─────
+
+function downloadFile(url, destPath, onProgress) {
+  return new Promise((resolve, reject) => {
+    const follow = (currentUrl, hops = 0) => {
+      if (hops > 10) { reject(new Error('Too many redirects')); return; }
+      const u = new URL(currentUrl);
+      const options = {
+        hostname: u.hostname,
+        path:     u.pathname + u.search,
+        headers:  { 'User-Agent': 'KostudioAudioCue' },
+      };
+      https.get(options, res => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          follow(res.headers.location, hops + 1);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+        const total = parseInt(res.headers['content-length'] || '0', 10);
+        let downloaded = 0;
+        const file = fs.createWriteStream(destPath);
+        res.on('data', chunk => { downloaded += chunk.length; onProgress?.(downloaded, total); });
+        res.pipe(file);
+        file.on('finish', () => file.close(resolve));
+        file.on('error', reject);
+        res.on('error', reject);
+      }).on('error', reject);
+    };
+    follow(url);
+  });
+}
+
+// ── Version compare ───────────────────────────────────────
 
 function isNewerVersion(latest, current) {
   const parse = v => String(v).split('.').map(n => parseInt(n, 10) || 0);
