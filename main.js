@@ -1,11 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, net } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
 app.commandLine.appendSwitch('enable-experimental-web-platform-features');
 
+let mainWindow = null;
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 960,
@@ -19,15 +21,68 @@ function createWindow() {
     },
   });
 
-  win.loadFile('index.html');
-  win.setMenuBarVisibility(false);
+  mainWindow.loadFile('index.html');
+  mainWindow.setMenuBarVisibility(false);
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  // Check for updates a few seconds after launch so the UI is ready first
+  setTimeout(() => checkForUpdates(), 4000);
+});
+
 app.on('window-all-closed', () => app.quit());
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
+// ── Auto-update check ─────────────────────────────────────
+
+async function checkForUpdates() {
+  try {
+    const res = await net.fetch(
+      'https://api.github.com/repos/unilordgr/kostudio-audio-cue/releases/latest',
+      { headers: { 'User-Agent': 'KostudioAudioCue-UpdateCheck' } }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const latestTag = data.tag_name || '';          // e.g. "v1.2.0"
+    const latestVer = latestTag.replace(/^v/, '');  // "1.2.0"
+    const currentVer = app.getVersion();            // from package.json
+
+    if (!latestVer || !isNewerVersion(latestVer, currentVer)) return;
+
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Update Available',
+      message: `Kostudio Audio Cue ${latestTag} is available`,
+      detail: `You are running version ${currentVer}.\n\nWould you like to go to the download page?`,
+      buttons: ['Download Update', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+
+    if (response === 0) {
+      shell.openExternal(data.html_url);
+    }
+  } catch (e) {
+    // Silently ignore — no internet, rate limit, etc.
+    console.log('Update check skipped:', e.message);
+  }
+}
+
+function isNewerVersion(latest, current) {
+  const parse = v => String(v).split('.').map(n => parseInt(n, 10) || 0);
+  const [lMaj, lMin, lPat] = parse(latest);
+  const [cMaj, cMin, cPat] = parse(current);
+  if (lMaj !== cMaj) return lMaj > cMaj;
+  if (lMin !== cMin) return lMin > cMin;
+  return lPat > cPat;
+}
 
 // ── IPC: File system ──────────────────────────────────────
 
