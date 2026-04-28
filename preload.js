@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOpenFolderDialog: ()              => ipcRenderer.invoke('dialog-open-folder'),
   joinPath:             (...parts)      => ipcRenderer.invoke('path-join', ...parts),
 
+  // Shell
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
   // Update events (main → renderer)
   onUpdateProgress: (cb) => ipcRenderer.on('update-download-progress', (_, data) => cb(data)),
   onUpdateReady:    (cb) => ipcRenderer.on('update-ready',             (_, data) => cb(data)),

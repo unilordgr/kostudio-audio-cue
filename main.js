@@ -285,6 +285,10 @@ function isNewerVersion(latest, current) {
   return lPat > cPat;
 }
 
+// ── IPC: Shell ───────────────────────────────────────────
+
+ipcMain.handle('open-external', (_, url) => shell.openExternal(url));
+
 // ── IPC: File system ──────────────────────────────────────
 
 ipcMain.handle('fs-read-file', async (_, filePath) => {
