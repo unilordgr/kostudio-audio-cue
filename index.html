@@ -210,7 +210,8 @@ main {
   grid-template-columns: repeat(4,1fr);
   gap: 10px;
   zoom: var(--pads-scale);
-  transform-origin: top left;
+  /* width is set dynamically by JS in updateGridWidth() so that
+     css_width × zoom = section content width at every scale level */
 }
 
 /* ── Pad ── */
@@ -315,7 +316,7 @@ main {
 }
 .pad-time-row > .pad-progress {
   flex: 1;
-  cursor: pointer;
+  cursor: grab;
 }
 .pad-time-row > .pad-progress:hover .pad-prog-fill { filter: brightness(1.3); }
 .pad-time {
@@ -336,9 +337,11 @@ main {
   position: relative;
   z-index: 1;
   overflow: hidden;
-  cursor: pointer;
+  cursor: grab;
   width: 100%;
+  touch-action: none;
 }
+.pad-progress.scrubbing { cursor: grabbing; }
 .pad-prog-fill {
   height: 100%;
   background: var(--c);
@@ -1241,6 +1244,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkAutosave();
 });
 
+// Re-fit the grid whenever the pads section changes size (window resize, fullscreen, etc.)
+// ResizeObserver fires after layout is complete, unlike window.resize which can fire mid-reflow.
+new ResizeObserver(() => updateGridWidth()).observe(document.querySelector('.pads-section'));
+
 // ── IndexedDB ─────────────────────────────────────────────
 function initDB() {
   return new Promise((res, rej) => {
@@ -1814,15 +1821,41 @@ function refreshPadEl(el, pad) {
     volSlider.addEventListener('click', e => e.stopPropagation());
   }
 
-  // Click-to-seek on progress bar
+  // Click + drag to scrub progress bar
+  // Uses offsetX / offsetWidth (both in the element's own CSS coordinate space)
+  // so the ratio is correct at any padsScale zoom level — no getBoundingClientRect needed.
   const pbar = document.getElementById(`pbar${pad.id}`);
   if (pbar) {
-    pbar.addEventListener('click', e => {
-      e.stopPropagation();
+    const doSeek = (offsetXInBar) => {
       if (!pad.audio?.duration) return;
-      const rect = pbar.getBoundingClientRect();
-      pad.audio.currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * pad.audio.duration;
+      const frac = Math.max(0, Math.min(1, offsetXInBar / pbar.offsetWidth));
+      pad.audio.currentTime = frac * pad.audio.duration;
+    };
+    // Convert event offsetX to pbar-relative coords even when e.target is a child element
+    const pbarOffsetX = (e) => {
+      if (e.target === pbar) return e.offsetX;
+      // Child elements (fill, markers, zone) all have pbar as offsetParent
+      return e.offsetX + (e.target.offsetLeft || 0);
+    };
+    pbar.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      pbar.setPointerCapture(e.pointerId);
+      pbar.classList.add('scrubbing');
+      doSeek(pbarOffsetX(e));
     });
+    pbar.addEventListener('pointermove', e => {
+      if (!pbar.hasPointerCapture(e.pointerId)) return;
+      e.stopPropagation();
+      // With capture active e.target === pbar, so offsetX is already pbar-relative
+      doSeek(e.offsetX);
+    });
+    pbar.addEventListener('pointerup', e => {
+      e.stopPropagation();
+      pbar.releasePointerCapture(e.pointerId);
+      pbar.classList.remove('scrubbing');
+    });
+    pbar.addEventListener('pointercancel', () => pbar.classList.remove('scrubbing'));
+    pbar.addEventListener('click', e => e.stopPropagation());
   }
 
   document.getElementById(`pname${pad.id}`)?.addEventListener('dblclick', () => startRename(pad.id));
@@ -2553,6 +2586,19 @@ function applyScales() {
   if (pe) pe.textContent = Math.round(padsScale * 100) + '%';
   const se = document.getElementById('stackScaleVal');
   if (se) se.textContent = Math.round(stackScale * 100) + '%';
+  updateGridWidth();
+}
+
+function updateGridWidth() {
+  const section = document.querySelector('.pads-section');
+  const grid    = document.getElementById('padsGrid');
+  if (!section || !grid) return;
+  // Reset to natural width first so clientWidth reads the true available space
+  grid.style.width = '';
+  // section.clientWidth includes its padding (14px each side = 28px total)
+  const availW = section.clientWidth - 28;
+  // Set CSS width so that after zoom: css_width × padsScale = availW
+  grid.style.width = Math.floor(availW / padsScale) + 'px';
 }
 
 // ── Autosave ──────────────────────────────────────────────
