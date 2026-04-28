@@ -20,8 +20,10 @@
   --fade-col: #aa66ff;
   --shadow: rgba(0,0,0,.0);
   --stack-w: 282px;
-  --footer-h: 30px;
-  --ui-scale: 1;
+  --footer-h: 38px;
+  --header-h: 47px;
+  --pads-scale: 1;
+  --stack-text-scale: 1;
 }
 
 html[data-theme="light"] {
@@ -91,38 +93,28 @@ body {
 }
 
 #appWrap {
-  width: calc((100vw - var(--stack-w)) / var(--ui-scale));
-  height: calc((100vh - var(--footer-h)) / var(--ui-scale));
-  zoom: var(--ui-scale);
+  margin-top: var(--header-h);
+  margin-right: var(--stack-w);
+  height: calc(100vh - var(--header-h) - var(--footer-h));
   display: flex;
   flex-direction: column;
   overflow: hidden;
   user-select: none;
 }
 
-#scaleCtrl {
-  position: fixed;
-  bottom: 10px;
-  left: 14px;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 3px 8px;
-}
-
 /* ── Header ── */
 header {
+  position: fixed;
+  top: 0; left: 0; right: var(--stack-w);
+  height: var(--header-h);
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 18px;
+  padding: 0 18px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  box-sizing: border-box;
 }
 .logo {
   font-size: 16px;
@@ -217,6 +209,8 @@ main {
   display: grid;
   grid-template-columns: repeat(4,1fr);
   gap: 10px;
+  zoom: var(--pads-scale);
+  transform-origin: top left;
 }
 
 /* ── Pad ── */
@@ -482,7 +476,7 @@ html[data-theme="light"] .prog-active-zone { background: rgba(0,0,0,.09); }
 .stack-panel {
   position: fixed;
   right: 0;
-  top: 0;
+  top: var(--header-h);
   bottom: var(--footer-h);
   width: var(--stack-w);
   z-index: 10;
@@ -492,13 +486,34 @@ html[data-theme="light"] .prog-active-zone { background: rgba(0,0,0,.09); }
   flex-direction: column;
   overflow: hidden;
 }
+.stack-list, .stack-foot {
+  zoom: var(--stack-text-scale);
+}
 .stack-head {
-  padding: 11px 14px;
+  padding: 8px 10px 8px 14px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+}
+.stack-scale-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+.stack-scale-val {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 30px;
+  text-align: center;
 }
 .stack-title {
   font-size: 11px;
@@ -668,24 +683,33 @@ footer {
   left: 0;
   right: var(--stack-w);
   height: var(--footer-h);
-  z-index: 10;
-  padding: 5px 16px;
+  z-index: 100;
+  padding: 0 14px;
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   font-size: 10.5px;
   color: var(--muted);
 }
-.footer-left { display: flex; align-items: center; gap: 10px; }
-.scale-wrap  { display: flex; align-items: center; gap: 5px; }
+.footer-status { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scale-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
 .scale-btn {
   width: 18px; height: 18px;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 3px;
-  color: var(--muted);
+  color: var(--text);
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
@@ -693,9 +717,9 @@ footer {
   transition: all .15s;
   flex-shrink: 0;
 }
-.scale-btn:hover { border-color: var(--accent); color: var(--accent); }
-.scale-val { font-family: monospace; font-size: 10px; color: var(--muted); min-width: 32px; text-align: center; }
-.scale-lbl { font-size: 10px; color: var(--muted); letter-spacing: .5px; }
+.scale-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,.07); }
+.scale-val { font-family: monospace; font-size: 11px; font-weight: 600; color: var(--text); min-width: 34px; text-align: center; }
+.scale-lbl { font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: 1px; margin-right: 2px; }
 .status-txt { color: var(--text); opacity: .7; }
 .tips { display: flex; gap: 14px; }
 .tip { display: flex; align-items: center; gap: 4px; }
@@ -980,21 +1004,8 @@ html[data-theme="light"] .inout-btn.set { background: rgba(0,0,0,.04); }
   z-index: 1;
 }
 
-/* ── Master controls bar (fixed, unscaled) ── */
-#masterBar {
-  position: fixed;
-  top: 0;
-  right: var(--stack-w);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 18px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  border-left: 1px solid var(--border);
-}
-html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 0%,#ffffff 100%); }
+/* header light-mode tweak */
+html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#f4f7ff 100%); }
 
 /* ── Update banner ── */
 #updateBanner {
@@ -1010,7 +1021,7 @@ html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 
   align-items: center;
   gap: 12px;
   font-size: 11.5px;
-  transform: translateY(100%);
+  transform: translateY(calc(100% + var(--footer-h)));
   transition: transform .3s ease;
   pointer-events: none;
 }
@@ -1055,15 +1066,6 @@ html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 
 </head>
 <body>
 
-<div id="scaleCtrl" class="scale-wrap">
-  <span class="scale-lbl">SCALE</span>
-  <button class="scale-btn" onclick="adjustScale(-0.05)" title="Zoom out">−</button>
-  <span class="scale-val" id="scaleVal">100%</span>
-  <button class="scale-btn" onclick="adjustScale(0.05)" title="Zoom in">+</button>
-</div>
-
-<div id="appWrap">
-
 <header>
   <div class="logo">KOSTUDIO AUDIO CUE</div>
   <div class="hdr-sep"></div>
@@ -1072,35 +1074,39 @@ html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 
   <button class="hdr-btn"      onclick="handleLoad()">📂 Load</button>
   <button class="hdr-btn"      onclick="showShortcutsModal()">⌨ Shortcuts</button>
   <button class="theme-btn"    onclick="toggleTheme()" id="themeBtn">DARK MODE</button>
+  <div class="header-right">
+    <div class="fade-dur-wrap">
+      <span>FADE</span>
+      <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
+             oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
+      <span>s</span>
+    </div>
+    <div class="hdr-sep"></div>
+    <div class="vol-wrap">
+      <span>VOL</span>
+      <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)">
+    </div>
+    <button class="stop-all" onclick="stopAll()">■ STOP ALL</button>
+  </div>
 </header>
 
+<div id="appWrap">
 <main>
   <div class="pads-section">
     <div class="pads-grid" id="padsGrid"></div>
   </div>
-
 </main>
-
 </div><!-- #appWrap -->
-
-<div id="masterBar">
-  <div class="fade-dur-wrap">
-    <span>FADE</span>
-    <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
-           oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
-    <span>s</span>
-  </div>
-  <div class="hdr-sep"></div>
-  <div class="vol-wrap">
-    <span>VOL</span>
-    <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)">
-  </div>
-  <button class="stop-all" onclick="stopAll()">■ STOP ALL</button>
-</div>
 
 <div class="stack-panel">
   <div class="stack-head">
     <span class="stack-title">Cue Stack</span>
+    <div class="stack-scale-wrap">
+      <span class="scale-lbl" style="font-size:9px;margin-right:1px">TEXT</span>
+      <button class="scale-btn" onclick="adjustStackScale(-0.1)" title="Smaller text">−</button>
+      <span class="stack-scale-val" id="stackScaleVal">100%</span>
+      <button class="scale-btn" onclick="adjustStackScale(0.1)" title="Larger text">+</button>
+    </div>
     <button class="clear-btn" onclick="clearStack()">Clear</button>
   </div>
   <div class="scene-tabs-wrap" id="sceneTabsWrap"></div>
@@ -1115,14 +1121,17 @@ html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 
 </div>
 
 <footer>
-  <div class="footer-left">
-    <span class="status-txt" id="statusTxt">Click a pad or drop an audio file to load</span>
+  <span class="status-txt footer-status" id="statusTxt">Click a pad or drop an audio file to load</span>
+  <div class="scale-wrap">
+    <span class="scale-lbl">PADS</span>
+    <button class="scale-btn" onclick="adjustPadsScale(-0.05)" title="Zoom out pads">−</button>
+    <span class="scale-val" id="padsScaleVal">100%</span>
+    <button class="scale-btn" onclick="adjustPadsScale(0.05)" title="Zoom in pads">+</button>
   </div>
   <div class="tips">
-    <div class="tip"><kbd>KEY</kbd> crossfade play</div>
-    <div class="tip"><kbd>SPACE</kbd> next cue</div>
+    <div class="tip"><kbd>KEY</kbd> play</div>
+    <div class="tip"><kbd>SPACE</kbd> next</div>
     <div class="tip">click bar to seek</div>
-    <div class="tip">dbl-click name to rename</div>
   </div>
 </footer>
 
@@ -1180,7 +1189,8 @@ let currentSceneIdx = 0;
 let autoAdv         = false;
 let masterVol       = 1.0;
 let fadeDuration    = 2;
-let uiScale         = 1.0;
+let padsScale       = 1.0;
+let stackScale      = 1.0;
 let capturing       = null;
 let db              = null;
 let customShortcuts = [];
@@ -1206,7 +1216,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('drop',     e => e.preventDefault());
   db = await initDB();
   initTheme();
-  applyScale();
+  applyScales();
   checkAutosave();
 });
 
@@ -1964,7 +1974,7 @@ async function saveProject(name) {
 
   const config = {
     name, version: 3, savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, uiScale,
+    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
@@ -2041,14 +2051,15 @@ async function doLoadFromFolder(dirHandle, projectName) {
   autoAdv         = config.autoAdv      ?? false;
   masterVol       = config.masterVol    ?? 1;
   fadeDuration    = config.fadeDuration ?? 2;
-  uiScale         = config.uiScale      ?? 1.0;
+  padsScale       = config.padsScale    ?? config.uiScale ?? 1.0;
+  stackScale      = config.stackScale   ?? 1.0;
   customShortcuts = config.customShortcuts ?? [];
   shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
 
   document.getElementById('volSlider').value    = masterVol;
   document.getElementById('fadeDurInput').value = fadeDuration;
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
-  applyScale();
+  applyScales();
 
   buildPads();
   renderSceneTabs();
@@ -2188,7 +2199,7 @@ async function doElectronSave(savePath) {
   const projectName = savePath.replace(/.*[\\/]/, '').replace(/\.cuepro$/i, '');
   const config = {
     name: projectName, version: 5, savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, uiScale,
+    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
     scenes: scenes.map(s => ({
       id: s.id, name: s.name,
       stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
@@ -2280,13 +2291,14 @@ function restoreElectronProjectSettings(config) {
   autoAdv         = config.autoAdv         ?? false;
   masterVol       = config.masterVol       ?? 1;
   fadeDuration    = config.fadeDuration    ?? 2;
-  uiScale         = config.uiScale         ?? 1.0;
+  padsScale       = config.padsScale       ?? config.uiScale ?? 1.0;
+  stackScale      = config.stackScale      ?? 1.0;
   customShortcuts = config.customShortcuts ?? [];
   shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
   document.getElementById('volSlider').value      = masterVol;
   document.getElementById('fadeDurInput').value   = fadeDuration;
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
-  applyScale();
+  applyScales();
 }
 
 // ── Missing files dialog (Electron) ──────────────────────
@@ -2466,15 +2478,23 @@ function stripExt(name) { return name.replace(/\.[^/.]+$/, ''); }
 function setStatus(msg) { const el = document.getElementById('statusTxt'); if (el) el.textContent = msg; }
 
 // ── UI Scale ──────────────────────────────────────────────
-function adjustScale(delta) {
-  uiScale = Math.min(2.0, Math.max(0.5, Math.round((uiScale + delta) * 100) / 100));
-  applyScale();
+function adjustPadsScale(delta) {
+  padsScale = Math.min(2.0, Math.max(0.4, Math.round((padsScale + delta) * 100) / 100));
+  applyScales();
   scheduleAutosave();
 }
-function applyScale() {
-  document.documentElement.style.setProperty('--ui-scale', uiScale);
-  const el = document.getElementById('scaleVal');
-  if (el) el.textContent = Math.round(uiScale * 100) + '%';
+function adjustStackScale(delta) {
+  stackScale = Math.min(1.6, Math.max(0.7, Math.round((stackScale + delta) * 10) / 10));
+  applyScales();
+  scheduleAutosave();
+}
+function applyScales() {
+  document.documentElement.style.setProperty('--pads-scale', padsScale);
+  document.documentElement.style.setProperty('--stack-text-scale', stackScale);
+  const pe = document.getElementById('padsScaleVal');
+  if (pe) pe.textContent = Math.round(padsScale * 100) + '%';
+  const se = document.getElementById('stackScaleVal');
+  if (se) se.textContent = Math.round(stackScale * 100) + '%';
 }
 
 // ── Autosave ──────────────────────────────────────────────
@@ -2485,7 +2505,7 @@ function scheduleAutosave() {
 function saveAutosave() {
   const data = {
     savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, uiScale, currentSavePath,
+    masterVol, autoAdv, fadeDuration, padsScale, stackScale, currentSavePath,
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
@@ -2519,7 +2539,8 @@ function restoreSessionData(data) {
   masterVol       = data.masterVol    ?? 1;
   autoAdv         = data.autoAdv      ?? false;
   fadeDuration    = data.fadeDuration ?? 2;
-  uiScale         = data.uiScale      ?? 1.0;
+  padsScale       = data.padsScale    ?? data.uiScale ?? 1.0;
+  stackScale      = data.stackScale   ?? 1.0;
   currentSavePath = data.currentSavePath || null;
 
   if (data.pads) {
@@ -2557,7 +2578,7 @@ function restoreSessionData(data) {
   document.getElementById('volSlider').value    = masterVol;
   document.getElementById('fadeDurInput').value = fadeDuration;
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
-  applyScale();
+  applyScales();
   buildPads();
   renderSceneTabs();
   renderStack();
