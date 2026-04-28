@@ -2726,7 +2726,8 @@ function closeSfxPanel() {
 }
 
 function sfxOpenDocs() {
-  const url = 'https://freesound.org/apiv2/apply/';
+  // Opens the user's registered apps page where the Client ID is visible
+  const url = 'https://freesound.org/apiv2/';
   if (window.electronAPI?.openExternal) window.electronAPI.openExternal(url);
   else window.open(url, '_blank');
 }
@@ -2738,7 +2739,7 @@ async function sfxSearch() {
   const btn   = document.getElementById('sfxSearchBtn');
 
   if (!token) {
-    resEl.innerHTML = '<div class="sfx-msg err">Paste your API token above — click "Get token ↗" to register a free app on Freesound.org</div>';
+    resEl.innerHTML = '<div class="sfx-msg err">Paste your <strong>Client ID</strong> above — go to freesound.org/apiv2/apply/, create an app, then copy the <strong>Client ID</strong> (not the Secret)</div>';
     return;
   }
   if (!query) {
@@ -2757,8 +2758,9 @@ async function sfxSearch() {
   try {
     const apiUrl = `https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(query)}&token=${encodeURIComponent(token)}&fields=id,name,previews,duration,username,license&page_size=20&format=json`;
     const res = await fetch(apiUrl);
-    if (res.status === 401) throw new Error('Invalid API token — check the token and try again');
-    if (!res.ok)            throw new Error(`Freesound error ${res.status}`);
+    if (res.status === 401 || res.status === 403)
+      throw new Error('Authentication failed (403) — make sure you pasted the Client ID, not the Client Secret. Find it at freesound.org/apiv2/ under your app.');
+    if (!res.ok) throw new Error(`Freesound error ${res.status}`);
     const data = await res.json();
     sfxRenderResults(data.results || []);
   } catch (e) {
@@ -3071,11 +3073,11 @@ function applyTheme(theme) {
     <button class="sfx-close" onclick="closeSfxPanel()">×</button>
   </div>
   <div class="sfx-apikey-row">
-    <span class="sfx-apikey-lbl">API TOKEN</span>
-    <input class="sfx-apikey-inp" type="password" id="sfxApiKey"
-           placeholder="Paste your Freesound API token…"
+    <span class="sfx-apikey-lbl">CLIENT ID</span>
+    <input class="sfx-apikey-inp" type="text" id="sfxApiKey"
+           placeholder="Paste your Client ID (not the Secret) from freesound.org/apiv2/apply/"
            oninput="localStorage.setItem('freesound-token', this.value.trim())">
-    <a class="sfx-apikey-link" onclick="sfxOpenDocs()">Get token ↗</a>
+    <a class="sfx-apikey-link" onclick="sfxOpenDocs()">Where to find it ↗</a>
   </div>
   <div class="sfx-search-row">
     <input class="sfx-search-inp" type="text" id="sfxQuery"
