@@ -162,33 +162,62 @@ del "%~f0" >nul 2>&1
 }
 
 function installMac(dmgPath, win) {
-  // Move DMG to ~/Downloads for visibility
+  // Copy DMG to ~/Downloads so it survives after tmp is cleaned
   const downloadsDir = path.join(os.homedir(), 'Downloads');
   const destDmg      = path.join(downloadsDir, path.basename(dmgPath));
-
   try { fs.copyFileSync(dmgPath, destDmg); } catch {}
 
-  // Try to mount and copy the .app automatically
-  exec(
-    `hdiutil attach "${destDmg}" -nobrowse -quiet && ` +
-    `cp -R "/Volumes/Kostudio Audio Cue/Kostudio Audio Cue.app" "/Applications/" 2>/dev/null; ` +
-    `hdiutil detach "/Volumes/Kostudio Audio Cue" -quiet 2>/dev/null || true`,
-    (err) => {
-      if (!err) {
-        win.webContents.send('update-ready', {
-          platform: 'darwin-auto',
-          message: 'Update installed! Relaunch the app from /Applications to use the new version.'
-        });
-      } else {
-        // Auto-copy failed — open the DMG so user can drag manually
+  // Work out where the running .app lives so we replace it in-place.
+  // process.execPath = /some/path/Kostudio Audio Cue.app/Contents/MacOS/Kostudio Audio Cue
+  // Three dirname() calls up = the .app bundle itself.
+  const appName   = 'Kostudio Audio Cue.app';
+  const volName   = 'Kostudio Audio Cue';
+  const mountedApp = `/Volumes/${volName}/${appName}`;
+
+  let targetApp = `/Applications/${appName}`;            // safe default
+  if (app.isPackaged) {
+    const bundle = path.dirname(path.dirname(path.dirname(process.execPath)));
+    if (bundle.endsWith('.app')) targetApp = bundle;     // use actual location
+  }
+
+  const fallback = () => {
+    exec(`hdiutil detach "/Volumes/${volName}" -quiet 2>/dev/null || true`);
+    shell.openPath(destDmg);
+    win.webContents.send('update-ready', {
+      platform: 'darwin-manual',
+      message: 'Could not auto-install. DMG opened — drag Kostudio Audio Cue to Applications to complete the update.'
+    });
+  };
+
+  // Step 1: mount the DMG
+  exec(`hdiutil attach "${destDmg}" -nobrowse -quiet`, (mountErr) => {
+    if (mountErr) { fallback(); return; }
+
+    // Step 2: strip quarantine, delete old bundle, copy new one to exact path
+    const installCmd = [
+      `xattr -r -d com.apple.quarantine "${mountedApp}" 2>/dev/null || true`,
+      `rm -rf "${targetApp}"`,
+      `cp -R "${mountedApp}" "${targetApp}"`,
+    ].join(' && ');
+
+    exec(installCmd, (cpErr) => {
+      // Always detach — fire and forget
+      exec(`hdiutil detach "/Volumes/${volName}" -quiet 2>/dev/null || true`);
+
+      if (cpErr) {
         shell.openPath(destDmg);
         win.webContents.send('update-ready', {
           platform: 'darwin-manual',
-          message: 'DMG opened — drag Kostudio Audio Cue to Applications to complete the update.'
+          message: `Auto-install failed (${cpErr.message}). DMG opened — drag Kostudio Audio Cue to Applications to complete the update.`
+        });
+      } else {
+        win.webContents.send('update-ready', {
+          platform: 'darwin-auto',
+          message: `Update installed to ${path.dirname(targetApp)}.\nClose the app and reopen it from there to use the new version.`
         });
       }
-    }
-  );
+    });
+  });
 }
 
 // ── Download helper (streams with redirect following) ─────
