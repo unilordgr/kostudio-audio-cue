@@ -335,20 +335,49 @@ main {
 }
 
 .pad-progress {
-  height: 3px;
+  height: 10px;
   background: var(--border);
-  border-radius: 2px;
+  border-radius: 5px;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
+  overflow: hidden;
+  cursor: pointer;
+  width: 100%;
 }
 .pad-prog-fill {
   height: 100%;
   background: var(--c);
-  border-radius: 2px;
+  border-radius: 5px;
   width: 0%;
   transition: filter .1s;
 }
+.prog-active-zone {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(255,255,255,.18);
+  pointer-events: none;
+  display: none;
+}
+.prog-in-marker {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 3px;
+  background: #44ff88;
+  pointer-events: none;
+  display: none;
+  box-shadow: 0 0 5px #44ff88;
+}
+.prog-out-marker {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 3px;
+  background: #ff6644;
+  pointer-events: none;
+  display: none;
+  box-shadow: 0 0 5px #ff6644;
+}
+html[data-theme="light"] .prog-active-zone { background: rgba(0,0,0,.09); }
 
 /* Vol row */
 .pad-vol-row {
@@ -885,6 +914,88 @@ html[data-theme="light"] .transport-pp.is-playing { color: #fff; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+/* ── In/Out row ── */
+.inout-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  z-index: 1;
+}
+.inout-btn {
+  font-size: 9px;
+  font-family: monospace;
+  font-weight: 700;
+  letter-spacing: .3px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+.inout-btn:hover { border-color: var(--c); color: var(--c); }
+.inout-btn.set   { border-color: var(--c); color: var(--c); background: rgba(255,255,255,.05); }
+html[data-theme="light"] .inout-btn.set { background: rgba(0,0,0,.04); }
+.inout-spacer { flex: 1; height: 1px; background: var(--border); margin: 0 2px; opacity: .5; }
+
+/* ── Pad left-column layout ── */
+.pad-inner {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.pad-left-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+  flex-shrink: 0;
+  width: 22px;
+  position: relative;
+  z-index: 1;
+}
+.pad-left-col::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  right: -4px;
+  width: 1px;
+  background: var(--c);
+  opacity: .2;
+}
+.pad-right-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Master controls bar (fixed, unscaled) ── */
+#masterBar {
+  position: fixed;
+  top: 0;
+  right: var(--stack-w);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+html[data-theme="light"] #masterBar { background: linear-gradient(90deg,#f4f7ff 0%,#ffffff 100%); }
+
 </style>
 </head>
 <body>
@@ -906,20 +1017,6 @@ html[data-theme="light"] .transport-pp.is-playing { color: #fff; }
   <button class="hdr-btn"      onclick="handleLoad()">📂 Load</button>
   <button class="hdr-btn"      onclick="showShortcutsModal()">⌨ Shortcuts</button>
   <button class="theme-btn"    onclick="toggleTheme()" id="themeBtn">DARK MODE</button>
-  <div class="header-right">
-    <div class="fade-dur-wrap">
-      <span>FADE</span>
-      <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
-             oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
-      <span>s</span>
-    </div>
-    <div class="hdr-sep"></div>
-    <div class="vol-wrap">
-      <span>VOL</span>
-      <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)">
-    </div>
-    <button class="stop-all" onclick="stopAll()">■ STOP ALL</button>
-  </div>
 </header>
 
 <main>
@@ -930,6 +1027,21 @@ html[data-theme="light"] .transport-pp.is-playing { color: #fff; }
 </main>
 
 </div><!-- #appWrap -->
+
+<div id="masterBar">
+  <div class="fade-dur-wrap">
+    <span>FADE</span>
+    <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
+           oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
+    <span>s</span>
+  </div>
+  <div class="hdr-sep"></div>
+  <div class="vol-wrap">
+    <span>VOL</span>
+    <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)">
+  </div>
+  <button class="stop-all" onclick="stopAll()">■ STOP ALL</button>
+</div>
 
 <div class="stack-panel">
   <div class="stack-head">
@@ -994,6 +1106,8 @@ let pads = DEFAULT_KEYS.map((key, i) => ({
   paused:      false,
   vol:         1.0,
   fadeEnabled: false,
+  inPoint:     null,
+  outPoint:    null,
 }));
 
 let scenes          = [{ id: 0, name: 'Scene 1', stack: [], stackIdx: -1 }];
@@ -1116,7 +1230,7 @@ function playPad(id, withFade = false) {
   clearFadeTimer(id);
   const resuming   = pad.paused;
   const targetVol  = pad.vol * masterVol;
-  if (!resuming) pad.audio.currentTime = 0;
+  if (!resuming) pad.audio.currentTime = pad.inPoint ?? 0;
   const useFade = !resuming && (withFade || pad.fadeEnabled);
   pad.audio.volume = useFade ? 0 : targetVol;
   pad.audio.play().catch(() => {});
@@ -1206,6 +1320,36 @@ function setPadVolume(id, v) {
 
 function toggleFadeEnabled(id) {
   pads[id].fadeEnabled = !pads[id].fadeEnabled;
+  refreshPad(id);
+  scheduleAutosave();
+}
+
+function setInPoint(id) {
+  const pad = pads[id];
+  if (!pad.audio) return;
+  if (pad.inPoint !== null) {
+    pad.inPoint = null;
+    setStatus('IN point cleared');
+  } else {
+    pad.inPoint = pad.audio.currentTime;
+    if (pad.outPoint !== null && pad.inPoint >= pad.outPoint) pad.outPoint = null;
+    setStatus(`IN point set at ${fmt(pad.inPoint)}`);
+  }
+  refreshPad(id);
+  scheduleAutosave();
+}
+
+function setOutPoint(id) {
+  const pad = pads[id];
+  if (!pad.audio) return;
+  if (pad.outPoint !== null) {
+    pad.outPoint = null;
+    setStatus('OUT point cleared');
+  } else {
+    pad.outPoint = pad.audio.currentTime;
+    if (pad.inPoint !== null && pad.outPoint <= pad.inPoint) pad.inPoint = null;
+    setStatus(`OUT point set at ${fmt(pad.outPoint)}`);
+  }
   refreshPad(id);
   scheduleAutosave();
 }
@@ -1437,7 +1581,7 @@ function buildPads() {
 
 function addPad() {
   const id = pads.length;
-  pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, filePath: null, loop: false, playing: false, paused: false, vol: 1.0, fadeEnabled: false });
+  pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, filePath: null, loop: false, playing: false, paused: false, vol: 1.0, fadeEnabled: false, inPoint: null, outPoint: null });
   buildPads();
   requestAnimationFrame(() => document.getElementById(`pad${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   setStatus(`Cue pad ${id + 1} added`);
@@ -1453,43 +1597,64 @@ function refreshPadEl(el, pad) {
   const nameLabel = pad.file ? escHtml(pad.name) : (pad.name ? `${escHtml(pad.name)} ⚠` : 'Click or drop file');
   const nameClass = pad.file ? '' : (pad.name ? ' needs-audio' : ' empty');
   const volPct    = Math.round(pad.vol * 100);
+  const inSet     = pad.inPoint  !== null;
+  const outSet    = pad.outPoint !== null;
 
   el.innerHTML = `
     <div class="pad-tint"></div>
     ${pad.playing ? '<div class="playing-dot"></div>' : ''}
-    <div class="pad-top">
-      <div class="pad-name${nameClass}" id="pname${pad.id}">${nameLabel}</div>
-      <div class="color-dot" data-action="color" style="background:${pad.color}" title="Change colour"></div>
-      <div class="shortcut-key${capClass}" data-action="capture">${keyLabel}</div>
+    <div class="pad-inner">
+      <div class="pad-left-col">
+        <div class="color-dot" data-action="color" style="background:${pad.color}" title="Change colour"></div>
+        <div class="shortcut-key${capClass}" data-action="capture">${keyLabel}</div>
+      </div>
+      <div class="pad-right-col">
+        <div class="pad-name${nameClass}" id="pname${pad.id}">${nameLabel}</div>
+        <div class="pad-progress" id="pbar${pad.id}">
+          <div class="pad-prog-fill" id="prog${pad.id}"></div>
+          <div class="prog-active-zone" id="pzone${pad.id}"></div>
+          <div class="prog-in-marker"  id="pin${pad.id}"></div>
+          <div class="prog-out-marker" id="pout${pad.id}"></div>
+        </div>
+        ${pad.file ? `
+        <div class="inout-row">
+          <button class="inout-btn${inSet ? ' set' : ''}" data-action="set-in"
+                  title="${inSet ? 'Click to reset IN point' : 'Set IN point at current position'}">
+            ▶ ${inSet ? fmt(pad.inPoint) : 'IN'}
+          </button>
+          <div class="inout-spacer"></div>
+          <span class="pad-time" id="ptime${pad.id}">--:-- / --:--</span>
+          <div class="inout-spacer"></div>
+          <button class="inout-btn${outSet ? ' set' : ''}" data-action="set-out"
+                  title="${outSet ? 'Click to reset OUT point' : 'Set OUT point at current position'}">
+            ${outSet ? fmt(pad.outPoint) : 'OUT'} ◼
+          </button>
+        </div>
+        <div class="pad-transport">
+          <button class="transport-pp${pad.playing ? ' is-playing' : pad.paused ? ' is-paused' : ''}" data-action="playpause">
+            <span class="t-icon">${pad.playing ? '⏸' : '▶'}</span>
+            <span>${pad.playing ? 'PAUSE' : pad.paused ? 'RESUME' : 'PLAY'}</span>
+          </button>
+          <button class="transport-stop" data-action="stop" title="Stop & rewind">■</button>
+        </div>
+        <div class="pad-footer">
+          <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
+          <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle">↓ FADE</button>
+          <button class="btn-sm stack-btn" data-action="stack">+ Stack</button>
+          <button class="btn-sm clear-pad" data-action="clear" title="Remove audio">✕</button>
+        </div>
+        <div class="pad-vol-row">
+          <span class="vol-label">VOL</span>
+          <input class="pad-vol-slider" type="range" min="0" max="1" step="0.01" value="${pad.vol}"
+                 id="pvol-${pad.id}" title="Pad volume: ${volPct}%">
+          <span class="vol-pct" id="pvol-pct-${pad.id}">${volPct}%</span>
+        </div>` : `
+        <div class="pad-footer">
+          <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
+        </div>
+        <div class="pad-hint">+ drop audio</div>`}
+      </div>
     </div>
-    <div class="pad-time-row">
-      <div class="pad-progress" id="pbar${pad.id}"><div class="pad-prog-fill" id="prog${pad.id}"></div></div>
-      <span class="pad-time" id="ptime${pad.id}">--:-- / --:--</span>
-    </div>
-    ${pad.file ? `
-    <div class="pad-transport">
-      <button class="transport-pp${pad.playing ? ' is-playing' : pad.paused ? ' is-paused' : ''}" data-action="playpause">
-        <span class="t-icon">${pad.playing ? '⏸' : '▶'}</span>
-        <span>${pad.playing ? 'PAUSE' : pad.paused ? 'RESUME' : 'PLAY'}</span>
-      </button>
-      <button class="transport-stop" data-action="stop" title="Stop & rewind">■</button>
-    </div>
-    <div class="pad-footer">
-      <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
-      <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle">↓ FADE</button>
-      <button class="btn-sm stack-btn" data-action="stack">+ Stack</button>
-      <button class="btn-sm clear-pad" data-action="clear" title="Remove audio">✕</button>
-    </div>
-    <div class="pad-vol-row">
-      <span class="vol-label">VOL</span>
-      <input class="pad-vol-slider" type="range" min="0" max="1" step="0.01" value="${pad.vol}"
-             id="pvol-${pad.id}" title="Pad volume: ${volPct}%">
-      <span class="vol-pct" id="pvol-pct-${pad.id}">${volPct}%</span>
-    </div>` : `
-    <div class="pad-footer">
-      <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
-    </div>
-    <div class="pad-hint">+ drop audio</div>`}
   `;
 
   // Button delegation
@@ -1505,11 +1670,13 @@ function refreshPadEl(el, pad) {
         case 'clear':        clearPad(pad.id);          break;
         case 'capture':      startCapture(pad.id);      break;
         case 'color':        openColorPicker(pad.id);   break;
+        case 'set-in':       setInPoint(pad.id);        break;
+        case 'set-out':      setOutPoint(pad.id);       break;
       }
     });
   });
 
-  // Volume slider — must use 'input', not click
+  // Volume slider
   const volSlider = document.getElementById(`pvol-${pad.id}`);
   if (volSlider) {
     volSlider.addEventListener('input', e => { e.stopPropagation(); setPadVolume(pad.id, e.target.value); });
@@ -1556,12 +1723,52 @@ function startRaf() {
   (function tick() {
     pads.forEach(pad => {
       if (!pad.audio || !pad.file) return;
-      const bar    = document.getElementById(`prog${pad.id}`);
-      const timeEl = document.getElementById(`ptime${pad.id}`);
+      const bar     = document.getElementById(`prog${pad.id}`);
+      const timeEl  = document.getElementById(`ptime${pad.id}`);
+      const inMark  = document.getElementById(`pin${pad.id}`);
+      const outMark = document.getElementById(`pout${pad.id}`);
+      const zone    = document.getElementById(`pzone${pad.id}`);
       const dur = pad.audio.duration;
       const cur = pad.audio.currentTime;
       if (bar)    bar.style.width = (dur ? cur / dur * 100 : 0) + '%';
       if (timeEl) timeEl.textContent = dur ? `${fmt(cur)} / ${fmt(dur)}` : '--:-- / --:--';
+
+      if (dur) {
+        // In marker
+        if (inMark) {
+          if (pad.inPoint !== null) {
+            inMark.style.display = '';
+            inMark.style.left = (pad.inPoint / dur * 100) + '%';
+          } else { inMark.style.display = 'none'; }
+        }
+        // Out marker
+        if (outMark) {
+          if (pad.outPoint !== null) {
+            outMark.style.display = '';
+            outMark.style.left = (pad.outPoint / dur * 100) + '%';
+          } else { outMark.style.display = 'none'; }
+        }
+        // Active zone between in/out
+        if (zone) {
+          if (pad.inPoint !== null || pad.outPoint !== null) {
+            const l = (pad.inPoint  !== null ? pad.inPoint  / dur : 0) * 100;
+            const r = (pad.outPoint !== null ? pad.outPoint / dur : 1) * 100;
+            zone.style.display = '';
+            zone.style.left  = l + '%';
+            zone.style.width = (r - l) + '%';
+          } else { zone.style.display = 'none'; }
+        }
+        // Out-point enforcement
+        if (pad.outPoint !== null && pad.playing && cur >= pad.outPoint - 0.05) {
+          if (pad.loop) {
+            pad.audio.currentTime = pad.inPoint ?? 0;
+          } else {
+            stopPad(pad.id, false);
+            setStatus(`"${pad.name}" finished`);
+            if (autoAdv) checkAutoAdvance(pad.id);
+          }
+        }
+      }
     });
     requestAnimationFrame(tick);
   })();
@@ -1679,7 +1886,7 @@ async function saveProject(name) {
   setStatus('Copying audio files…');
   const padConfigs = [];
   for (const p of pads) {
-    const pc = { id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, audioFile: null };
+    const pc = { id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, audioFile: null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null };
     if (p.file) {
       const fname = `pad_${p.id}_${sanitizeFilename(p.file.name)}`;
       try {
@@ -1736,11 +1943,13 @@ async function doLoadFromFolder(dirHandle, projectName) {
     key:         pc.key         ?? '',
     color:       pc.color       ?? COLORS[pc.id % COLORS.length],
     name:        pc.name        ?? '',
-    file:        null, audio: null,
+    file:        null, audio: null, filePath: null,
     loop:        pc.loop        ?? false,
-    playing:     false,
+    playing:     false, paused: false,
     vol:         pc.vol         ?? 1.0,
     fadeEnabled: pc.fadeEnabled ?? false,
+    inPoint:     pc.inPoint     ?? null,
+    outPoint:    pc.outPoint    ?? null,
   }));
 
   const missing = [];
@@ -1915,7 +2124,7 @@ async function doElectronSaveAs() {
 async function doElectronSave(savePath) {
   const projectName = savePath.replace(/.*[\\/]/, '').replace(/\.cuepro$/i, '');
   const config = {
-    name: projectName, version: 4, savedAt: Date.now(),
+    name: projectName, version: 5, savedAt: Date.now(),
     masterVol, autoAdv, fadeDuration, uiScale,
     scenes: scenes.map(s => ({
       id: s.id, name: s.name,
@@ -1925,7 +2134,8 @@ async function doElectronSave(savePath) {
     pads: pads.map(p => ({
       id: p.id, key: p.key, name: p.name,
       loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color,
-      audioPath: p.filePath || null
+      audioPath: p.filePath || null,
+      inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null
     }))
   };
   try {
@@ -1954,7 +2164,9 @@ async function loadElectronProject() {
   pads = (config.pads || []).map(pc => ({
     id: pc.id, key: pc.key ?? '', color: pc.color ?? COLORS[pc.id % COLORS.length],
     name: pc.name ?? '', file: null, audio: null, filePath: null,
-    loop: pc.loop ?? false, playing: false, vol: pc.vol ?? 1.0, fadeEnabled: pc.fadeEnabled ?? false
+    loop: pc.loop ?? false, playing: false, paused: false, vol: pc.vol ?? 1.0,
+    fadeEnabled: pc.fadeEnabled ?? false,
+    inPoint: pc.inPoint ?? null, outPoint: pc.outPoint ?? null
   }));
 
   const missing = [];
@@ -2214,7 +2426,7 @@ function saveAutosave() {
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
-    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, hasAudio: !!p.file })),
+    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, hasAudio: !!p.file, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null })),
   };
   try { localStorage.setItem('cue-autosave', JSON.stringify(data)); } catch {}
 }
@@ -2261,6 +2473,8 @@ function restoreSessionData(data) {
       pad.vol         = pc.vol         ?? pad.vol;
       pad.fadeEnabled = pc.fadeEnabled ?? pad.fadeEnabled;
       pad.color       = pc.color       ?? pad.color;
+      pad.inPoint     = pc.inPoint     ?? null;
+      pad.outPoint    = pc.outPoint    ?? null;
     });
   }
 
