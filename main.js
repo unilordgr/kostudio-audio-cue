@@ -77,14 +77,16 @@ async function checkForUpdates() {
 }
 
 async function downloadAndInstall(releaseData, win) {
-  const platform  = process.platform;
-  const arch      = process.arch;
-  const assets    = releaseData.assets || [];
+  const platform = process.platform;
+  const arch     = process.arch;
+  const assets   = releaseData.assets || [];
 
   // Pick the right asset
   let asset;
   if (platform === 'win32') {
-    asset = assets.find(a => a.name.endsWith('.exe'));
+    // Prefer an arch-specific build; fall back to any .exe
+    asset = assets.find(a => a.name.includes('x64') && a.name.endsWith('.exe'))
+         || assets.find(a => a.name.endsWith('.exe'));
   } else if (platform === 'darwin') {
     // Prefer arm64 on Apple Silicon, fall back to x64
     asset = assets.find(a => a.name.includes('arm64') && a.name.endsWith('.dmg'))
@@ -132,29 +134,44 @@ function installWindows(newExePath, win) {
   const currentExe = process.execPath;
   const batPath    = path.join(os.tmpdir(), 'kostudio-updater.bat');
 
-  // Batch script: wait for app to exit, replace exe, relaunch
+  // Batch script:
+  //  - waits up to 30 s for the app process to release the lock
+  //  - copies the new exe over the old one
+  //  - relaunches
+  //  - cleans up both the downloaded exe and the bat itself
+  // Note: written as ASCII so cmd.exe doesn't need chcp for the paths
+  // (paths are passed via environment variables to stay encoding-safe)
   const bat = `@echo off
-chcp 65001 >nul
-timeout /t 3 /nobreak >nul
+set "NEW_EXE=${newExePath}"
+set "CUR_EXE=${currentExe}"
+set RETRIES=0
 :retry
-copy /y "${newExePath}" "${currentExe}" >nul 2>&1
+copy /y "%NEW_EXE%" "%CUR_EXE%" >nul 2>&1
 if errorlevel 1 (
+  set /a RETRIES+=1
+  if %RETRIES% GEQ 30 goto fail
   timeout /t 1 /nobreak >nul
   goto retry
 )
-start "" "${currentExe}"
-del "${newExePath}" >nul 2>&1
+start "" "%CUR_EXE%"
+del "%NEW_EXE%" >nul 2>&1
 del "%~f0" >nul 2>&1
+exit /b 0
+:fail
+del "%NEW_EXE%" >nul 2>&1
+del "%~f0" >nul 2>&1
+exit /b 1
 `;
 
-  fs.writeFileSync(batPath, bat, 'utf8');
+  fs.writeFileSync(batPath, bat, 'ascii');
 
   win.webContents.send('update-ready', {
     platform: 'win32',
     message: 'Update ready — the app will restart now to apply it.'
   });
 
-  // Give the renderer a moment to show the message, then quit
+  // Give the renderer a moment to display the message, then quit.
+  // The bat's retry loop handles any extra time the process needs to fully exit.
   setTimeout(() => {
     spawn('cmd.exe', ['/c', batPath], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
     app.quit();
