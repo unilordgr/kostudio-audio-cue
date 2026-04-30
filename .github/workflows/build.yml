@@ -83,6 +83,9 @@ jobs:
           name: mac-build
           path: release-files
 
+      - name: Copy iPad web app to release files
+        run: cp index.html "release-files/Kostudio Audio Cue (iPad-Web).html"
+
       - name: Publish versioned release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,5 +99,18 @@ jobs:
             --title "Kostudio Audio Cue $TAG" \
             --notes "## What's new in $TAG
 
-          **Windows:** Download the \`.exe\` — portable, no install required.
-          **Mac:** Download the \`.dmg\`, open it, drag the app to Applications. On first launch right-click → Open if macOS warns you."
+**iPad / Touch support**
+- Open \`Kostudio Audio Cue (iPad-Web).html\` in Safari on your iPad, tap Share → **Add to Home Screen** to install as a standalone app
+- Cue stack moves to a bottom sheet — tap the pill handle to expand/collapse
+- Play Cue + Next Cue always visible in collapsed mode
+- Safari-compatible Save / Load (stored locally on device) with Export/Import for backup and transfer
+- PWA-ready: works offline after first load
+
+**Other changes**
+- Removed non-functional Sound FX / Freesound panel
+
+---
+
+**Windows:** Download the \`.exe\` — portable, no install required.
+**Mac:** Download the \`.dmg\`, open it, drag the app to Applications. On first launch right-click → Open if macOS warns you.
+**iPad / Browser:** Download \`Kostudio Audio Cue (iPad-Web).html\`, open in Safari on iPad and Add to Home Screen."
