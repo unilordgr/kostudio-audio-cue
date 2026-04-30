@@ -35,7 +35,7 @@ jobs:
           retention-days: 7
 
   build-mac:
-    runs-on: macos-latest
+    runs-on: macos-13
 
     steps:
       - name: Checkout code
