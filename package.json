@@ -34,11 +34,12 @@
       "category": "public.app-category.music"
     },
     "dmg": {
-      "title": "Kostudio Audio Cue"
+      "title": "Kostudio Audio Cue",
+      "background": null
     }
   },
   "devDependencies": {
     "electron": "^29.4.6",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^25.1.8"
   }
 }
