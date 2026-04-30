@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kostudio Cue">
+<meta name="theme-color" content="#0d0d0d">
 <title>Kostudio Audio Cue</title>
 <style>
 :root {
@@ -1085,6 +1090,122 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
 .upd-success { border-top-color: var(--save-col); }
 .upd-success .upd-bar-fill { background: var(--save-col); }
 
+/* ═══════════════════════════════════════════════════════════
+   TOUCH / iPAD LAYOUT
+   Activated by (pointer: coarse) — stylus / touch screens
+═══════════════════════════════════════════════════════════ */
+
+/* Stack drawer handle — hidden on desktop */
+.stack-handle {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  height: 26px;
+  flex-shrink: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.stack-handle-pip {
+  width: 40px; height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  opacity: .55;
+  transition: opacity .15s, background .15s;
+}
+.stack-panel.collapsed .stack-handle-pip { opacity: 1; background: var(--accent); }
+
+/* Safe-area insets for iPhone/iPad notch & home bar */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .stack-panel { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@media (pointer: coarse) {
+
+  /* --- Global: remove right margin for stack --- */
+  :root { --stack-w: 0px; }
+
+  /* --- Header: full width, horizontal scroll --- */
+  header {
+    right: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 8px;
+    padding: 0 14px;
+  }
+  header::-webkit-scrollbar { display: none; }
+  .header-right { gap: 8px; }
+
+  /* --- Bigger touch targets --- */
+  .hdr-btn, .theme-btn {
+    padding: 7px 13px;
+    min-height: 40px;
+    font-size: 13px;
+  }
+  .stop-all { padding: 7px 13px; min-height: 40px; }
+
+  /* --- Footer: hidden on touch (scale via pinch or auto) --- */
+  footer { display: none; }
+
+  /* --- App wrapper: shrink to leave room for bottom stack sheet --- */
+  #appWrap {
+    margin-right: 0;
+    height: calc(100dvh - var(--header-h) - var(--stack-sheet-h, 300px));
+  }
+
+  /* --- Stack panel: fixed bottom sheet --- */
+  .stack-panel {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0; top: auto;
+    width: 100%;
+    height: var(--stack-sheet-h, 300px);
+    border: none;
+    border-top: 2px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    transition: height 0.28s cubic-bezier(.4,0,.2,1);
+    z-index: 50;
+  }
+
+  /* --- Show the handle --- */
+  .stack-handle { display: flex; }
+
+  /* --- Collapsed: only handle + foot buttons --- */
+  .stack-panel.collapsed .stack-head,
+  .stack-panel.collapsed .scene-tabs-wrap,
+  .stack-panel.collapsed .stack-list,
+  .stack-panel.collapsed .auto-row { display: none; }
+
+  /* --- Stack foot: buttons side by side on touch --- */
+  .stack-foot {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+  }
+  .auto-row { flex-basis: 100%; order: 1; }
+  .play-cue-btn { flex: 1; min-width: 0; order: 2; padding: 14px 8px; font-size: 14px; }
+  .next-btn     { flex: 1; min-width: 0; order: 3; padding: 14px 8px; font-size: 14px; }
+
+  /* --- Pads: 3 columns default, no keyboard badges --- */
+  .pads-grid { grid-template-columns: repeat(3, 1fr); }
+  .shortcut-key { display: none; }
+
+  /* --- Scrubber: taller hit area for finger --- */
+  .prog-bar { min-height: 14px !important; }
+
+  /* --- Pad buttons: taller --- */
+  .pad-btn { min-height: 34px !important; }
+}
+
+/* iPad landscape / large tablet: 4 columns */
+@media (pointer: coarse) and (min-width: 900px) {
+  .pads-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
 </style>
 </head>
 <body>
@@ -1096,7 +1217,7 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
   <button class="hdr-btn save" onclick="handleSaveAs()">💾 Save As</button>
   <button class="hdr-btn"      onclick="handleLoad()">📂 Load</button>
   <button class="hdr-btn"      onclick="showShortcutsModal()">⌨ Shortcuts</button>
-  <button class="theme-btn"    onclick="toggleTheme()" id="themeBtn">DARK MODE</button>
+<button class="theme-btn"    onclick="toggleTheme()" id="themeBtn">DARK MODE</button>
   <div class="header-right">
     <div class="fade-dur-wrap">
       <span>FADE</span>
@@ -1121,7 +1242,10 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
 </main>
 </div><!-- #appWrap -->
 
-<div class="stack-panel">
+<div class="stack-panel" id="stackPanel">
+  <div class="stack-handle" onclick="toggleStackDrawer()" title="Show / hide cue list">
+    <div class="stack-handle-pip"></div>
+  </div>
   <div class="stack-head">
     <span class="stack-title">Cue Stack</span>
     <div class="stack-scale-wrap">
@@ -1225,7 +1349,28 @@ let pendingCombo    = null;
 const fadeTimers  = {};
 let   asTimer     = null;   // autosave debounce
 let   currentSavePath = null; // last save path (Electron)
-const IS_ELECTRON = !!(typeof window !== 'undefined' && window.electronAPI);
+const IS_ELECTRON       = !!(typeof window !== 'undefined' && window.electronAPI);
+const IS_TOUCH          = window.matchMedia('(pointer: coarse)').matches;
+const HAS_FILE_SYSTEM_API = typeof window.showDirectoryPicker === 'function';
+
+// iOS requires a user-gesture to unlock the Web Audio context.
+// Attach once; after first touch the browser allows audio.playback().
+let _audioUnlocked = false;
+function _unlockIosAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination); src.start(0);
+    setTimeout(() => { try { ctx.close(); } catch {} }, 250);
+  } catch {}
+}
+if (!IS_ELECTRON) {
+  document.addEventListener('touchstart', _unlockIosAudio, { once: true, passive: true });
+  document.addEventListener('touchend',   _unlockIosAudio, { once: true, passive: true });
+}
 
 function getScene() { return scenes[currentSceneIdx]; }
 
@@ -1241,6 +1386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   db = await initDB();
   initTheme();
   applyScales();
+  initTouchLayout();
   checkAutosave();
 });
 
@@ -1251,11 +1397,12 @@ new ResizeObserver(() => updateGridWidth()).observe(document.querySelector('.pad
 // ── IndexedDB ─────────────────────────────────────────────
 function initDB() {
   return new Promise((res, rej) => {
-    const req = indexedDB.open('cue-music', 2);
+    const req = indexedDB.open('cue-music', 3);
     req.onupgradeneeded = e => {
       const d = e.target.result;
-      if (d.objectStoreNames.contains('audio'))    d.deleteObjectStore('audio');
-      if (!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'name' });
+      if (d.objectStoreNames.contains('audio'))         d.deleteObjectStore('audio');
+      if (!d.objectStoreNames.contains('projects'))      d.createObjectStore('projects',      { keyPath: 'name' });
+      if (!d.objectStoreNames.contains('ipad-projects')) d.createObjectStore('ipad-projects', { keyPath: 'name' });
     };
     req.onsuccess = e => res(e.target.result);
     req.onerror   = rej;
@@ -2265,17 +2412,21 @@ async function showLoadModal() {
 function handleSave() {
   if (IS_ELECTRON) {
     currentSavePath ? doElectronSave(currentSavePath) : doElectronSaveAs();
-  } else {
+  } else if (HAS_FILE_SYSTEM_API) {
     showSaveModal();
+  } else {
+    showIdbSaveModal();    // iPad / Safari
   }
 }
 function handleSaveAs() {
-  if (IS_ELECTRON) { doElectronSaveAs(); }
-  else             { showSaveModal(); }
+  if (IS_ELECTRON)          { doElectronSaveAs(); }
+  else if (HAS_FILE_SYSTEM_API) { showSaveModal(); }
+  else                      { showIdbSaveModal(); }
 }
 function handleLoad() {
-  if (IS_ELECTRON) { loadElectronProject(); }
-  else             { showLoadModal(); }
+  if (IS_ELECTRON)          { loadElectronProject(); }
+  else if (HAS_FILE_SYSTEM_API) { showLoadModal(); }
+  else                      { showIdbLoadModal(); }
 }
 
 // ── Electron Save ─────────────────────────────────────────
@@ -2743,6 +2894,243 @@ function applyTheme(theme) {
   const btn = document.getElementById('themeBtn');
   if (btn) { btn.textContent = theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'; }
 }
+
+// ── Touch / iPad ──────────────────────────────────────────
+const STACK_H_EXPANDED  = 310;
+const STACK_H_COLLAPSED = 100;   // handle + side-by-side Play/Next buttons
+let   stackSheetOpen    = true;
+
+function initTouchLayout() {
+  if (!IS_TOUCH) return;
+  document.documentElement.style.setProperty('--stack-sheet-h', STACK_H_EXPANDED + 'px');
+}
+
+function toggleStackDrawer() {
+  if (!IS_TOUCH) return;
+  stackSheetOpen = !stackSheetOpen;
+  const h = stackSheetOpen ? STACK_H_EXPANDED : STACK_H_COLLAPSED;
+  document.documentElement.style.setProperty('--stack-sheet-h', h + 'px');
+  const panel = document.getElementById('stackPanel');
+  if (panel) panel.classList.toggle('collapsed', !stackSheetOpen);
+}
+
+// ── iPad / Safari Save & Load (no File System Access API) ─
+
+async function showIdbSaveModal() {
+  const defaultName = `Show ${new Date().toLocaleDateString('en-GB')}`;
+  openModal('SAVE PROJECT',
+    `<label class="modal-label">Project name</label>
+     <input class="modal-input" id="saveNameInput" type="text" value="${escHtml(defaultName)}" placeholder="My Show" autocorrect="off">
+     <p style="margin-top:11px;font-size:11px;color:var(--muted);line-height:1.8">
+       Saves to this device's browser storage.<br>
+       Tap <strong>Export</strong> in the Load screen to back up or transfer to another device.
+     </p>`,
+    `<button class="modal-btn" onclick="closeModal()">Cancel</button>
+     <button class="modal-btn save-ok" onclick="doSaveProjectIDB(document.getElementById('saveNameInput').value)">💾 Save to Device</button>`
+  );
+  requestAnimationFrame(() => { const inp = document.getElementById('saveNameInput'); if (inp) { inp.focus(); inp.select(); } });
+}
+
+async function doSaveProjectIDB(name) {
+  name = name.trim();
+  if (!name) return;
+  setStatus('Saving…');
+  closeModal();
+
+  // Capture audio as ArrayBuffers while we still hold File references
+  const audioData = {};
+  for (const p of pads) {
+    if (p.file) {
+      try {
+        const buf = await p.file.arrayBuffer();
+        audioData[p.id] = { name: p.file.name, type: p.file.type, buf };
+      } catch (e) { console.warn('Could not read audio for pad', p.id, e); }
+    }
+  }
+
+  const config = {
+    name, version: 4, savedAt: Date.now(),
+    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
+    scenes: scenes.map(s => ({
+      id: s.id, name: s.name,
+      stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
+    })),
+    currentSceneIdx, customShortcuts,
+    pads: pads.map(p => ({
+      id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol,
+      fadeEnabled: p.fadeEnabled, color: p.color,
+      inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null
+    }))
+  };
+
+  try {
+    await dbPut('ipad-projects', { name, config, audioData, savedAt: Date.now() });
+    localStorage.removeItem('cue-autosave');
+    setStatus(`"${name}" saved — ${Object.keys(audioData).length} audio file(s)`);
+  } catch (e) {
+    setStatus('Save failed: ' + e.message);
+  }
+}
+
+async function showIdbLoadModal() {
+  openModal('LOAD PROJECT', '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading…</div>', '');
+  const projects = await dbGetAll('ipad-projects');
+  projects.sort((a, b) => b.savedAt - a.savedAt);
+
+  const bodyHTML = projects.length
+    ? `<div class="proj-list">${projects.map(p => `
+        <div class="proj-item" onclick="loadProjectIDB('${escAttr(p.name)}')">
+          <div class="proj-meta">
+            <div class="proj-name">${escHtml(p.name)}</div>
+            <div class="proj-date">${new Date(p.savedAt).toLocaleString()}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button class="modal-btn" style="padding:4px 10px;font-size:11px;white-space:nowrap"
+              onclick="event.stopPropagation();exportProjectIDB('${escAttr(p.name)}')">Export…</button>
+            <button class="proj-del" title="Delete" onclick="event.stopPropagation();deleteIdbProject('${escAttr(p.name)}')">×</button>
+          </div>
+        </div>`).join('')}</div>`
+    : `<div class="proj-empty">No saved projects.<br>Use <strong>Save</strong> to save your first project.</div>`;
+
+  document.getElementById('modalBody').innerHTML = bodyHTML;
+  document.getElementById('modalFtr').innerHTML =
+    `<button class="modal-btn" onclick="importProjectFile()">📥 Import .cuepro…</button>
+     <button class="modal-btn" onclick="closeModal()">Close</button>`;
+}
+
+async function loadProjectIDB(name) {
+  const entry = await dbGet('ipad-projects', name);
+  if (!entry) { setStatus('Project not found'); return; }
+
+  const { config, audioData } = entry;
+  pads.forEach(p => { clearFadeTimer(p.id); if (p.audio) { p.audio.pause(); p.audio.src = ''; } });
+
+  pads = config.pads.map(pc => ({
+    id: pc.id, key: pc.key ?? '', color: pc.color ?? COLORS[pc.id % COLORS.length],
+    name: pc.name ?? '', file: null, audio: null, filePath: null,
+    loop: pc.loop ?? false, playing: false, paused: false, vol: pc.vol ?? 1.0,
+    fadeEnabled: pc.fadeEnabled ?? false,
+    inPoint: pc.inPoint ?? null, outPoint: pc.outPoint ?? null
+  }));
+
+  // Restore audio from stored ArrayBuffers
+  for (const [idStr, ad] of Object.entries(audioData || {})) {
+    const pad = pads.find(p => p.id === +idStr);
+    if (!pad) continue;
+    try {
+      const file = new File([ad.buf], ad.name, { type: ad.type });
+      attachAudio(pad, file);
+    } catch (e) { console.warn('Could not restore audio for pad', idStr, e); }
+  }
+
+  if (config.scenes) {
+    scenes = config.scenes.map(s => ({
+      id: s.id, name: s.name,
+      stack: (s.stack || []).map(padId => ({ padId })),
+      stackIdx: s.stackIdx ?? -1
+    }));
+    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
+    currentSceneIdx = Math.min(config.currentSceneIdx ?? 0, scenes.length - 1);
+  } else {
+    scenes = [{ id: 0, name: 'Scene 1', stack: [], stackIdx: -1 }];
+    sceneIdSeq = 1; currentSceneIdx = 0;
+  }
+
+  autoAdv         = config.autoAdv      ?? false;
+  masterVol       = config.masterVol    ?? 1;
+  fadeDuration    = config.fadeDuration ?? 2;
+  padsScale       = config.padsScale    ?? 1.0;
+  stackScale      = config.stackScale   ?? 1.0;
+  customShortcuts = config.customShortcuts ?? [];
+  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
+
+  document.getElementById('volSlider').value      = masterVol;
+  document.getElementById('fadeDurInput').value   = fadeDuration;
+  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
+  applyScales();
+  buildPads(); renderSceneTabs(); renderStack();
+  localStorage.removeItem('cue-autosave');
+  closeModal();
+  setStatus(`"${config.name}" loaded — ${Object.keys(audioData || {}).length} sound(s) ready`);
+}
+
+async function deleteIdbProject(name) {
+  await dbDelete('ipad-projects', name);
+  showIdbLoadModal();
+}
+
+// Export project as a self-contained .cuepro file (audio encoded as base64)
+async function exportProjectIDB(name) {
+  const entry = await dbGet('ipad-projects', name);
+  if (!entry) return;
+  setStatus('Exporting…');
+
+  const audioExport = {};
+  for (const [id, ad] of Object.entries(entry.audioData || {})) {
+    try {
+      const bytes = new Uint8Array(ad.buf);
+      let b64 = '';
+      const chunk = 8192;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        b64 += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      audioExport[id] = { name: ad.name, type: ad.type, b64: btoa(b64) };
+    } catch (e) { console.warn('Export audio failed pad', id, e); }
+  }
+
+  const blob = new Blob(
+    [JSON.stringify({ ...entry, audioData: audioExport })],
+    { type: 'application/json' }
+  );
+  const url = URL.createObjectURL(blob);
+  const a   = Object.assign(document.createElement('a'), {
+    href: url, download: sanitizeFilename(name) + '.cuepro'
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  closeModal();
+  setStatus(`"${name}" exported as .cuepro`);
+}
+
+// Import a .cuepro file exported from this app
+function importProjectFile() {
+  const inp = Object.assign(document.createElement('input'), {
+    type: 'file', accept: '.cuepro,application/json'
+  });
+  inp.onchange = async () => {
+    const file = inp.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const projectName = data.config?.name || data.name || 'Imported Project';
+
+      // Decode base64 audio back to ArrayBuffer
+      const audioData = {};
+      for (const [id, ad] of Object.entries(data.audioData || {})) {
+        try {
+          if (ad.b64) {
+            const binary = atob(ad.b64);
+            const buf    = new ArrayBuffer(binary.length);
+            const view   = new Uint8Array(buf);
+            for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+            audioData[id] = { name: ad.name, type: ad.type, buf };
+          } else if (ad.buf) {
+            audioData[id] = ad;   // already an ArrayBuffer (same-device copy)
+          }
+        } catch (e) { console.warn('Could not import audio for pad', id, e); }
+      }
+
+      // Ensure config.name is set
+      if (!data.config) data.config = { ...data, audioData: undefined };
+      data.config.name = projectName;
+
+      await dbPut('ipad-projects', { ...data, audioData, name: projectName, savedAt: Date.now() });
+      await loadProjectIDB(projectName);
+    } catch (e) { setStatus('Import failed: ' + e.message); }
+  };
+  inp.click();
+}
 </script>
+
 </body>
 </html>
