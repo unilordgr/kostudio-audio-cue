@@ -1125,6 +1125,18 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
   /* --- Global: remove right margin for stack --- */
   :root { --stack-w: 0px; }
 
+  /* --- Eliminate 300ms tap delay and grey flash on all interactive elements --- */
+  button, .pad, .pad-add-tile, .hdr-btn, .theme-btn, .stop-all,
+  .stack-handle, .stack-item, .scene-tab, .modal-btn, .clear-btn,
+  .scale-btn, .inout-btn, .transport-pp, .transport-stop,
+  .btn-sm, .color-dot, .shortcut-key, .prog-bar, .pad-progress,
+  [data-action] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Remove tap highlight from pad container too */
+  .pad, .pad-add-tile { -webkit-tap-highlight-color: transparent; }
+
   /* --- Header: full width, horizontal scroll --- */
   header {
     right: 0;
@@ -1630,7 +1642,13 @@ function openColorPicker(id) {
 function browseFile(padId) {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'audio/*';
-  inp.onchange = () => inp.files[0] && loadFile(padId, inp.files[0]);
+  // Must be in DOM for iOS Safari to open the file picker
+  inp.style.cssText = 'position:fixed;top:-200px;left:-200px;opacity:0;pointer-events:none;';
+  document.body.appendChild(inp);
+  inp.addEventListener('change', () => {
+    if (inp.files[0]) loadFile(padId, inp.files[0]);
+    try { document.body.removeChild(inp); } catch {}
+  });
   inp.click();
 }
 
@@ -1879,7 +1897,8 @@ function refreshPadEl(el, pad) {
 
   const capClass  = capturing === pad.id ? ' capturing' : '';
   const keyLabel  = capturing === pad.id ? '…' : (pad.key ? escHtml(pad.key.toUpperCase()) : '—');
-  const nameLabel = pad.file ? escHtml(pad.name) : (pad.name ? `${escHtml(pad.name)} ⚠` : 'Click or drop file');
+  const emptyLabel = IS_TOUCH ? 'Tap to load audio' : 'Click or drop file';
+  const nameLabel = pad.file ? escHtml(pad.name) : (pad.name ? `${escHtml(pad.name)} ⚠` : emptyLabel);
   const nameClass = pad.file ? '' : (pad.name ? ' needs-audio' : ' empty');
   const volPct    = Math.round(pad.vol * 100);
   const inSet     = pad.inPoint  !== null;
@@ -1937,7 +1956,7 @@ function refreshPadEl(el, pad) {
         <div class="pad-footer">
           <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
         </div>
-        <div class="pad-hint">+ drop audio</div>`}
+        <div class="pad-hint">${IS_TOUCH ? 'Tap to load audio' : '+ drop audio'}</div>`}
       </div>
     </div>
   `;
@@ -2005,7 +2024,18 @@ function refreshPadEl(el, pad) {
     pbar.addEventListener('click', e => e.stopPropagation());
   }
 
-  document.getElementById(`pname${pad.id}`)?.addEventListener('dblclick', () => startRename(pad.id));
+  const pnameEl = document.getElementById(`pname${pad.id}`);
+  if (pnameEl) {
+    // Desktop: double-click to rename
+    pnameEl.addEventListener('dblclick', (e) => { e.stopPropagation(); startRename(pad.id); });
+    // Touch: long-press (500ms) to rename
+    if (IS_TOUCH) {
+      let _lpTimer = null;
+      pnameEl.addEventListener('touchstart', () => { _lpTimer = setTimeout(() => startRename(pad.id), 500); }, { passive: true });
+      pnameEl.addEventListener('touchend',   () => clearTimeout(_lpTimer), { passive: true });
+      pnameEl.addEventListener('touchmove',  () => clearTimeout(_lpTimer), { passive: true });
+    }
+  }
 
   el.addEventListener('click', e => {
     if (e.target.closest('[data-action],input')) return;

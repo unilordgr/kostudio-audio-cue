@@ -1,6 +1,6 @@
 {
   "name": "kostudio-audio-cue",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Kostudio Audio Cue — Live Performance Sound Manager",
   "main": "main.js",
   "scripts": {

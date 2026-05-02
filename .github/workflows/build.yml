@@ -104,7 +104,14 @@ jobs:
           cat > /tmp/release-notes.md << NOTES
           ## What's new in ${TAG}
 
-          ### iPad / Touch support
+          ### iPad fixes (v1.2.5)
+          - Fixed: tapping a pad now correctly opens the file picker on iOS Safari
+          - Fixed: all buttons now respond instantly -- removed 300ms touch delay
+          - Fixed: grey tap flash removed from pads and buttons
+          - Fixed: pad labels now say "Tap to load audio" instead of "Click or drop file"
+          - Added: long-press on pad name to rename on touch
+
+          ### iPad / Touch support (v1.2.4)
           - Download the iPad HTML file, open in Safari on iPad, tap Share -> Add to Home Screen to install as a standalone app
           - Cue stack moves to a bottom sheet -- tap the pill handle to expand/collapse
           - Play Cue + Next Cue always visible even when the list is collapsed
