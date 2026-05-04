@@ -99,7 +99,7 @@ jobs:
           path: release-files
 
       - name: Copy iPad web app to release files
-        run: cp index.html "release-files/Kostudio Audio Cue (iPad-Web).html"
+        run: cp index.html "release-files/Kostudio-Audio-Cue-iPad-Web.html"
 
       - name: Write release notes
         run: |

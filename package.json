@@ -19,6 +19,7 @@
     ],
     "win": {
       "icon": "build/icons/256x256.png",
+      "artifactName": "Kostudio-Audio-Cue-${arch}.${ext}",
       "target": [
         {
           "target": "portable",
@@ -28,6 +29,7 @@
     },
     "mac": {
       "icon": "build/icons/icon.png",
+      "artifactName": "Kostudio-Audio-Cue-${arch}.${ext}",
       "target": [
         {
           "target": "dmg",

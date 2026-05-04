@@ -2,19 +2,24 @@
 
 A professional live performance audio cue manager. Load sounds onto pads, build cue sequences, and trigger them by keyboard shortcut or button — designed for theatre, events, and live shows.
 
-> Current version: **v1.2.6**
+[![Version](https://img.shields.io/github/v/release/unilordgr/kostudio-audio-cue?style=flat-square&color=brightgreen)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest)
 
-<p align="center">
-  <a href="https://github.com/unilordgr/kostudio-audio-cue/releases/latest">
-    <img src="https://img.shields.io/badge/⬇%20%20DOWNLOAD%20FOR%20WINDOWS-Portable%20.exe%20%E2%80%94%20no%20install%20needed-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows EXE">
-  </a>
-  &nbsp;
-  <a href="https://github.com/unilordgr/kostudio-audio-cue/releases/latest">
-    <img src="https://img.shields.io/badge/⬇%20%20DOWNLOAD%20FOR%20MAC-DMG%20%E2%80%94%20Intel%20%26%20Apple%20Silicon-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Mac DMG">
-  </a>
-</p>
+---
 
-![Dark Mode](https://img.shields.io/badge/theme-dark%20%2F%20light-blue) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Browser-lightgrey) ![Portable](https://img.shields.io/badge/windows-portable%20.exe-green) ![Mac](https://img.shields.io/badge/mac-DMG%20%7C%20Intel%20%26%20Apple%20Silicon-silver)
+## Download
+
+| Platform | | |
+|---|---|---|
+| **Windows** x64 | Portable — no install needed | [![Windows](https://img.shields.io/badge/Download-.exe-0078d4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-x64.exe) |
+| **macOS** Apple Silicon | M1 / M2 / M3 / M4 | [![macOS ARM](https://img.shields.io/badge/Download-arm64%20.dmg-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-arm64.dmg) |
+| **macOS** Intel | x64 | [![macOS Intel](https://img.shields.io/badge/Download-x64%20.dmg-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-x64.dmg) |
+| **iPad / Browser** | Safari · Chrome · Edge | [![iPad](https://img.shields.io/badge/Download-HTML%20file-00d4ff?style=for-the-badge&logo=safari&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-iPad-Web.html) |
+
+> All releases: [github.com/unilordgr/kostudio-audio-cue/releases](https://github.com/unilordgr/kostudio-audio-cue/releases)
+
+### First-run warnings (app is unsigned)
+- **macOS:** Right-click the `.app` → **Open** → **Open** in the security dialog. Works normally after that.
+- **Windows:** Click **More info** → **Run anyway** on the SmartScreen prompt.
 
 ---
 
