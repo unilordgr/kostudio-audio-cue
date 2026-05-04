@@ -104,6 +104,11 @@ jobs:
           cat > /tmp/release-notes.md << NOTES
           ## What's new in ${TAG}
 
+          ### App icon (v1.2.6)
+          - New Kcue icon across the app -- taskbar, dock, title bar, and browser tab
+          - Scale control (− / + zoom buttons) is now always fixed and never scales with the UI
+          - Cue stack panel and footer bar are now fixed overlays -- they stay readable at any zoom level
+
           ### iPad fixes (v1.2.5)
           - Fixed: tapping a pad now correctly opens the file picker on iOS Safari
           - Fixed: all buttons now respond instantly -- removed 300ms touch delay

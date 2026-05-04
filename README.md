@@ -2,6 +2,8 @@
 
 A professional live performance audio cue manager. Load sounds onto pads, build cue sequences, and trigger them by keyboard shortcut or button — designed for theatre, events, and live shows.
 
+> Current version: **v1.2.6**
+
 <p align="center">
   <a href="https://github.com/unilordgr/kostudio-audio-cue/releases/latest">
     <img src="https://img.shields.io/badge/⬇%20%20DOWNLOAD%20FOR%20WINDOWS-Portable%20.exe%20%E2%80%94%20no%20install%20needed-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows EXE">
@@ -56,8 +58,10 @@ A professional live performance audio cue manager. Load sounds onto pads, build 
 - **Stack text scale** — independently resize the cue stack text with − / + buttons
 
 ### Interface & Scale
+- **Kcue app icon** — custom icon visible in taskbar, dock, title bar, and browser tab
 - **Header always fixed** — Save, Load, VOL, STOP ALL never scale or disappear
-- **PADS scale** — zoom the pad grid from 40% to 200% using the footer − / + controls
+- **PADS scale** — zoom the pad grid from 40% to 200% using the − / + controls (bottom-left, always visible)
+- **Stack + footer fixed** — cue stack panel and status bar stay at full size regardless of zoom level
 - **Stack text scale** — resize stack list text independently (70%–160%)
 - **Light & Dark theme** — toggle with one click, preference saved
 - **Responsive layout** — header, footer, and stack panel stay anchored at all zoom levels

@@ -16,6 +16,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     title: 'Kostudio Audio Cue',
+    icon: path.join(__dirname, 'build', 'icons', 'icon.png'),
     backgroundColor: '#0d0d0d',
     webPreferences: {
       nodeIntegration: false,

@@ -1,6 +1,6 @@
 {
   "name": "kostudio-audio-cue",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Kostudio Audio Cue — Live Performance Sound Manager",
   "main": "main.js",
   "scripts": {
@@ -11,12 +11,14 @@
   "build": {
     "appId": "com.kostudio.audiocue",
     "productName": "Kostudio Audio Cue",
+    "icon": "build/icons/icon.png",
     "files": [
       "main.js",
       "preload.js",
       "index.html"
     ],
     "win": {
+      "icon": "build/icons/256x256.png",
       "target": [
         {
           "target": "portable",
@@ -25,6 +27,7 @@
       ]
     },
     "mac": {
+      "icon": "build/icons/icon.png",
       "target": [
         {
           "target": "dmg",
