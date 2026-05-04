@@ -107,6 +107,10 @@ jobs:
           cat > /tmp/release-notes.md << NOTES
           ## What's new in ${TAG}
 
+          ### macOS fix (v1.2.7)
+          - Fixed: "damaged and can't be opened" error on macOS — set identity:null and hardenedRuntime:false so Gatekeeper no longer rejects the unsigned app
+          - README: updated first-run instructions with the correct xattr fix command
+
           ### App icon (v1.2.6)
           - New Kcue icon across the app -- taskbar, dock, title bar, and browser tab
           - Scale control (− / + zoom buttons) is now always fixed and never scales with the UI

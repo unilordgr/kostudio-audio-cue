@@ -18,8 +18,20 @@ A professional live performance audio cue manager. Load sounds onto pads, build 
 > All releases: [github.com/unilordgr/kostudio-audio-cue/releases](https://github.com/unilordgr/kostudio-audio-cue/releases)
 
 ### First-run warnings (app is unsigned)
-- **macOS:** Right-click the `.app` → **Open** → **Open** in the security dialog. Works normally after that.
-- **Windows:** Click **More info** → **Run anyway** on the SmartScreen prompt.
+
+**macOS — "damaged and can't be opened"**
+
+macOS quarantines apps downloaded from the internet. Run this once in Terminal, then double-click normally:
+
+```bash
+xattr -cr "/Applications/Kostudio Audio Cue.app"
+```
+
+If you installed it somewhere other than Applications, adjust the path accordingly.
+
+**Windows — SmartScreen prompt**
+
+Click **More info** → **Run anyway**.
 
 ---
 
@@ -97,9 +109,9 @@ A professional live performance audio cue manager. Load sounds onto pads, build 
 3. Drag audio files onto pads or click a pad to browse
 
 ### macOS (App)
-1. Download `Kostudio Audio Cue.dmg` from the [latest release](../../releases/latest)
+1. Download the `.dmg` for your chip from the table above
 2. Open the DMG, drag the app to **Applications**
-3. First launch: **right-click → Open** (bypasses macOS Gatekeeper for unsigned apps)
+3. If macOS says "damaged and can't be opened", run in Terminal: `xattr -cr "/Applications/Kostudio Audio Cue.app"`
 
 ### macOS / Browser (no install)
 Open `kostudio cue.html` directly in **Chrome** or **Edge**.
