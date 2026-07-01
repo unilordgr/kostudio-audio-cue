@@ -1244,7 +1244,7 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
              oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
       <span>s</span>
     </div>
-    <button class="hdr-btn stop-fade-toggle active" id="stopFadeBtn" onclick="toggleStopFade()"
+    <button class="hdr-btn stop-fade-toggle" id="stopFadeBtn" onclick="toggleStopFade()"
             title="When ON: stopping a pad (click, touch, or keyboard) fades it out. When OFF: stop is instant. Does not affect starting a pad.">⏏ STOP FADE</button>
     <div class="hdr-sep"></div>
     <div class="vol-wrap">
@@ -1359,6 +1359,27 @@ let autoAdv         = false;
 let masterVol       = 1.0;
 let fadeDuration    = 2;
 let stopFadeGlobal  = false; // Global: does STOP (click/touch/keyboard) fade out? Does NOT affect starting a pad.
+
+// ── Stream Deck: broadcast pad state via Electron IPC ─────
+let _sdBroadcastTimer = null;
+function scheduleBroadcast() {
+  if (!window.electronAPI?.sendPadState) return;
+  clearTimeout(_sdBroadcastTimer);
+  _sdBroadcastTimer = setTimeout(broadcastPadState, 60);
+}
+function broadcastPadState() {
+  if (!window.electronAPI?.sendPadState) return;
+  const state = pads.map(p => ({
+    id:      p.id,
+    name:    p.name   || '',
+    color:   p.color  || '#4466ff',
+    playing: p.playing || false,
+    paused:  p.paused  || false,
+    fading:  document.getElementById(`pad${p.id}`)?.classList.contains('fading') || false,
+    hasFile: !!p.file,
+  }));
+  window.electronAPI.sendPadState({ type: 'pads', pads: state });
+}
 let padsScale       = 1.0;
 let stackScale      = 1.0;
 let capturing       = null;
@@ -1471,7 +1492,7 @@ function startFade(id, targetVol, durationSec, onComplete) {
   const totalSteps = Math.max(1, Math.round(durationSec * 1000 / FADE_STEP_MS));
   let step = 0;
 
-  if (targetVol === 0) document.getElementById(`pad${id}`)?.classList.add('fading');
+  if (targetVol === 0) { document.getElementById(`pad${id}`)?.classList.add('fading'); scheduleBroadcast(); }
 
   fadeTimers[id] = setInterval(() => {
     step++;
@@ -1490,6 +1511,7 @@ function clearFadeTimer(id) {
     clearInterval(fadeTimers[id]);
     delete fadeTimers[id];
     document.getElementById(`pad${id}`)?.classList.remove('fading');
+    scheduleBroadcast();
   }
 }
 
@@ -2076,6 +2098,7 @@ function refreshPadEl(el, pad) {
 function refreshPad(id) {
   const el = document.getElementById(`pad${id}`);
   if (el) refreshPadEl(el, pads[id]);
+  scheduleBroadcast();
 }
 
 // ── RAF: progress bar + time display ─────────────────────
@@ -2944,6 +2967,21 @@ if (typeof window !== 'undefined' && window.electronAPI?.onUpdateProgress) {
     if (bar) bar.style.width = '0%';
     setStatus('Update error: ' + (message || 'unknown'));
   });
+}
+
+// ── Stream Deck integration ───────────────────────────────
+if (typeof window !== 'undefined' && window.electronAPI?.onApiCommand) {
+  // Incoming commands from Stream Deck plugin
+  window.electronAPI.onApiCommand((cmd) => {
+    if (cmd.type === 'toggle' && cmd.id != null) {
+      const pad = pads[cmd.id];
+      if (pad?.file) togglePadCrossfade(cmd.id);
+    }
+    if (cmd.type === 'stop_all') stopAll();
+  });
+
+  // Stream Deck plugin just connected – send full state immediately
+  window.electronAPI.onApiRequestState(() => broadcastPadState());
 }
 
 // ── Theme ─────────────────────────────────────────────────

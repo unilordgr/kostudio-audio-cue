@@ -15,4 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateProgress: (cb) => ipcRenderer.on('update-download-progress', (_, data) => cb(data)),
   onUpdateReady:    (cb) => ipcRenderer.on('update-ready',             (_, data) => cb(data)),
   onUpdateError:    (cb) => ipcRenderer.on('update-error',             (_, data) => cb(data)),
+
+  // Stream Deck integration
+  sendPadState:      (data) => ipcRenderer.send('pad-state-broadcast', data),
+  onApiCommand:      (cb)   => ipcRenderer.on('api-command',      (_, data) => cb(data)),
+  onApiRequestState: (cb)   => ipcRenderer.on('api-request-state', ()      => cb()),
 });
