@@ -2,12 +2,88 @@ const { app, BrowserWindow, ipcMain, dialog, shell, net } = require('electron');
 const path    = require('path');
 const fs      = require('fs');
 const https   = require('https');
+const http    = require('http');
 const os      = require('os');
 const { spawn, exec } = require('child_process');
 
 app.commandLine.appendSwitch('enable-experimental-web-platform-features');
 
-let mainWindow = null;
+let mainWindow  = null;
+let sseClients  = new Set();   // Stream Deck SSE connections
+
+// ── HTTP API server (Stream Deck integration) ─────────────
+
+function startApiServer() {
+  const server = http.createServer((req, res) => {
+
+    // CORS for all responses
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    // GET /ping  →  einfacher Verbindungstest (im Browser aufrufbar)
+    if (req.url === '/ping' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, service: 'Kostudio Audio Cue API', port: 28491 }));
+      return;
+    }
+
+    // GET /events  →  Server-Sent Events stream (pad state updates)
+    if (req.url === '/events' && req.method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type':  'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection':    'keep-alive',
+      });
+      res.write(': connected\n\n');
+      sseClients.add(res);
+      req.on('close', () => sseClients.delete(res));
+
+      // Ask renderer for current state immediately
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) win.webContents.send('api-request-state');
+      return;
+    }
+
+    // POST /command  →  forward to renderer (toggle pad, stop all, …)
+    if (req.url === '/command' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const cmd = JSON.parse(body);
+          const win = BrowserWindow.getAllWindows()[0];
+          if (win) win.webContents.send('api-command', cmd);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end('{"ok":true}');
+        } catch {
+          res.writeHead(400);
+          res.end('{"error":"bad json"}');
+        }
+      });
+      return;
+    }
+
+    res.writeHead(404); res.end();
+  });
+
+  server.listen(28491, '127.0.0.1', () => {
+    console.log('Kostudio API listening on http://127.0.0.1:28491');
+  });
+  server.on('error', e => console.warn('API server error:', e.message));
+}
+
+function broadcastSse(data) {
+  const msg = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of sseClients) {
+    try { client.write(msg); } catch { sseClients.delete(client); }
+  }
+}
+
+// IPC: renderer → SSE clients
+ipcMain.on('pad-state-broadcast', (_, data) => broadcastSse(data));
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -31,6 +107,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  startApiServer();
   setTimeout(() => checkForUpdates(), 4000);
 });
 

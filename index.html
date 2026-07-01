@@ -147,6 +147,8 @@ header {
 }
 .hdr-btn:hover       { border-color: var(--accent); color: var(--accent); }
 .hdr-btn.save:hover  { border-color: var(--save-col); color: var(--save-col); }
+.stop-fade-toggle.active { border-color: var(--fade-col); color: var(--fade-col); background: rgba(170,102,255,.08); }
+.stop-fade-toggle:not(.active) { opacity: .55; }
 .header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .vol-wrap { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
 input[type=range] {
@@ -478,6 +480,10 @@ html[data-theme="light"] .prog-active-zone { background: rgba(0,0,0,.09); }
 .pad.fading .playing-dot {
   background: var(--loop-col);
   box-shadow: 0 0 8px var(--loop-col);
+}
+@keyframes fade-blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+.pad.fading .transport-pp.is-playing {
+  animation: fade-blink 0.4s ease-in-out infinite;
 }
 @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:.65} }
 
@@ -1238,12 +1244,14 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
              oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
       <span>s</span>
     </div>
+    <button class="hdr-btn stop-fade-toggle" id="stopFadeBtn" onclick="toggleStopFade()"
+            title="When ON: stopping a pad (click, touch, or keyboard) fades it out. When OFF: stop is instant. Does not affect starting a pad.">⏏ STOP FADE</button>
     <div class="hdr-sep"></div>
     <div class="vol-wrap">
       <span>VOL</span>
       <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)">
     </div>
-    <button class="stop-all" onclick="stopAll()">■ STOP ALL</button>
+    <button class="stop-all" onclick="stopAll()" title="Stop all pads (Hotkey: Esc)">■ STOP ALL</button>
   </div>
 </header>
 
@@ -1350,6 +1358,28 @@ let currentSceneIdx = 0;
 let autoAdv         = false;
 let masterVol       = 1.0;
 let fadeDuration    = 2;
+let stopFadeGlobal  = false; // Global: does STOP (click/touch/keyboard) fade out? Does NOT affect starting a pad.
+
+// ── Stream Deck: broadcast pad state via Electron IPC ─────
+let _sdBroadcastTimer = null;
+function scheduleBroadcast() {
+  if (!window.electronAPI?.sendPadState) return;
+  clearTimeout(_sdBroadcastTimer);
+  _sdBroadcastTimer = setTimeout(broadcastPadState, 60);
+}
+function broadcastPadState() {
+  if (!window.electronAPI?.sendPadState) return;
+  const state = pads.map(p => ({
+    id:      p.id,
+    name:    p.name   || '',
+    color:   p.color  || '#4466ff',
+    playing: p.playing || false,
+    paused:  p.paused  || false,
+    fading:  document.getElementById(`pad${p.id}`)?.classList.contains('fading') || false,
+    hasFile: !!p.file,
+  }));
+  window.electronAPI.sendPadState({ type: 'pads', pads: state });
+}
 let padsScale       = 1.0;
 let stackScale      = 1.0;
 let capturing       = null;
@@ -1462,7 +1492,7 @@ function startFade(id, targetVol, durationSec, onComplete) {
   const totalSteps = Math.max(1, Math.round(durationSec * 1000 / FADE_STEP_MS));
   let step = 0;
 
-  if (targetVol === 0) document.getElementById(`pad${id}`)?.classList.add('fading');
+  if (targetVol === 0) { document.getElementById(`pad${id}`)?.classList.add('fading'); scheduleBroadcast(); }
 
   fadeTimers[id] = setInterval(() => {
     step++;
@@ -1481,6 +1511,7 @@ function clearFadeTimer(id) {
     clearInterval(fadeTimers[id]);
     delete fadeTimers[id];
     document.getElementById(`pad${id}`)?.classList.remove('fading');
+    scheduleBroadcast();
   }
 }
 
@@ -1543,7 +1574,11 @@ function stopPad(id, withFade = false) {
 function togglePad(id) {
   const pad = pads[id];
   if (pad.playing) {
-    pausePad(id);
+    if (stopFadeGlobal) {
+      stopPad(id, true);
+    } else {
+      pausePad(id);
+    }
   } else {
     pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
     playPad(id);
@@ -1562,8 +1597,18 @@ function togglePadCrossfade(id) {
   }
 }
 
+function toggleStopFade() {
+  stopFadeGlobal = !stopFadeGlobal;
+  updateStopFadeBtn();
+  scheduleAutosave();
+}
+function updateStopFadeBtn() {
+  const b = document.getElementById('stopFadeBtn');
+  if (b) b.classList.toggle('active', stopFadeGlobal);
+}
+
 function stopAll() {
-  pads.forEach(p => { if (p.playing) stopPad(p.id, false); });
+  pads.forEach(p => { if (p.playing) stopPad(p.id, stopFadeGlobal); });
   setStatus('All stopped');
   updatePlayCueBtn();
 }
@@ -1970,7 +2015,7 @@ function refreshPadEl(el, pad) {
         case 'loop':         toggleLoop(pad.id);        break;
         case 'fade-toggle':  toggleFadeEnabled(pad.id); break;
         case 'playpause':    togglePad(pad.id);         break;
-        case 'stop':         stopPad(pad.id, false);    break;
+        case 'stop':         stopPad(pad.id, stopFadeGlobal); break;
         case 'stack':        addToStack(pad.id);        break;
         case 'clear':        clearPad(pad.id);          break;
         case 'capture':      startCapture(pad.id);      break;
@@ -2053,6 +2098,7 @@ function refreshPadEl(el, pad) {
 function refreshPad(id) {
   const el = document.getElementById(`pad${id}`);
   if (el) refreshPadEl(el, pads[id]);
+  scheduleBroadcast();
 }
 
 // ── RAF: progress bar + time display ─────────────────────
@@ -2176,6 +2222,7 @@ function onKey(e) {
 
   if (modalOpen) return;
 
+  if (e.key === 'Escape') { e.preventDefault(); stopAll(); return; }
   if (e.key === ' ') { e.preventDefault(); nextCue(); return; }
 
   const combo  = getCombo(e);
@@ -2243,7 +2290,7 @@ async function saveProject(name) {
 
   const config = {
     name, version: 3, savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
+    masterVol, autoAdv, fadeDuration, stopFadeGlobal, padsScale, stackScale,
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
@@ -2318,6 +2365,7 @@ async function doLoadFromFolder(dirHandle, projectName) {
   }
 
   autoAdv         = config.autoAdv      ?? false;
+  stopFadeGlobal         = config.stopFadeGlobal ?? false;
   masterVol       = config.masterVol    ?? 1;
   fadeDuration    = config.fadeDuration ?? 2;
   padsScale       = config.padsScale    ?? config.uiScale ?? 1.0;
@@ -2327,6 +2375,7 @@ async function doLoadFromFolder(dirHandle, projectName) {
 
   document.getElementById('volSlider').value    = masterVol;
   document.getElementById('fadeDurInput').value = fadeDuration;
+  updateStopFadeBtn();
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
   applyScales();
 
@@ -2472,7 +2521,7 @@ async function doElectronSave(savePath) {
   const projectName = savePath.replace(/.*[\\/]/, '').replace(/\.cuepro$/i, '');
   const config = {
     name: projectName, version: 5, savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
+    masterVol, autoAdv, fadeDuration, stopFadeGlobal, padsScale, stackScale,
     scenes: scenes.map(s => ({
       id: s.id, name: s.name,
       stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
@@ -2562,6 +2611,7 @@ function restoreElectronProjectSettings(config) {
     sceneIdSeq = 1; currentSceneIdx = 0;
   }
   autoAdv         = config.autoAdv         ?? false;
+  stopFadeGlobal         = config.stopFadeGlobal ?? false;
   masterVol       = config.masterVol       ?? 1;
   fadeDuration    = config.fadeDuration    ?? 2;
   padsScale       = config.padsScale       ?? config.uiScale ?? 1.0;
@@ -2570,6 +2620,7 @@ function restoreElectronProjectSettings(config) {
   shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
   document.getElementById('volSlider').value      = masterVol;
   document.getElementById('fadeDurInput').value   = fadeDuration;
+  updateStopFadeBtn();
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
   applyScales();
 }
@@ -2791,7 +2842,7 @@ function scheduleAutosave() {
 function saveAutosave() {
   const data = {
     savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, padsScale, stackScale, currentSavePath,
+    masterVol, autoAdv, fadeDuration, stopFadeGlobal, padsScale, stackScale, currentSavePath,
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
@@ -2824,6 +2875,7 @@ function restoreSessionData(data) {
   if (!data) return;
   masterVol       = data.masterVol    ?? 1;
   autoAdv         = data.autoAdv      ?? false;
+  stopFadeGlobal         = data.stopFadeGlobal ?? false;
   fadeDuration    = data.fadeDuration ?? 2;
   padsScale       = data.padsScale    ?? data.uiScale ?? 1.0;
   stackScale      = data.stackScale   ?? 1.0;
@@ -2863,6 +2915,7 @@ function restoreSessionData(data) {
 
   document.getElementById('volSlider').value    = masterVol;
   document.getElementById('fadeDurInput').value = fadeDuration;
+  updateStopFadeBtn();
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
   applyScales();
   buildPads();
@@ -2914,6 +2967,21 @@ if (typeof window !== 'undefined' && window.electronAPI?.onUpdateProgress) {
     if (bar) bar.style.width = '0%';
     setStatus('Update error: ' + (message || 'unknown'));
   });
+}
+
+// ── Stream Deck integration ───────────────────────────────
+if (typeof window !== 'undefined' && window.electronAPI?.onApiCommand) {
+  // Incoming commands from Stream Deck plugin
+  window.electronAPI.onApiCommand((cmd) => {
+    if (cmd.type === 'toggle' && cmd.id != null) {
+      const pad = pads[cmd.id];
+      if (pad?.file) togglePadCrossfade(cmd.id);
+    }
+    if (cmd.type === 'stop_all') stopAll();
+  });
+
+  // Stream Deck plugin just connected – send full state immediately
+  window.electronAPI.onApiRequestState(() => broadcastPadState());
 }
 
 // ── Theme ─────────────────────────────────────────────────
@@ -2981,7 +3049,7 @@ async function doSaveProjectIDB(name) {
 
   const config = {
     name, version: 4, savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
+    masterVol, autoAdv, fadeDuration, stopFadeGlobal, padsScale, stackScale,
     scenes: scenes.map(s => ({
       id: s.id, name: s.name,
       stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
@@ -3068,6 +3136,7 @@ async function loadProjectIDB(name) {
   }
 
   autoAdv         = config.autoAdv      ?? false;
+  stopFadeGlobal         = config.stopFadeGlobal ?? false;
   masterVol       = config.masterVol    ?? 1;
   fadeDuration    = config.fadeDuration ?? 2;
   padsScale       = config.padsScale    ?? 1.0;
@@ -3077,6 +3146,7 @@ async function loadProjectIDB(name) {
 
   document.getElementById('volSlider').value      = masterVol;
   document.getElementById('fadeDurInput').value   = fadeDuration;
+  updateStopFadeBtn();
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
   applyScales();
   buildPads(); renderSceneTabs(); renderStack();
