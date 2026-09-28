@@ -52,7 +52,7 @@
       "category": "public.app-category.music"
     },
     "dmg": {
-      "title": "Kostudio Audio Cue",
+      "title": "Kostudio Audio Cue ${version}${arch}",
       "background": null
     }
   },

@@ -63,6 +63,11 @@ ck('the lockfile matches package.json (npm ci works)', (() => {
   return JSON.stringify(lock.devDependencies) === JSON.stringify(pkg.devDependencies);
 })());
 
+// ── the two macOS DMGs are built in parallel; if they share a volume name they mount on the same
+// /Volumes path and one build detaches the other's disk (the v1.3.0 release build failed this way)
+ck('dmg.title contains ${arch} so the arm64 and x64 DMGs mount as different volumes',
+  typeof pkg.build.dmg.title === 'string' && pkg.build.dmg.title.includes('${arch}'), String(pkg.build.dmg.title));
+
 // ── every file the app loads at runtime is actually packaged (a file missing from build.files works in dev and crashes the installed app)
 const requires = [...main.matchAll(/require\('\.\/([\w.-]+)'\)/g)].map(m => m[1].endsWith('.js') ? m[1] : m[1] + '.js');
 const dirnameFiles = [...main.matchAll(/path\.join\(__dirname, '([^']+)'\)/g)].map(m => m[1]);
