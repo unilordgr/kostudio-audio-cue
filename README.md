@@ -209,4 +209,11 @@ The app also has a **♥ Donate** button in the header.
 
 ## License
 
-[MIT](LICENSE) © 2026 [needitcreative.com](https://needitcreative.com) — free for personal and **commercial** use: you may use, copy, modify, merge, publish, distribute, sublicense and sell it, with no fee and no permission needed. The only requirement is to keep the copyright and licence notice in copies of the software. It is provided "as is", without warranty.
+[Kostudio Audio Cue Free Use License](LICENSE) © 2026 [needitcreative.com](https://needitcreative.com)
+
+- ✅ **Free to use — including commercially.** Run it at paid shows, events, productions and broadcasts, and get paid for your work.
+- ✅ Free to copy, modify and share (free of charge, keeping the licence and copyright notice).
+- ❌ **You may not sell the software** — or modified versions of it — or charge for access to it (paid downloads, paid app-store listings, "pro" versions, bundles or subscriptions).
+- Need something else, like permission to resell? Contact needitcreative.com.
+
+It is provided "as is", without warranty. See [LICENSE](LICENSE) for the full terms.

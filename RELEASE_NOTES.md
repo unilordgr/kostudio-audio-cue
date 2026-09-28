@@ -31,7 +31,7 @@
 
 **Other**
 - New **♥ Donate** button in the header (PayPal) — the app stays free; opens in your browser
-- Now licensed under the **MIT licence** (© needitcreative.com): free for personal and commercial use — see `LICENSE`
+- Now has a proper licence (`LICENSE`, © needitcreative.com): free to use — including commercially, e.g. at paid shows — and to copy, modify and share; the software itself may not be sold
 - Pressing the key of a pad that is fading out now brings it back instead of pausing it; a second stop request no longer stretches the fade
 - Fixed: at the minimum window width (and even slightly above it) the **STOP ALL, VOL and FADE controls were pushed off-screen** — the header now uses the full width and drops the logo / donate label when space is tight
 - The app now declares a strict Content-Security-Policy (it never loads anything from the internet)

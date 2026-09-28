@@ -13,10 +13,15 @@ const main = read('main.js');
 
 // ── licence
 const lic = exists('LICENSE') ? read('LICENSE') : '';
-ck('LICENSE is the MIT licence, copyright needitcreative.com',
-  /^MIT License/.test(lic) && /Copyright \(c\) \d{4} needitcreative\.com/.test(lic) && /to use, copy, modify, merge, publish, distribute, sublicense, and\/or sell/.test(lic));
-ck('package.json declares the MIT licence and its author', pkg.license === 'MIT' && pkg.author === 'needitcreative.com');
-ck('README links the LICENSE and mentions commercial use', /\]\(LICENSE\)/.test(read('README.md')) && /commercial/i.test(read('README.md')));
+ck('LICENSE is the Free Use License, copyright needitcreative.com',
+  /^Kostudio Audio Cue — Free Use License/.test(lic) && /Copyright \(c\) \d{4} needitcreative\.com/.test(lic));
+ck('LICENSE allows commercial use but forbids selling the software (and is not MIT, which would allow it)',
+  /FREE COMMERCIAL USE/.test(lic) && /including\s+commercial\s+purposes/.test(lic) &&
+  /NO SELLING/.test(lic) && /may not sell the Software/.test(lic) && !/sublicense, and\/or sell/.test(lic));
+ck('package.json points at the LICENSE file and names the author', pkg.license === 'SEE LICENSE IN LICENSE' && pkg.author === 'needitcreative.com');
+const readme = read('README.md');
+ck('README links the LICENSE, says commercial use is free and that the software may not be sold',
+  /\]\(LICENSE\)/.test(readme) && /commercially/.test(readme) && /may not sell the software/i.test(readme) && !/\[MIT\]/.test(readme));
 
 // ── one donate URL, everywhere
 const DONATE = /https:\/\/www\.paypal\.com\/cgi-bin\/webscr\?cmd=_donations[^"'\s)\]]*/;
