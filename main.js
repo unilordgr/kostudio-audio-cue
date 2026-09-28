@@ -401,9 +401,44 @@ function resolvePath(p) {
 const isProjectFile = p => path.extname(p).toLowerCase() === '.cuepro';
 const isAudioFile   = p => AUDIO_EXT.test(p);
 
+// Windows only: a project file is untrusted, and a UNC / device path in it (\\host\share, //host/share, \\?\UNC\…,
+// \\.\pipe\…) makes Windows connect to another machine (NTLM sign-in included) the moment the file is opened.
+// Network paths are therefore only read from a share the user picked in a file dialog this session
+// (opening / saving a show on a NAS, "Locate…", "Browse Folder"); device paths never. Local and mapped-drive paths
+// are unaffected. Pure string logic, so it is testable on any OS.
+const approvedShares = new Set();
+function shareOf(p) {     // '\\server\share' (lower case) for a network path, 'DEVICE' for other \\?\ \\.\ paths, null for local
+  let s = path.win32.normalize(String(p));
+  const ext = /^\\\\[?.]\\(.*)$/.exec(s);
+  if (ext) {
+    if (/^[a-z]:\\/i.test(ext[1])) return null;                     // \\?\C:\… is an ordinary local drive
+    const unc = /^UNC\\([^\\]+\\[^\\]+)(?:\\|$)/i.exec(ext[1]);
+    if (!unc) return 'DEVICE';
+    s = '\\\\' + unc[1];
+  }
+  if (!s.startsWith('\\\\')) return null;
+  const m = /^\\\\([^\\]+)\\([^\\]+)/.exec(s);
+  return m ? `\\\\${m[1]}\\${m[2]}`.toLowerCase() : 'DEVICE';
+}
+function networkPathAllowed(p) {
+  if (process.platform !== 'win32') return true;
+  for (const share of [shareOf(p), shareOf(path.resolve(p))]) {
+    if (share && (share === 'DEVICE' || !approvedShares.has(share))) return false;
+  }
+  return true;
+}
+function approveShare(p) {
+  if (process.platform !== 'win32' || typeof p !== 'string') return;
+  const share = shareOf(p);
+  if (share && share !== 'DEVICE') approvedShares.add(share);
+}
+const NETWORK_MSG = 'Network paths must be chosen in a file dialog first';
+const MAX_PROJECT_BYTES = 512 * 1024 * 1024;   // a .cuepro is JSON; V8 cannot hold a much bigger string anyway
+
 ipcMain.handle('fs-read-file', async (_, filePath) => {
   const p = resolvePath(filePath);
   if (!isAudioFile(p)) throw new Error('Only audio files can be read');
+  if (!networkPathAllowed(filePath)) throw new Error(NETWORK_MSG);
   const buf = await fs.promises.readFile(p);
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 });
@@ -411,7 +446,7 @@ ipcMain.handle('fs-read-file', async (_, filePath) => {
 ipcMain.handle('fs-file-exists', async (_, filePath) => {
   if (typeof filePath !== 'string' || !filePath) return false;
   const p = path.resolve(filePath);
-  if (!isAudioFile(p)) return false;
+  if (!isAudioFile(p) || !networkPathAllowed(filePath)) return false;
   try { await fs.promises.access(p); return true; } catch { return false; }
 });
 
@@ -420,8 +455,11 @@ ipcMain.handle('fs-write-text', async (_, filePath, content) => {
   if (!isProjectFile(p) || !approvedProjectPaths.has(p)) throw new Error('Write not permitted — use Save As to choose a location');
   if (typeof content !== 'string') throw new Error('Invalid content');
   // Write to a temp file then rename, so a crash mid-save can't truncate the show file.
+  // The temp name is removed first and created with 'wx', so a symlink planted at "<show>.cuepro.tmp"
+  // (e.g. inside an unzipped project folder) can't redirect the write onto another file.
   const tmp = `${p}.tmp`;
-  await fs.promises.writeFile(tmp, content, 'utf8');
+  await fs.promises.rm(tmp, { force: true });
+  await fs.promises.writeFile(tmp, content, { encoding: 'utf8', flag: 'wx' });
   await fs.promises.rename(tmp, p);
   return true;
 });
@@ -429,6 +467,8 @@ ipcMain.handle('fs-write-text', async (_, filePath, content) => {
 ipcMain.handle('fs-read-text', async (_, filePath) => {
   const p = resolvePath(filePath);
   if (!isProjectFile(p)) throw new Error('Only .cuepro project files can be read');
+  if (!networkPathAllowed(filePath)) throw new Error(NETWORK_MSG);
+  if ((await fs.promises.stat(p)).size > MAX_PROJECT_BYTES) throw new Error('Project file is too large');
   return fs.promises.readFile(p, 'utf8');
 });
 
@@ -465,6 +505,7 @@ ipcMain.handle('dialog-save', async (_, defaultPath) => {
   let filePath = result.filePath;
   if (!isProjectFile(filePath)) filePath += '.cuepro';
   approvedProjectPaths.add(path.resolve(filePath));
+  approveShare(filePath);
   return filePath;
 });
 
@@ -479,6 +520,7 @@ ipcMain.handle('dialog-open-file', async () => {
   if (result.canceled) return null;
   const filePath = result.filePaths[0];
   if (isProjectFile(filePath)) approvedProjectPaths.add(path.resolve(filePath));   // "Save" may overwrite what was opened
+  approveShare(filePath);
   return filePath;
 });
 
@@ -490,12 +532,16 @@ ipcMain.handle('dialog-open-audio', async () => {
     ],
     properties: ['openFile']
   });
-  return result.canceled ? null : result.filePaths[0];
+  if (result.canceled) return null;
+  approveShare(result.filePaths[0]);
+  return result.filePaths[0];
 });
 
 ipcMain.handle('dialog-open-folder', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
-  return result.canceled ? null : result.filePaths[0];
+  if (result.canceled) return null;
+  approveShare(result.filePaths[0]);
+  return result.filePaths[0];
 });

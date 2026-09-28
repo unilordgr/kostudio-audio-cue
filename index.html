@@ -177,6 +177,7 @@ header[data-compact="1"] .logo, header[data-compact="2"] .logo, header[data-comp
 header[data-compact="1"] .hdr-btn.donate .lbl, header[data-compact="2"] .hdr-btn.donate .lbl, header[data-compact="3"] .hdr-btn.donate .lbl { display: none; }
 header[data-compact="2"] .logo, header[data-compact="2"] .logo + .hdr-sep, header[data-compact="3"] .logo, header[data-compact="3"] .logo + .hdr-sep { display: none; }
 header[data-compact="3"] { gap: 6px; padding: 0 12px; }
+header.fitting, header.fitting * { transition: none !important; }   /* fitHeader() measures the final layout, not a half-finished button transition */
 header[data-compact="3"] .hdr-btn { padding: 5px 10px; }
 header[data-compact="3"] .hdr-btn .lbl { display: none; }
 header[data-compact="3"] .header-right { gap: 8px; }
@@ -1504,13 +1505,14 @@ function buildTranslator() {
   for (const [key, tpl] of Object.entries(dict)) if (/\{\d+!?\}/.test(key)) trPatterns.push({ ...compileTemplate(key), tpl });
   trPatterns.sort((a, b) => b.re.source.length - a.re.source.length);   // most specific first
 }
+const TR_PATTERN_MAX = 600;    // measured: worst crafted input at this length costs well under 1 ms; 81 KB used to take ~52 s
 // Translate one string (already trimmed). Returns the input unchanged if there is no translation.
 function tr(text) {
   if (LANG === 'en' || !text) { if (window.__trSeen && text) window.__trSeen.add(text); return text; }
   if (trCache.has(text)) return trCache.get(text);
   const dict = I18N[LANG] || {};
   let out = Object.prototype.hasOwnProperty.call(dict, text) ? dict[text] : null;
-  if (out === null) {
+  if (out === null && text.length <= TR_PATTERN_MAX) {      // the {0} patterns are backtracking regexes: never run them on huge (hostile) text
     for (const p of trPatterns) {
       const m = p.re.exec(text);
       if (m) { out = p.tpl.replace(/\{(\d+)!?\}/g, (_, n) => { const i = p.order.indexOf(+n); return i < 0 ? '' : p.deep[i] ? tr(m[i + 1]) : m[i + 1]; }); break; }
@@ -1534,6 +1536,7 @@ function translateTextNode(n) {
   if (out !== cur) { trOut.set(n, out); n.nodeValue = out; } else trOut.delete(n);
 }
 function translateAttrs(el) {
+  if (el.closest?.('[data-notr]')) return;                    // user text in a title="" (a file path, a pad name…) stays as typed
   let rec = trAttr.get(el);
   for (const a of TR_ATTRS) {
     const v = el.getAttribute?.(a);
@@ -1564,6 +1567,7 @@ function retranslateAll() {
     if (out !== n.nodeValue) { trOut.set(n, out); n.nodeValue = out; }
   }
   document.querySelectorAll('[title],[placeholder],[aria-label]').forEach(el => {
+    if (el.closest('[data-notr]')) return;
     const rec = trAttr.get(el) || {};
     for (const a of TR_ATTRS) {
       const cur = el.getAttribute(a);
@@ -1670,7 +1674,7 @@ const I18N_TABLE = [
   ['Add Cue', 'Προσθήκη Cue', 'Cue hinzufügen'],
   ['Add a new cue pad', 'Προσθήκη νέου pad cue', 'Neues Cue-Pad hinzufügen'],
   ['Fill Pads…', 'Γέμισμα pads…', 'Pads füllen…'],
-  ['Load several audio files at once into the next empty pads (or drop them on the grid)', 'Φορτώστε πολλά αρχεία ήχου ταυτόχρονα στα επόμενα κενά pads (ή σύρετέ τα στο πλέγμα)', 'Mehrere Audiodateien auf einmal in die nächsten leeren Pads laden (oder auf das Raster ziehen)'],
+  ['Load several audio files at once into the next empty pads (or drop them on a pad)', 'Φορτώστε πολλά αρχεία ήχου ταυτόχρονα στα επόμενα κενά pads (ή σύρετέ τα πάνω σε ένα pad)', 'Mehrere Audiodateien auf einmal in die nächsten leeren Pads laden (oder auf ein Pad ziehen)'],
   ['Pad {0}', 'Pad {0}', 'Pad {0}'],
   ['Pad {0} (empty)', 'Pad {0} (κενό)', 'Pad {0} (leer)'],
   ['Pad {0} — {1}', 'Pad {0} — {1}', 'Pad {0} — {1}'],
@@ -1772,7 +1776,7 @@ const I18N_TABLE = [
   ['● Running — this computer only (port {0})', '● Ενεργό — μόνο αυτός ο υπολογιστής (θύρα {0})', '● Aktiv — nur dieser Computer (Port {0})'],
   ['● Running — reachable from your network (port {0})', '● Ενεργό — προσβάσιμο από το δίκτυό σας (θύρα {0})', '● Aktiv — im Netzwerk erreichbar (Port {0})'],
   ['⚠ Port {0} is already in use — pick another port', '⚠ Η θύρα {0} χρησιμοποιείται ήδη — επιλέξτε άλλη', '⚠ Port {0} wird bereits verwendet — wähle einen anderen'],
-  ['Phone / tablet remote — open one of these links (it contains the secret token):', 'Τηλεχειριστήριο κινητού / tablet — ανοίξτε έναν από αυτούς τους συνδέσμους (περιέχει το μυστικό token):', 'Handy- / Tablet-Fernsteuerung — öffne einen dieser Links (er enthält das geheime Token):'],
+  ['Phone / tablet remote — open one of these links (it contains the secret token — press Show to read it, Copy to paste it):', 'Τηλεχειριστήριο κινητού / tablet — ανοίξτε έναν από αυτούς τους συνδέσμους (περιέχει το μυστικό token — πατήστε Εμφάνιση για να το δείτε, Αντιγραφή για να το επικολλήσετε):', 'Handy- / Tablet-Fernsteuerung — öffne einen dieser Links (er enthält das geheime Token — mit „Anzeigen“ lesbar, mit „Kopieren“ einfügen):'],
   ['This computer', 'Αυτός ο υπολογιστής', 'Dieser Computer'],
   ['Access token', 'Token πρόσβασης', 'Zugriffs-Token'],
   ['For scripts: send the token as “Authorization: Bearer <token>” with JSON to http://127.0.0.1:{0}/command — full reference in docs/REMOTE.md.', 'Για scripts: στείλτε το token ως «Authorization: Bearer <token>» με JSON στο http://127.0.0.1:{0}/command — πλήρης τεκμηρίωση στο docs/REMOTE.md.', 'Für Skripte: Token als „Authorization: Bearer <token>“ mit JSON an http://127.0.0.1:{0}/command senden — vollständige Referenz in docs/REMOTE.md.'],
@@ -1831,6 +1835,7 @@ const I18N_TABLE = [
   ['Scene "{0}" has no cues', 'Η σκηνή "{0}" δεν έχει cue', 'Szene "{0}" hat keine Cues'],
   ['Scene "{0}", cue {1} ({2}) has no audio — SPACE would skip it', 'Σκηνή "{0}", cue {1} ({2}) δεν έχει ήχο — το SPACE θα το προσπεράσει', 'Szene "{0}", Cue {1} ({2}) hat kein Audio — SPACE würde sie überspringen'],
   ['Master volume is at {0}%', 'Η κύρια ένταση είναι στο {0}%', 'Die Hauptlautstärke steht auf {0} %'],
+  ['No sounds are loaded — this show is empty', 'Δεν έχει φορτωθεί κανένας ήχος — η παράσταση είναι κενή', 'Es ist kein Sound geladen — die Show ist leer'],
   ['Output device not available ({0}) — playing on the system default', 'Η συσκευή εξόδου δεν είναι διαθέσιμη ({0}) — η αναπαραγωγή γίνεται στην προεπιλογή του συστήματος', 'Ausgabegerät nicht verfügbar ({0}) — Wiedergabe über den Systemstandard'],
   ['⚠ Output device not available ({0}) — playing on the system default', '⚠ Η συσκευή εξόδου δεν είναι διαθέσιμη ({0}) — η αναπαραγωγή γίνεται στην προεπιλογή του συστήματος', '⚠ Ausgabegerät nicht verfügbar ({0}) — Wiedergabe über den Systemstandard'],
   ['The saved audio output device is not connected — sound would play on the system default', 'Η αποθηκευμένη συσκευή εξόδου ήχου δεν είναι συνδεδεμένη — ο ήχος θα παιχτεί στην προεπιλογή του συστήματος', 'Das gespeicherte Audioausgabegerät ist nicht verbunden — der Ton würde über den Systemstandard laufen'],
@@ -1956,10 +1961,13 @@ function fitHeader() {
   const h = document.querySelector('header');
   if (!h) return;
   if (IS_TOUCH) { delete h.dataset.compact; return; }          // on touch the header scrolls sideways instead
-  for (let level = 0; level <= 3; level++) {
-    h.dataset.compact = level;
-    if (h.scrollWidth <= h.clientWidth) return;                // fits at this level
-  }
+  h.classList.add('fitting');                                  // no transitions while measuring (a button padding mid-animation reads too wide/narrow)
+  try {
+    for (let level = 0; level <= 3; level++) {
+      h.dataset.compact = level;
+      if (h.scrollWidth <= h.clientWidth) return;              // fits at this level
+    }
+  } finally { h.classList.remove('fitting'); }
 }
 
 // ── Undo ──────────────────────────────────────────────────
@@ -2007,7 +2015,15 @@ function restorePad(pad, snap) {
 // Stacks are snapshotted per scene object, so a restore still works if other scenes were added/removed meanwhile
 function snapshotStacks() { return scenes.map(sc => ({ sc, stack: [...sc.stack], stackIdx: sc.stackIdx })); }
 function restoreStacks(snaps) {
-  snaps.forEach(({ sc, stack, stackIdx }) => { if (scenes.includes(sc)) { sc.stack = [...stack]; sc.stackIdx = stackIdx; } });
+  snaps.forEach(({ sc, stack, stackIdx }) => {
+    if (!scenes.includes(sc)) return;
+    // Cue entries are objects, so the live position can be followed by identity: undo brings cues back without
+    // rewinding the show to where the cursor was when the snapshot was taken.
+    const liveIdx = sc.stackIdx, cur = sc.stack[liveIdx];
+    sc.stack = [...stack];
+    const at = cur ? sc.stack.indexOf(cur) : -1;
+    sc.stackIdx = Math.min(at >= 0 ? at : liveIdx < 0 ? stackIdx : liveIdx, sc.stack.length - 1);
+  });
   renderStack();
 }
 
@@ -2414,15 +2430,20 @@ function togglePadCrossfade(id) {
 
 // mode 'auto' (STOP ALL button): follows the STOP FADE toggle. mode 'cut' (Escape / panic): always instant.
 // With STOP FADE on, pressing it again while pads are still fading out hard-cuts them — there is always a way out.
+let stopAllFading = false, stopAllTimer = null;   // while a STOP ALL fade runs, the next press cuts
 function stopAll(mode = 'auto') {
   clearTimeout(advTimer);   // a pending auto-advance must not start a cue after STOP ALL
-  const fade = mode === 'auto' && prefs.stopFade;
+  const fade = mode === 'auto' && prefs.stopFade && !stopAllFading;
   let n = 0;
   pads.forEach(p => {
     if (!p.playing) return;
     n++;
-    stopPad(p.id, fade && !p.stopping);
+    if (fade && p.stopping) return;          // already fading out (e.g. the old cue of a crossfade): let that fade finish instead of clicking it off
+    stopPad(p.id, fade);
   });
+  clearTimeout(stopAllTimer);
+  stopAllFading = fade && n > 0;
+  if (stopAllFading) stopAllTimer = setTimeout(() => { stopAllFading = false; }, Math.max(0, Number(fadeDuration) || 0) * 1000 + 150);
   setStatus(n ? (fade ? 'Fading out… press again to cut' : 'All stopped') : 'Nothing is playing');
   updatePlayCueBtn();
 }
@@ -2621,13 +2642,14 @@ function attachAudio(pad, file) {
       audio.play().catch(() => {});
       return;
     }
+    const wasStopping = pad.stopping;      // it ran out while STOP ALL / a stop was fading it: that is a stop, not a cue finishing
     pad.playing  = false;
     pad.paused   = false;
     pad.stopping = false;
     refreshPad(pad.id);
     updatePlayCueBtn();
     setStatus(`"${pad.name}" finished`);
-    if (autoAdv) checkAutoAdvance(pad.id);
+    if (autoAdv && !wasStopping) checkAutoAdvance(pad.id);
   });
   audio.addEventListener('error', () => {
     if (pad.audio !== audio) return;
@@ -2932,10 +2954,10 @@ function removeScene(idx) {
   if (scenes.length <= 1) return;
   const sc = scenes[idx];
   if (sc.stack.length && !confirm(`Delete "${sc.name}" and its ${sc.stack.length} cue(s)?`)) return;
-  const wasCurrent = currentSceneIdx;
   pushUndo(`deleted scene "${sc.name}"`, () => {
+    const live = scenes[currentSceneIdx];                 // undo must not move the operator to another scene mid-show
     scenes.splice(Math.min(idx, scenes.length), 0, sc);
-    currentSceneIdx = Math.min(wasCurrent, scenes.length - 1);
+    currentSceneIdx = Math.max(0, scenes.indexOf(live));
     renderSceneTabs(); renderStack();
   });
   scenes.splice(idx, 1);
@@ -2997,7 +3019,7 @@ function buildPads() {
   const fill = document.createElement('div');
   fill.className = 'pad-add-tile';
   fill.id        = 'fillPadsTile';
-  fill.title     = 'Load several audio files at once into the next empty pads (or drop them on the grid)';
+  fill.title     = 'Load several audio files at once into the next empty pads (or drop them on a pad)';
   fill.innerHTML = '<div class="add-icon">⇪</div><div class="add-label">Fill Pads…</div>';
   fill.addEventListener('click', pickFilesForPads);
   grid.appendChild(fill);
@@ -3257,9 +3279,10 @@ function startRaf() {
           if (pad.loop) {
             pad.audio.currentTime = pad.inPoint ?? 0;
           } else {
+            const wasStopping = pad.stopping;      // reached its OUT point while a stop was fading it: not a cue finishing
             stopPad(pad.id, false);
             setStatus(`"${pad.name}" finished`);
-            if (autoAdv) checkAutoAdvance(pad.id);
+            if (autoAdv && !wasStopping) checkAutoAdvance(pad.id);
           }
         }
       }
@@ -3363,8 +3386,10 @@ function onKey(e) {
 
   if (modalOpen) return;
 
-  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
-  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'l')   { e.preventDefault(); toggleShowLock(); return; }
+  // Letter shortcuts follow the typed letter on Latin layouts (AZERTY etc.) but the physical key on non-Latin ones (Greek ζ / λ)
+  const hk = /^[a-z]$/i.test(e.key) ? e.key.toLowerCase() : /^Key[A-Z]$/.test(e.code || '') ? e.code.slice(3).toLowerCase() : '';
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && hk === 'z') { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.shiftKey && hk === 'l')   { e.preventDefault(); toggleShowLock(); return; }
 
   if (e.key === ' ') { e.preventDefault(); nextCue(); return; }
 
@@ -3408,6 +3433,8 @@ function endCapture(id) {
 // BEFORE any live state is touched: a bad file must not silence a running show or half-apply.
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const MAX_PADS  = 500;
+const MAX_SCENES = 100, MAX_STACK = 2000, MAX_SHORTCUTS = 500, MAX_AUDIO_PATH = 1024;   // a hostile file must not be able to flood the UI
+const cleanAudioPath = v => (typeof v === 'string' && v.length <= MAX_AUDIO_PATH ? v : '');
 let projectLoading = false;   // blocks a second load starting while audio is still being read
 
 function safeNum(v, lo, hi, dflt) {
@@ -3452,6 +3479,9 @@ function parseProjectConfig(config) {
   const rawScenes = Array.isArray(config.scenes) && config.scenes.length
     ? config.scenes
     : [{ name: 'Scene 1', stack: config.stack, stackIdx: config.stackIdx }];   // legacy single-stack projects
+  if (rawScenes.length > MAX_SCENES) throw new Error(`too many scenes (max ${MAX_SCENES})`);
+  if (rawScenes.some(sc => Array.isArray(sc?.stack) && sc.stack.length > MAX_STACK)) throw new Error(`a scene has too many cues (max ${MAX_STACK})`);
+  if (Array.isArray(config.customShortcuts) && config.customShortcuts.length > MAX_SHORTCUTS) throw new Error(`too many shortcuts (max ${MAX_SHORTCUTS})`);
   const sceneList = rawScenes.map((sc, i) => {
     const stack = (Array.isArray(sc?.stack) ? sc.stack : []).filter(validId).map(padId => ({ padId }));
     const idx   = Number.isInteger(sc?.stackIdx) ? sc.stackIdx : -1;
@@ -3487,6 +3517,7 @@ function parseProjectConfig(config) {
 function commitProject(parsed) {
   clearTimeout(advTimer);
   pads.forEach(p => { clearFadeTimer(p.id); releaseAudio(p); });
+  undoStack.length = 0; refreshUndoBtn();          // history belongs to the previous show: Ctrl+Z must not write its sounds into this one
   pads            = parsed.pads;
   scenes          = parsed.scenes;
   sceneIdSeq      = scenes.length;
@@ -3615,8 +3646,8 @@ function showMissingFilesDialog(missing, projectName) {
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:14px;">
         ${missing.map(f => `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;">
           <span style="background:${pads[f.padId]?.color||'#888'};width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block"></span>
-          <span style="font-size:12px">${escHtml(f.padName||'Pad '+(f.padId+1))}</span>
-          <span style="font-size:10.5px;color:var(--muted);margin-left:auto;font-family:monospace">${escHtml(f.fileName)}</span>
+          <span style="font-size:12px"${f.padName ? ' data-notr' : ''}>${escHtml(f.padName||'Pad '+(f.padId+1))}</span>
+          <span style="font-size:10.5px;color:var(--muted);margin-left:auto;font-family:monospace" data-notr>${escHtml(f.fileName)}</span>
         </div>`).join('')}
       </div>
       <p style="font-size:12px;color:var(--muted)">Browse to the folder containing these files to reload them.</p>
@@ -3651,13 +3682,16 @@ async function deleteProject(name, e) {
 }
 
 // ── Modal UI ──────────────────────────────────────────────
+let modalSerial = 0;   // bumped whenever a dialog opens or closes, so a slow async fill (pre-show check) can tell it is stale
 function openModal(title, bodyHTML, ftrHTML) {
+  modalSerial++;
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalBody').innerHTML    = bodyHTML;
   document.getElementById('modalFtr').innerHTML     = ftrHTML;
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 function closeModal() {
+  modalSerial++;
   document.getElementById('modalOverlay').classList.add('hidden');
   document.getElementById('modalBox').classList.remove('wide');
   midiLearn = null;
@@ -3794,18 +3828,19 @@ async function loadElectronProject() {
     for (let i = 0; i < parsed.pads.length; i++) {
       const pc  = config.pads[i];
       const pad = parsed.pads[i];
-      if (typeof pc?.audioPath !== 'string' || !pc.audioPath) continue;
+      const audioPath = cleanAudioPath(pc?.audioPath);
+      if (!audioPath) continue;
       try {
-        if (await window.electronAPI.fileExists(pc.audioPath)) {
-          const buf      = await window.electronAPI.readFile(pc.audioPath);
-          const fileName = pc.audioPath.replace(/.*[\\/]/, '');
+        if (await window.electronAPI.fileExists(audioPath)) {
+          const buf      = await window.electronAPI.readFile(audioPath);
+          const fileName = audioPath.replace(/.*[\\/]/, '');
           attachAudio(pad, new File([new Blob([buf])], fileName));
-          pad.filePath = pc.audioPath;
+          pad.filePath = audioPath;
           continue;
         }
       } catch {}
-      pad.missingPath = pc.audioPath;
-      missing.push({ padId: i, audioPath: pc.audioPath, padName: pad.name });
+      pad.missingPath = audioPath;
+      missing.push({ padId: i, audioPath, padName: pad.name });
     }
 
     commitProject(parsed);
@@ -3831,8 +3866,8 @@ function showElectronMissingDialog(missing) {
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="background:${c};width:7px;height:7px;border-radius:50%;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600">${escHtml(f.padName || 'Pad ' + (f.padId + 1))}</div>
-        <div style="font-size:10px;color:var(--muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(f.audioPath)}">${escHtml(f.audioPath)}</div>
+        <div style="font-size:12px;font-weight:600"${f.padName ? ' data-notr' : ''}>${escHtml(f.padName || 'Pad ' + (f.padId + 1))}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-notr title="${escHtml(f.audioPath)}">${escHtml(f.audioPath)}</div>
       </div>
       <button class="modal-btn" id="locate-btn-${f.padId}" style="flex-shrink:0" onclick="electronLocateFile(${f.padId})">Locate…</button>
     </div>`;
@@ -3946,6 +3981,7 @@ async function runPreShowCheck() {
     });
   });
 
+  if (!loaded.length) add('fail', 'No sounds are loaded — this show is empty');
   if (masterVol < 0.99) add('warn', `Master volume is at ${Math.round(masterVol * 100)}%`);
   if (outputProblem) add('fail', outputProblem);
   else if (CAN_SET_SINK && prefs.outputId) {
@@ -3977,7 +4013,9 @@ async function showPreShowCheck() {
   openModal('PRE-SHOW CHECK', '<div class="chk-run">Checking every sound, cue and setting…</div>',
     `<button class="modal-btn" onclick="showPreShowCheck()">↻ Check again</button>${closeBtn}`);
   document.getElementById('modalBox').classList.add('wide');
+  const mine = modalSerial;
   const r = await runPreShowCheck();
+  if (mine !== modalSerial) return;              // closed, or another dialog opened, while it was checking: don't write into it
   const cls = r.fails ? 'bad' : r.warns ? 'warn' : 'good';
   const icon = { fail: '✗', warn: '⚠', info: 'ℹ' };
   document.getElementById('modalBody').innerHTML = `
@@ -4010,9 +4048,9 @@ SETTINGS_SECTIONS.push({
       <span><button class="modal-btn${(document.documentElement.dataset.theme || 'light') === 'light' ? ' primary' : ''}" onclick="applyTheme('light');renderSettings()">Light</button>
       <button class="modal-btn${document.documentElement.dataset.theme === 'dark' ? ' primary' : ''}" onclick="applyTheme('dark');renderSettings()">Dark</button></span></div>
     <div class="set-row"><span>Language</span>
-      <select class="sh-select" id="langSelect" data-notr onchange="setLanguage(this.value);renderSettings()">
+      <select class="sh-select" id="langSelect" onchange="setLanguage(this.value);renderSettings()">
         <option value="auto" ${prefs.lang ? '' : 'selected'}>Automatic</option>
-        ${Object.entries(LANGS).map(([c, n]) => `<option value="${c}" ${prefs.lang === c ? 'selected' : ''}>${n}</option>`).join('')}
+        ${Object.entries(LANGS).map(([c, n]) => `<option value="${c}" data-notr ${prefs.lang === c ? 'selected' : ''}>${n}</option>`).join('')}
       </select></div>
     <label class="set-row"><span>Waveforms behind the pad progress bar<br><small>Easier IN / OUT points. Analyses each file once; skipped for long files and on touch devices.</small></span>
       <input type="checkbox" ${prefs.waveform ? 'checked' : ''} onchange="setWaveformPref(this.checked)"></label>`,
@@ -4160,13 +4198,13 @@ async function renderRemoteBox(cfgIn) {
       <input type="checkbox" id="remoteLan" ${cfg.lan ? 'checked' : ''} ${cfg.enabled ? '' : 'disabled'} onchange="applyRemote()"></label>
     <div class="set-row"><span>Port</span><input class="modal-input" style="width:90px" type="number" id="remotePort" min="1024" max="65535" value="${cfg.port}" onchange="applyRemote()"></div>
     ${statusLine}
-    ${st.running ? `<div class="set-sub">Phone / tablet remote — open one of these links (it contains the secret token):</div>
+    ${st.running ? `<div class="set-sub">Phone / tablet remote — open one of these links (it contains the secret token — press Show to read it, Copy to paste it):</div>
       ${(cfg.urls || []).map((u, i) => `<div class="set-row"><span style="flex:1;min-width:0"><small>${escHtml(u.label)}</small>
-        <input class="modal-input" readonly id="remoteUrl${i}" value="${escHtml(u.url)}" onclick="this.select()" style="font-size:11px"></span>
+        <input class="modal-input" readonly id="remoteUrl${i}" type="password" autocomplete="off" value="${escHtml(u.url)}" onclick="this.select()" style="font-size:11px"></span>
         <button class="modal-btn" onclick="copyText(document.getElementById('remoteUrl${i}').value)">Copy</button></div>`).join('')}` : ''}
     <div class="set-sub">Access token</div>
     <div class="set-row"><input class="modal-input" readonly id="remoteToken" type="password" value="${escHtml(cfg.token)}" style="font-size:11px">
-      <button class="modal-btn" onclick="const i=document.getElementById('remoteToken');i.type=i.type==='password'?'text':'password'">Show</button>
+      <button class="modal-btn" onclick="const t=document.getElementById('remoteToken').type==='password'?'text':'password';document.querySelectorAll('#remoteBox input[readonly]').forEach(i=>i.type=t)">Show</button>
       <button class="modal-btn" onclick="copyText(document.getElementById('remoteToken').value)">Copy</button>
       <button class="modal-btn" onclick="regenRemoteToken()">New…</button></div>
     <div class="set-row"><small>For scripts: send the token as “Authorization: Bearer &lt;token&gt;” with JSON to http://127.0.0.1:${cfg.port}/command — full reference in docs/REMOTE.md.</small></div>
@@ -4233,7 +4271,11 @@ function onMidiMessage(ev) {
   }
   if (!msg || !Number.isInteger(msg.num)) return;
   if (midiLearn) { assignMidi(msg); return; }
-  for (const e of prefs.midiMap) if (e.msg === msg.msg && e.num === msg.num && (e.ch === -1 || e.ch === msg.ch)) handleRemoteCommand(e.cmd);
+  // One action per hit: a mapping for this exact channel beats an "any channel" one (quick-map), so a learned
+  // STOP ALL on a drum pad doesn't also fire the quick-mapped pad underneath it.
+  const hits = prefs.midiMap.filter(e => e.msg === msg.msg && e.num === msg.num && (e.ch === -1 || e.ch === msg.ch));
+  const hit  = hits.find(e => e.ch === msg.ch) || hits[0];
+  if (hit) handleRemoteCommand(hit.cmd);
 }
 function assignMidi(trigger, cmd = midiLearn, ch = trigger.ch) {
   const c = normalizeRemoteCommand(cmd);
@@ -4310,7 +4352,7 @@ function renderShortcutsModal() {
         const lbl = pad?.file ? escHtml(pad.name) : `Pad ${s.padId + 1}`;
         return `<div class="sh-custom-row">
           <div class="sh-key combo">${escHtml(s.combo)}</div>
-          <div class="sh-pad-name">${lbl}</div>
+          <div class="sh-pad-name"${pad?.file ? ' data-notr' : ''}>${lbl}</div>
           <div class="sh-actions">
             <button class="sh-test" onclick="togglePadCrossfade(${s.padId})" title="Play/Stop">▶</button>
             <button class="sh-del"  onclick="removeCustomShortcut(${s.id})" title="Delete">×</button>
@@ -4319,7 +4361,7 @@ function renderShortcutsModal() {
       }).join('')
     : '<div class="sh-empty-msg">No custom hotkeys added yet.</div>';
 
-  const padOptions = pads.map(p => `<option value="${p.id}">${p.file ? escHtml(p.name) : `Pad ${p.id + 1} (empty)`}</option>`).join('');
+  const padOptions = pads.map(p => `<option value="${p.id}"${p.file ? ' data-notr' : ''}>${p.file ? escHtml(p.name) : `Pad ${p.id + 1} (empty)`}</option>`).join('');
 
   document.getElementById('modalBody').innerHTML = `
     <div class="sh-sec-hdr">Pad Shortcuts <span class="sh-hint">— click a key badge to remap</span></div>
@@ -4484,7 +4526,7 @@ function restoreSessionData(data) {
   catch (e) { setStatus(`Could not restore the saved session — ${e.message}`); return; }
   // Keep the on-disk link of pads whose audio can't be recovered, so a later Save As doesn't drop it
   if (IS_ELECTRON) {
-    data.pads.forEach((pc, i) => { if (typeof pc?.audioPath === 'string') parsed.pads[i].missingPath = pc.audioPath; });
+    data.pads.forEach((pc, i) => { const ap = cleanAudioPath(pc?.audioPath); if (ap) parsed.pads[i].missingPath = ap; });
   }
   commitProject(parsed);
   // Write permission for a project path only lasts for the session it was chosen in, so the first

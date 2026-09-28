@@ -22,7 +22,7 @@ Turn it on in **⚙ Settings → Remote control**.
 | Token | A random 256-bit secret in `remote.json` (mode 0600). Every request except `/ping` and the phone page needs `Authorization: Bearer <token>`. **New…** in Settings replaces it instantly and cuts open streams. |
 | Web pages can't use it | No CORS headers are ever sent, preflights are refused, foreign `Origin` / `Sec-Fetch-Site` requests are rejected, JSON is required, and `Host` must be an IP address or `localhost` (DNS-rebinding defence). |
 | Playback only | `pad_toggle`, `pad_stop`, `stop_all`, `stop_all_auto`, `cue_play`, `cue_next`, `cue_select`, `master`. Nothing else is accepted. |
-| Bounded | 4 KB request bodies, 16 connections, 4 event streams, request timeouts. |
+| Bounded | 4 KB request bodies, 32 connections (8 per address, so one device on the network can't fill them all), 4 event streams, request timeouts; a connection that never sends a request is dropped after about 9 s. |
 
 The exact location of the settings file (which also holds the token) is shown in **Settings → Remote control** under the
 token. It sits in the app's per-user data folder (for example `%APPDATA%` on Windows, `~/Library/Application Support` on
