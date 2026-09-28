@@ -16,8 +16,16 @@
 - Saving no longer follows a symlink left at `<show>.cuepro.tmp`
 - **Remote control**: one device flooding the port can no longer lock out the Stream Deck / phone (per-address connection limit, idle connections are dropped after ~9 s); turning remote control off can no longer leave a listener running; the access link is hidden until you press Show
 
+**A supported engine** *(the app now runs on Electron 43 / Chromium 150 instead of Electron 29 / Chromium 122, which stopped getting security fixes long ago)*
+- **System requirements changed: Windows 10 or newer, macOS 12 (Monterey) or newer.** On an older system use the browser version or v1.2.x. (Electron 44 would need macOS 13, so 43 was chosen on purpose.)
+- Electron 32 removed the way the app learned where a picked / dropped audio file lives on disk — without a fix, saved projects would have silently lost their links to the audio files. The app now asks Electron the supported way (`webUtils.getPathForFile`), and a test checks it
+- The app made one network request of its own at start-up on Windows / Linux: Chromium's spell checker downloading a dictionary from Google (and underlining pad names in red). Spell checking is off, and a test now fails if the running app makes any network request
+- Update downloads are checked against the SHA-256 GitHub publishes for the file, as well as the size. (The builds are still not code-signed — see SECURITY.md)
+- New docs: `SECURITY.md` (how to report a vulnerability, what is and isn't covered) and `CONTRIBUTING.md`; the README has a Security & privacy section
+
 **Under the hood**
-- 237 automated checks run on every pull request
+- 256 automated checks run on every pull request, including the **real Electron app** launched headless (from source, and the packaged Linux build), so a problem in `main.js`, the preload bridge or the packaging can no longer hide behind mocks
+- The release is only published from `main`; the build workflow can be run by hand on a branch to test the Windows / macOS installers first
 
 ---
 

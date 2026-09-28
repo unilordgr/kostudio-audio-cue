@@ -33,6 +33,9 @@ function createWindow() {
       // OUT-point enforcement, loop regions and auto-advance run on a
       // requestAnimationFrame loop — never let it stall when minimised.
       backgroundThrottling: false,
+      // Chromium's spell checker downloads a dictionary from Google at start-up (Windows / Linux) and underlines
+      // pad names in red. Neither belongs in a show — and it would be the app's only network traffic besides the update check.
+      spellcheck: false,
     },
   });
 
@@ -55,6 +58,8 @@ app.on('before-quit', () => { remote?.stop(); });
 // The page is a single local file that needs almost nothing from Chromium's permission system. Deny everything
 // except MIDI (controllers) and clipboard writes (the "Copy" buttons in Settings).
 function restrictPermissions() {
+  session.defaultSession.setSpellCheckerEnabled?.(false);
+  session.defaultSession.setSpellCheckerLanguages?.([]);    // no language → no dictionary to fetch from Google at start-up (see spellcheck: false above)
   const allowed = new Set(['midi', 'clipboard-sanitized-write']);
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed.has(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));

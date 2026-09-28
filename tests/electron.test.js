@@ -29,11 +29,12 @@ const httpReq = (port, method, p, { headers = {}, body } = {}) => new Promise((r
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'kcue-el-'));
   const userData = path.join(work, 'userdata'); fs.mkdirSync(userData);
   const wavPath = path.join(work, 'tone.wav'); fs.writeFileSync(wavPath, Buffer.from(wavBytes(3, { tone: true })));
+  const netLog = path.join(work, 'net.json');
   const txtPath = path.join(work, 'secret.txt'); fs.writeFileSync(txtPath, 'top secret');
 
   const app = await _electron.launch({
     executablePath: electronPath,
-    args: [...(packaged ? [] : [path.join(ROOT, 'main.js')]), `--user-data-dir=${userData}`, '--no-sandbox', '--disable-gpu', '--autoplay-policy=no-user-gesture-required'],
+    args: [...(packaged ? [] : [path.join(ROOT, 'main.js')]), `--user-data-dir=${userData}`, `--log-net-log=${netLog}`, '--no-sandbox', '--disable-gpu', '--autoplay-policy=no-user-gesture-required'],
     cwd: ROOT,
     env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: '1' },
   });
@@ -159,6 +160,12 @@ const httpReq = (port, method, p, { headers = {}, body } = {}) => new Promise((r
 
   ck('no page errors during the whole run', errors.length === 0, errors.join(' | '));
   await app.close();
+  await sleep(500);
+  // Chromium's own net-log: the app must not make ANY request of its own (it once fetched a spell-check dictionary from Google at start-up).
+  // The update check only runs on Windows / macOS and is not part of this run.
+  let netUrls = null;
+  try { netUrls = [...new Set([...fs.readFileSync(netLog, 'utf8').matchAll(/"url":"([^"]+)"/g)].map(m => m[1]))]; } catch { /* log not written */ }
+  ck('the running app makes no network requests at all (net-log is empty)', Array.isArray(netUrls) && netUrls.length === 0, JSON.stringify(netUrls));
   fs.rmSync(work, { recursive: true, force: true });
   t.finish();
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });

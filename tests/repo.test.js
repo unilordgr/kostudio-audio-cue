@@ -63,6 +63,9 @@ ck('the lockfile matches package.json (npm ci works)', (() => {
   return JSON.stringify(lock.devDependencies) === JSON.stringify(pkg.devDependencies);
 })());
 
+ck('SECURITY.md and CONTRIBUTING.md exist and the README links both',
+  exists('SECURITY.md') && exists('CONTRIBUTING.md') && /\]\(SECURITY\.md\)/.test(read('README.md')) && /\]\(docs\/REMOTE\.md\)/.test(read('README.md')) && /SECURITY\.md/.test(read('CONTRIBUTING.md')));
+
 // ── only main may publish a release; other branches can run the build workflow by hand to test the installers
 ck('the publish-release job only runs on main (a manual build on a branch must not publish)',
   /publish-release:[\s\S]*?if:\s*github\.ref == 'refs\/heads\/main'/.test(read('.github/workflows/build.yml')));
