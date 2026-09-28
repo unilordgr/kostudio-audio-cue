@@ -24,7 +24,7 @@
 - New docs: `SECURITY.md` (how to report a vulnerability, what is and isn't covered) and `CONTRIBUTING.md`; the README has a Security & privacy section
 
 **Under the hood**
-- 256 automated checks run on every pull request, including the **real Electron app** launched headless (from source, and the packaged Linux build), so a problem in `main.js`, the preload bridge or the packaging can no longer hide behind mocks
+- 257 automated checks run on every pull request, including the **real Electron app** launched headless (from source, and the packaged Linux build), so a problem in `main.js`, the preload bridge or the packaging can no longer hide behind mocks
 - The release is only published from `main`; the build workflow can be run by hand on a branch to test the Windows / macOS installers first
 
 ---
