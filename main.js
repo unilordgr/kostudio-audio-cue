@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, net, session } = require('electron');
 const path    = require('path');
 const fs      = require('fs');
 const https   = require('https');
 const os      = require('os');
 const { spawn, execFile } = require('child_process');
 const { promisify } = require('util');
+const { createRemote } = require('./remote');
 
 const execFileP = promisify(execFile);
 
@@ -15,7 +16,7 @@ let mainWindow = null;
 // The only external link the app opens. It is a constant on purpose: the renderer just
 // asks "open the donate page" and never supplies a URL, so a compromised page can't
 // use this to launch arbitrary links or protocols.
-const DONATE_URL = 'https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=etutorialsgr%40gmail.com&currency_code=EUR&item_name=Support%20Kostudio%20Audio%20Cue';
+const DONATE_URL = 'https://ko-fi.com/dkostoudis';
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -45,9 +46,35 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  restrictPermissions();
   createWindow();
+  initRemote();
   setTimeout(() => checkForUpdates(), 4000);
 });
+app.on('before-quit', () => { remote?.stop(); });
+
+// The page is a single local file that needs almost nothing from Chromium's permission system. Deny everything
+// except MIDI (controllers) and clipboard writes (the "Copy" buttons in Settings).
+function restrictPermissions() {
+  const allowed = new Set(['midi', 'clipboard-sanitized-write']);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed.has(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
+}
+
+// ── Remote control (opt-in; see remote.js for the threat model) ──
+let remote = null;
+function initRemote() {
+  remote = createRemote({
+    configPath: path.join(app.getPath('userData'), 'remote.json'),
+    sendCommand: cmd => {
+      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('no window');
+      mainWindow.webContents.send('remote-command', cmd);
+    },
+    pageHtml: () => fs.readFileSync(path.join(__dirname, 'remote.html'), 'utf8'),
+    log: (...a) => console.warn(...a),
+  });
+  remote.init().catch(e => console.warn('Remote control failed to initialise:', e.message));
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -409,6 +436,13 @@ ipcMain.handle('path-join', async (_, ...parts) => {
   if (!parts.every(x => typeof x === 'string')) throw new Error('Invalid path');
   return path.join(...parts);
 });
+
+// ── IPC: Remote control settings + state ──────────────────
+
+ipcMain.handle('remote-get-config',  async () => remote.getConfig());
+ipcMain.handle('remote-set-config',  async (_, cfg) => remote.apply({ enabled: cfg?.enabled === true, lan: cfg?.lan === true, port: cfg?.port }));
+ipcMain.handle('remote-regen-token', async () => remote.regenerateToken());
+ipcMain.on('remote-state', (_, state) => { if (remote && state && typeof state === 'object') remote.updateState(state); });
 
 // ── IPC: Donate ───────────────────────────────────────────
 

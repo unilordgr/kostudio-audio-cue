@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0d0d0d">
+<title>Kostudio Remote</title>
+<style>
+  :root { --bg:#0d0d0d; --surf:#181a1f; --surf2:#22252c; --text:#eef1f6; --muted:#8b93a3; --line:#2f333c; --accent:#00d4ff; --go:#2ecc71; --warn:#f5a623; --stop:#ff3b3b; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f2f4f9; --surf:#fff; --surf2:#eef1f7; --text:#161a22; --muted:#667085; --line:#d5dae5; } }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surf); border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  h1 { margin: 0; font-size: 15px; letter-spacing: 2px; color: var(--accent); flex: 1; }
+  #dot { width: 10px; height: 10px; border-radius: 50%; background: var(--stop); }
+  #dot.ok { background: var(--go); }
+  #scene { font-size: 12px; color: var(--muted); }
+  #msg { display: none; padding: 9px 14px; font-size: 13px; background: rgba(255,60,60,.14); color: var(--stop); border-bottom: 1px solid rgba(255,60,60,.4); }
+  main { flex: 1; overflow-y: auto; padding: 12px 12px 8px; -webkit-overflow-scrolling: touch; }
+  h2 { font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin: 14px 2px 8px; }
+  #pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 9px; }
+  .pad { position: relative; min-height: 74px; border: 1px solid var(--line); border-left: 6px solid var(--c, var(--accent)); border-radius: 10px; background: var(--surf); color: var(--text);
+         padding: 8px 10px; text-align: left; font: inherit; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; }
+  .pad .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  .pad .st { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pad .k  { position: absolute; top: 6px; right: 8px; font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .pad.playing { background: rgba(46,204,113,.16); border-color: var(--go); }
+  .pad.playing .st { color: var(--go); font-weight: 700; }
+  .pad.stopping { background: rgba(245,166,35,.16); border-color: var(--warn); }
+  .pad.paused { border-color: var(--warn); }
+  .pad:active { transform: scale(.97); }
+  #stack { display: flex; flex-direction: column; gap: 6px; }
+  .cue { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf); color: var(--text); font: inherit; text-align: left; width: 100%; cursor: pointer; }
+  .cue .n { color: var(--muted); width: 22px; text-align: right; font-variant-numeric: tabular-nums; }
+  .cue.active { border-color: var(--accent); background: rgba(0,212,255,.10); }
+  .cue.noaudio { opacity: .55; }
+  .cue .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 2px; }
+  #vol { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+  #vol input { flex: 1; height: 34px; }
+  footer { flex-shrink: 0; background: var(--surf); border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  footer button { min-height: 52px; border-radius: 10px; border: 1px solid var(--line); background: var(--surf2); color: var(--text); font: 700 15px system-ui; letter-spacing: .5px; cursor: pointer; }
+  footer button:active { transform: scale(.97); }
+  #stop { grid-column: 1 / -1; background: var(--stop); color: #fff; border-color: var(--stop); font-size: 17px; min-height: 58px; letter-spacing: 2px; }
+  #play { color: var(--go); border-color: var(--go); }
+  #next { color: var(--accent); border-color: var(--accent); }
+</style>
+</head>
+<body>
+<header><h1 data-t="KOSTUDIO REMOTE">KOSTUDIO REMOTE</h1><span id="scene"></span><span id="dot" title="connection"></span></header>
+<div id="msg"></div>
+<main>
+  <h2 data-t="Pads">Pads</h2><div id="pads"><div class="empty" data-t="Connecting…">Connecting…</div></div>
+  <h2 data-t="Cue stack">Cue stack</h2><div id="stack"></div>
+  <h2 data-t="Master volume">Master volume</h2><div id="vol"><input id="volSlider" type="range" min="0" max="100" value="100"><span id="volTxt">100%</span></div>
+</main>
+<footer>
+  <button id="stop" data-t="■ STOP ALL">■ STOP ALL</button>
+  <button id="play" data-t="▶ PLAY CUE">▶ PLAY CUE</button>
+  <button id="next" data-t="NEXT CUE ▶">NEXT CUE ▶</button>
+</footer>
+<script>
+'use strict';
+// Token arrives in the URL fragment (never sent to the server or logged); keep it for reloads, then hide it.
+let token = '';
+try { token = sessionStorage.getItem('kcue-remote') || ''; } catch (e) {}
+const fromHash = location.hash.replace(/^#/, '');
+if (/^[0-9a-f]{64}$/.test(fromHash)) { token = fromHash; try { sessionStorage.setItem('kcue-remote', token); } catch (e) {} history.replaceState(null, '', location.pathname); }
+
+// Language: follows the phone (Greek / German), English otherwise. English text is the key.
+const T = {
+  el: { 'Pads': 'Pads', 'Connecting…': 'Σύνδεση…', 'Cue stack': 'Λίστα cue', 'Master volume': 'Κύρια ένταση', '■ STOP ALL': '■ STOP ALL', '▶ PLAY CUE': '▶ ΕΚΤΕΛΕΣΗ CUE', 'NEXT CUE ▶': 'ΕΠΟΜΕΝΟ CUE ▶',
+    'No sounds are loaded in the app yet.': 'Δεν έχουν φορτωθεί ήχοι στην εφαρμογή ακόμα.', 'The cue stack is empty.': 'Η λίστα cue είναι κενή.', 'fading out': 'fade out', 'playing': 'παίζει', 'paused': 'σε παύση', 'ready': 'έτοιμο', 'Unnamed': 'Χωρίς όνομα',
+    'The link has expired or the token was changed. Open the remote link from the app\u2019s Settings again.': 'Ο σύνδεσμος έληξε ή το token άλλαξε. Ανοίξτε ξανά τον σύνδεσμο τηλεχειρισμού από τις Ρυθμίσεις της εφαρμογής.',
+    'Can\u2019t reach the app \u2014 retrying\u2026': 'Δεν είναι δυνατή η επικοινωνία με την εφαρμογή — νέα προσπάθεια…',
+    'Open the remote link from the app\u2019s Settings (it contains the access token).': 'Ανοίξτε τον σύνδεσμο τηλεχειρισμού από τις Ρυθμίσεις της εφαρμογής (περιέχει το token πρόσβασης).',
+    'The app refused that ({0}).': 'Η εφαρμογή το απέρριψε ({0}).' },
+  de: { 'Pads': 'Pads', 'Connecting…': 'Verbinde…', 'Cue stack': 'Cue-Liste', 'Master volume': 'Hauptlautstärke', '■ STOP ALL': '■ STOP ALL', '▶ PLAY CUE': '▶ CUE STARTEN', 'NEXT CUE ▶': 'NÄCHSTE CUE ▶',
+    'No sounds are loaded in the app yet.': 'In der App sind noch keine Sounds geladen.', 'The cue stack is empty.': 'Die Cue-Liste ist leer.', 'fading out': 'blendet aus', 'playing': 'läuft', 'paused': 'pausiert', 'ready': 'bereit', 'Unnamed': 'Unbenannt',
+    'The link has expired or the token was changed. Open the remote link from the app\u2019s Settings again.': 'Der Link ist abgelaufen oder das Token wurde geändert. Öffne den Fernsteuerungs-Link erneut in den Einstellungen der App.',
+    'Can\u2019t reach the app \u2014 retrying\u2026': 'App nicht erreichbar — neuer Versuch…',
+    'Open the remote link from the app\u2019s Settings (it contains the access token).': 'Öffne den Fernsteuerungs-Link aus den Einstellungen der App (er enthält das Zugriffs-Token).',
+    'The app refused that ({0}).': 'Die App hat das abgelehnt ({0}).' },
+};
+const dict = T[(navigator.language || 'en').slice(0, 2).toLowerCase()] || null;
+const tr = (s, v) => { const o = (dict && dict[s]) || s; return v === undefined ? o : o.replace('{0}', v); };
+if (dict) { document.documentElement.lang = (navigator.language || 'en').slice(0, 2).toLowerCase(); document.querySelectorAll('[data-t]').forEach(e => { e.textContent = tr(e.dataset.t); }); }
+
+const $ = id => document.getElementById(id);
+const msg = t => { $('msg').style.display = t ? 'block' : 'none'; $('msg').textContent = t ? tr(t) : ''; };
+let busy = false, lastJson = '', volTimer = null, volTouched = 0;
+
+async function call(path, body) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 2500);
+  try {
+    const r = await fetch(path, { method: body ? 'POST' : 'GET', cache: 'no-store', signal: ctl.signal,
+      headers: Object.assign({ Authorization: 'Bearer ' + token }, body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 401) { msg('The link has expired or the token was changed. Open the remote link from the app’s Settings again.'); $('dot').className = ''; return null; }
+    if (!r.ok) { $('msg').style.display = 'block'; $('msg').textContent = tr('The app refused that ({0}).', r.status); return null; }
+    msg(''); $('dot').className = 'ok';
+    return body ? true : await r.json();
+  } catch (e) { $('dot').className = ''; msg('Can’t reach the app — retrying…'); return null; }
+  finally { clearTimeout(to); }
+}
+const send = cmd => call('/command', cmd).then(() => refresh());
+
+function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+
+function render(s) {
+  const json = JSON.stringify(s);
+  if (json === lastJson) return; lastJson = json;
+  $('scene').textContent = s.scene ? s.scene.name : '';
+  const pads = $('pads'); pads.textContent = '';
+  const loaded = (s.pads || []).filter(p => p.loaded);
+  if (!loaded.length) pads.appendChild(mk('div', 'empty', tr('No sounds are loaded in the app yet.')));
+  loaded.forEach(p => {
+    const b = mk('button', 'pad' + (p.playing ? ' playing' : '') + (p.stopping ? ' stopping' : '') + (p.paused ? ' paused' : ''));
+    if (/^#[0-9a-f]{3,8}$/i.test(p.color)) b.style.setProperty('--c', p.color);
+    b.appendChild(mk('span', 'nm', p.name || 'Pad ' + (p.id + 1)));
+    b.appendChild(mk('span', 'st', p.stopping ? tr('fading out') : p.playing ? (p.remain != null ? '−' + fmt(p.remain) : tr('playing')) : p.paused ? tr('paused') : tr('ready')));
+    if (p.key) b.appendChild(mk('span', 'k', String(p.key).toUpperCase()));
+    b.onclick = () => send({ type: 'pad_toggle', id: p.id });
+    pads.appendChild(b);
+  });
+  const st = $('stack'); st.textContent = '';
+  if (!(s.stack || []).length) st.appendChild(mk('div', 'empty', tr('The cue stack is empty.')));
+  (s.stack || []).forEach((c, i) => {
+    const b = mk('button', 'cue' + (i === s.stackIdx ? ' active' : '') + (c.noAudio ? ' noaudio' : ''));
+    b.appendChild(mk('span', 'n', String(i + 1))); b.appendChild(mk('span', 'nm', c.name || tr('Unnamed')));
+    b.onclick = () => send({ type: 'cue_select', index: i });
+    st.appendChild(b);
+  });
+  if (Date.now() - volTouched > 1500 && typeof s.masterVol === 'number') { $('volSlider').value = Math.round(s.masterVol * 100); $('volTxt').textContent = Math.round(s.masterVol * 100) + '%'; }
+}
+
+async function refresh() {
+  if (busy || !token) { if (!token) msg('Open the remote link from the app’s Settings (it contains the access token).'); return; }
+  busy = true;
+  try { const s = await call('/state'); if (s) render(s); } finally { busy = false; }
+}
+
+$('stop').onclick = () => send({ type: 'stop_all' });
+$('play').onclick = () => send({ type: 'cue_play' });
+$('next').onclick = () => send({ type: 'cue_next' });
+$('volSlider').oninput = e => {
+  volTouched = Date.now(); const v = Number(e.target.value); $('volTxt').textContent = v + '%';
+  clearTimeout(volTimer); volTimer = setTimeout(() => call('/command', { type: 'master', value: v / 100 }), 80);
+};
+refresh(); setInterval(refresh, 500);
+</script>
+</body>
+</html>

@@ -41,7 +41,7 @@ Click **More info** → **Run anyway**.
 - **Any number of pads** — each with its own audio file, colour, and keyboard shortcut
 - **Colour + shortcut** displayed in a left column on each pad for quick identification
 - **Rename** any pad by double-clicking its name
-- **Drag & drop** audio files directly onto pads
+- **Drag & drop** audio files directly onto pads — drop several at once (or use **Fill Pads…**) to fill the next empty pads, sorted naturally (Cue 2 before Cue 10); non-audio files are skipped
 
 ### Playback & Transport
 - **Play / Pause / Resume / Stop** — dedicated transport controls per pad
@@ -50,6 +50,10 @@ Click **More info** → **Run anyway**.
 - **Per-pad fade toggle** — enable or disable fade-in per pad independently
 - **Per-pad volume** — individual sliders plus a master volume control
 - **Loop toggle** — loop any cue indefinitely
+- **Countdown** — while a pad plays it shows the time *remaining* (to the end, or the OUT point); the cue stack shows each cue's length and the running cue's countdown
+- **Bring it back** — press the key of a pad that is fading out and it fades back up instead of stopping
+- **STOP FADE** — a header toggle: when on, STOP ALL and the ■ buttons fade out over the FADE time; pressing STOP ALL again cuts instantly
+- **Panic key** — `Esc` always cuts everything instantly, even with focus in a slider, and cancels any pending auto-advance
 
 ### IN / OUT Points
 - **Set an IN point** — scrub the timeline to a position, click **▶ IN** to mark where playback starts
@@ -64,6 +68,7 @@ Click **More info** → **Run anyway**.
 - **Active zone highlight** — the region between IN and OUT is shaded on the bar
 - **Click to seek** — click anywhere on the bar to jump to that position
 - **Live time display** — shows current position and total duration
+- **Waveforms** — each pad can show its waveform behind the bar, so IN / OUT points are easy to place (Settings → Appearance; skipped for very long files and on touch devices)
 
 ### Cue Stack
 - **Drag cues into a sequence** and step through them with `SPACE` or the Next Cue button
@@ -72,7 +77,23 @@ Click **More info** → **Run anyway**.
 - **■ STOP CUE** — the same button transforms while playing; click again to stop with fade
 - **Multiple Scenes** — separate stacks per scene (e.g. Act 1, Act 2), tab-switched instantly
 - **Auto-advance** — automatically moves to the next cue when the current one finishes, and stops at the end of the stack
+- **Reorder** — ▲▼ buttons or drag a row; drag a pad's name onto the stack to insert it; the selected cue stays selected
 - **Stack text scale** — independently resize the cue stack text with − / + buttons
+
+### Live-show safety
+- **Pre-show check (✔)** — one button verifies every sound opens, every cue has audio, IN/OUT points make sense, the output device is connected and the project is saved, and gives a clear **READY / NOT READY** with a "Go to pad" link for each problem
+- **Show lock (🔒)** — disables editing, loading and deleting so nothing changes by accident; playback, volume and STOP keep working (`Ctrl+Shift+L`)
+- **Undo (`Ctrl+Z`)** — restores cleared pads (with their sound, IN/OUT and cues), replaced sounds, removed cues, cleared stacks and deleted scenes
+- **Audio output device** — send the sound to a specific interface / PA feed (Settings → Audio output; desktop and Chrome / Edge)
+- **Missing-audio protection** — a cue whose file is missing is skipped with a warning instead of cutting the sound that is playing
+
+### Remote control & MIDI
+- **Stream Deck, Bitfocus Companion and scripts** — an opt-in, token-protected local API (off by default; playback commands only). See [docs/REMOTE.md](docs/REMOTE.md)
+- **Phone / tablet remote** — a page served by the desktop app to devices on your network (a separate opt-in tick box)
+- **MIDI controllers** — *Learn* any note / pad / button and map it to a pad, STOP ALL or the cue stack (Chrome, Edge and the desktop app)
+
+### Languages
+- **English, Ελληνικά, Deutsch** — follows your system language, or choose in Settings → Appearance. Control labels such as STOP ALL, FADE, VOL, IN and OUT stay in English, as on a mixing desk
 
 ### Interface & Scale
 - **Kcue app icon** — custom icon visible in taskbar, dock, title bar, and browser tab
@@ -80,13 +101,16 @@ Click **More info** → **Run anyway**.
 - **PADS scale** — zoom the pad grid from 40% to 200% using the − / + controls (bottom-left, always visible)
 - **Stack + footer fixed** — cue stack panel and status bar stay at full size regardless of zoom level
 - **Stack text scale** — resize stack list text independently (70%–160%)
-- **Light & Dark theme** — toggle with one click, preference saved
+- **Light & Dark theme** — in Settings, preference saved
+- **Adaptive header** — the header measures itself and drops the logo, then text labels, as the window (or a longer language) needs, so the transport controls never leave the screen
 - **Responsive layout** — header, footer, and stack panel stay anchored at all zoom levels
 
 ### Shortcuts
 - **Custom hotkeys** — assign Ctrl / Alt / Shift + key combos to any pad
 - **Default pad keys** — `1`–`8`, `Q`–`R` trigger crossfade play instantly
 - **`SPACE`** — advances to the next cue in the stack
+- **`Esc`** — panic: stop everything instantly
+- **`Ctrl+Z`** — undo · **`Ctrl+Shift+L`** — lock / unlock the show
 
 ### Save / Load
 - **Save / Save As / Load** — project files store audio file paths (Windows app) or copies (browser)
@@ -142,7 +166,10 @@ If audio files have moved since last save, a dialog lets you **Locate** each fil
 | Key | Action |
 |---|---|
 | `SPACE` | Next cue in stack |
-| `1` – `8`, `Q` – `R` | Default pad shortcuts (crossfade play) |
+| `Esc` | **Panic** — stop everything instantly (also closes a dialog) |
+| `1` – `8`, `Q` – `R` | Default pad shortcuts (crossfade play; press again while fading out to bring it back) |
+| `Ctrl+Z` | Undo the last destructive action |
+| `Ctrl+Shift+L` | Lock / unlock the show |
 | Custom | Assign Ctrl/Alt/Shift combos via the Shortcuts panel |
 
 Click the key badge on any pad to reassign it.
@@ -176,9 +203,12 @@ npm test                       # runs everything in tests/
 
 | Test file | What it covers |
 |---|---|
-| `tests/ui.test.js` | Playback, fades, cue stack, keyboard, header layout, CSP and donate link — in a real Chromium |
+| `tests/ui.test.js` | Playback, fades, panic / STOP FADE, cue stack, undo, lock, waveform, MIDI, pre-show check, header layout, CSP, donate link — in a real Chromium |
 | `tests/loaders.test.js` | Project save/load/restore for the Electron path (mocked `electronAPI`) and the iPad path (real IndexedDB) |
-| `tests/main.test.js` | `main.js` with Electron mocked: IPC allow-list, updater, download helper, donate handler |
+| `tests/main.test.js` | `main.js` with Electron mocked: IPC allow-list, permissions, remote-control wiring, updater, download helper, donate handler |
+| `tests/remote.test.js` | The remote-control server, attacked: auth, DNS rebinding, cross-origin, CORS, body limits, slowloris, command whitelist |
+| `tests/remote-page.test.js` | The phone page in a real browser, and a hostile cross-origin page trying to drive the server |
+| `tests/i18n.test.js` | Translation table integrity, coverage of every message, in-place language switching, layout in Greek / German |
 | `tests/repo.test.js` | Consistency checks: licence, manifest and icons, packaging list, CSP, one donate URL everywhere |
 
 The same suite runs on every pull request via GitHub Actions (`.github/workflows/test.yml`).
@@ -201,7 +231,7 @@ The same suite runs on every pull request via GitHub Actions (`.github/workflows
 
 Kostudio Audio Cue is free. If it helps your shows, you can support development:
 
-[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-ffc439?style=for-the-badge&logo=paypal&logoColor=003087)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=etutorialsgr%40gmail.com&currency_code=EUR&item_name=Support%20Kostudio%20Audio%20Cue)
+[![Support me on Ko-fi](https://img.shields.io/badge/Support%20me%20on-Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/dkostoudis)
 
 The app also has a **♥ Donate** button in the header.
 
