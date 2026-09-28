@@ -9,13 +9,21 @@ const t = reporter('main.js');
 const ck = (n, ok, d = '') => t.check(n, ok, d);
 
 // ── mock electron
-const handlers = {}, sent = [], spawned = [], dialogs = [], opened = [];
+const handlers = {}, listeners = {}, sent = [], spawned = [], dialogs = [], opened = [], windowSends = [], permHandlers = {};
 let dialogAnswer = 0, saveResult, openResult, willQuit;
 const electron = {
   app: { commandLine: { appendSwitch() {} }, whenReady: () => new Promise(() => {}), on() {},
-         once: (ev, fn) => { if (ev === 'will-quit') willQuit = fn; }, isPackaged: true, getVersion: () => '1.2.8', quit() {} },
-  BrowserWindow: Object.assign(function () {}, { getAllWindows: () => [] }),
-  ipcMain: { handle: (name, fn) => { handlers[name] = fn; } },
+         once: (ev, fn) => { if (ev === 'will-quit') willQuit = fn; }, isPackaged: true, getVersion: () => '1.3.0', quit() {},
+         getPath: () => work },
+  BrowserWindow: Object.assign(function () {
+    return { webContents: { send: (ch, d) => windowSends.push([ch, d]), setWindowOpenHandler() {}, on() {} },
+             loadFile() {}, setMenuBarVisibility() {}, isDestroyed: () => false };
+  }, { getAllWindows: () => [] }),
+  session: { defaultSession: {
+    setPermissionRequestHandler: fn => { permHandlers.request = fn; },
+    setPermissionCheckHandler:   fn => { permHandlers.check = fn; },
+  } },
+  ipcMain: { handle: (name, fn) => { handlers[name] = fn; }, on: (name, fn) => { listeners[name] = fn; } },
   dialog: {
     showMessageBox: async (w, o) => { dialogs.push(o); return { response: dialogAnswer }; },
     showSaveDialog: async () => saveResult, showOpenDialog: async () => openResult,
@@ -25,13 +33,17 @@ const electron = {
 };
 require('child_process').spawn = (...a) => { spawned.push(a); return { unref() {} }; };
 const realLoad = Module._load;
-Module._load = function (req, ...r) { return req === 'electron' ? electron : realLoad.call(this, req, ...r); };
+Module._load = function (req, ...r) {
+  if (req === 'electron') return electron;
+  if (req === './remote') return realLoad.call(this, path.join(ROOT, 'remote.js'), ...r);   // main.js is copied to a temp dir for the test
+  return realLoad.call(this, req, ...r);
+};
 
 // ── load main.js with the internals we want to test exported
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'kcue-main-'));
 const tmpMain = path.join(work, 'main.under-test.js');
 fs.writeFileSync(tmpMain, fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8') +
-  '\nmodule.exports = { downloadFile, isNewerVersion, installWindows, DONATE_URL };');
+  '\nmodule.exports = { downloadFile, isNewerVersion, installWindows, DONATE_URL, createWindow, initRemote, restrictPermissions };');
 const m = require(tmpMain);
 
 const rejects = async p => { try { await p; return false; } catch (e) { return e.message; } };
@@ -67,11 +79,48 @@ const rejects = async p => { try { await p; return false; } catch (e) { return e
 
   // ── donate: fixed URL only, page-supplied arguments ignored
   const u = new URL(m.DONATE_URL);
-  ck('DONATE_URL is the PayPal donate endpoint for etutorialsgr@gmail.com',
-    u.protocol === 'https:' && u.hostname === 'www.paypal.com' && u.searchParams.get('cmd') === '_donations' &&
-    u.searchParams.get('business') === 'etutorialsgr@gmail.com');
+  ck('DONATE_URL is https://ko-fi.com/dkostoudis', u.protocol === 'https:' && u.hostname === 'ko-fi.com' && u.pathname === '/dkostoudis');
   await handlers['open-donate']({}, 'https://evil.example/phish', 'file:///etc/passwd');
   ck('open-donate opens only the fixed URL and ignores anything the page sends', opened.length === 1 && opened[0] === m.DONATE_URL, JSON.stringify(opened));
+
+  // ── permissions: only MIDI + clipboard writes
+  m.restrictPermissions();
+  const asked = p => new Promise(res => permHandlers.request(null, p, res));
+  ck('Chromium permissions: only midi and clipboard-sanitized-write are granted; media, geolocation, notifications, camera… are denied',
+    (await asked('midi')) === true && (await asked('clipboard-sanitized-write')) === true &&
+    (await Promise.all(['media', 'geolocation', 'notifications', 'display-capture', 'clipboard-read', 'midiSysex', 'openExternal', 'fullscreen'].map(asked))).every(v => v === false) &&
+    permHandlers.check(null, 'midi') === true && permHandlers.check(null, 'media') === false);
+
+  // ── remote control wiring, end to end through the real IPC handlers and a real HTTP request
+  m.createWindow();
+  m.initRemote();
+  await new Promise(r => setTimeout(r, 50));
+  const cfg0 = await handlers['remote-get-config']();
+  ck('remote control is OFF at launch and has a private token on disk', cfg0.enabled === false && cfg0.status.running === false && /^[0-9a-f]{64}$/.test(cfg0.token) && cfg0.configPath.startsWith(work));
+  const garbage = await handlers['remote-set-config']({}, { enabled: 'true', lan: 'yes', port: '80' });
+  ck('the settings IPC treats non-boolean / out-of-range input as "off, localhost, default port"', garbage.enabled === false && garbage.lan === false && garbage.status.running === false);
+  const freeP = await new Promise(r => { const s = require('net').createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+  const on = await handlers['remote-set-config']({}, { enabled: true, lan: false, port: freeP });
+  ck('enabling it starts the server on localhost', on.enabled && on.status.running && on.status.host === '127.0.0.1' && on.status.port === freeP);
+  const http = require('http');
+  const call = (method, p, headers, body) => new Promise((resolve, reject) => {
+    const rq = http.request({ host: '127.0.0.1', port: freeP, method, path: p, headers: { Host: `127.0.0.1:${freeP}`, ...headers } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => resolve({ status: r.statusCode, body: d })); });
+    rq.on('error', reject); if (body) rq.write(body); rq.end();
+  });
+  const bearer = { Authorization: `Bearer ${on.token}`, 'Content-Type': 'application/json' };
+  const denied = await call('POST', '/command', { 'Content-Type': 'application/json' }, '{"type":"stop_all"}');
+  windowSends.length = 0;
+  const good = await call('POST', '/command', bearer, '{"type":"pad_toggle","id":1,"x":"dropped"}');
+  ck('a command over HTTP reaches the app window as a clean "remote-command" message; without the token it does not',
+    denied.status === 401 && good.status === 200 && windowSends.length === 1 && windowSends[0][0] === 'remote-command' && JSON.stringify(windowSends[0][1]) === '{"type":"pad_toggle","id":1}', JSON.stringify(windowSends));
+  listeners['remote-state']({}, { v: 1, pads: [{ id: 0, name: 'Kick' }], stack: [] });
+  listeners['remote-state']({}, 'not an object');
+  const stt = await call('GET', '/state', bearer);
+  ck('state pushed by the page is served to the remote; a non-object push is ignored', JSON.parse(stt.body).pads[0].name === 'Kick');
+  const regen = await handlers['remote-regen-token']();
+  const oldTok = await call('GET', '/state', bearer);
+  ck('regenerating the token over IPC invalidates the old one', regen.token !== on.token && oldTok.status === 401);
+  await handlers['remote-set-config']({}, { enabled: false });
 
   // ── downloadFile against a local HTTPS server (self-signed cert generated now, never committed)
   let certOk = true;

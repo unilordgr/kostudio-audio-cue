@@ -31,6 +31,26 @@ const file = INDEX;
         fileExists: async p => p in window.__audio, readFile: async p => window.__audio[p],
         joinPath: async (...a) => a.join('/'),
         onUpdateProgress() {}, onUpdateReady() {}, onUpdateError() {},
+        // opt-in remote control: a stand-in for the main process's remote.js
+        remote: (() => {
+          const cfg = { enabled: false, lan: false, port: 28491, token: 'a'.repeat(64), configPath: '/userdata/remote.json', status: { running: false, host: null, port: 28491, error: '' }, urls: [] };
+          window.__remoteCfg = cfg; window.__remoteStates = []; window.__remoteCalls = []; window.__remoteCmdCb = null; window.__remoteFail = false;
+          const copy = () => JSON.parse(JSON.stringify(cfg));
+          return {
+            getConfig: async () => copy(),
+            setConfig: async c => {
+              window.__remoteCalls.push(c);
+              cfg.enabled = c.enabled; cfg.lan = c.lan; if (Number.isInteger(c.port) && c.port >= 1024) cfg.port = c.port;
+              const ok = c.enabled && !window.__remoteFail;
+              cfg.status = { running: ok, host: ok ? (c.lan ? '0.0.0.0' : '127.0.0.1') : null, port: cfg.port, error: c.enabled && window.__remoteFail ? `Port ${cfg.port} is already in use — pick another port` : '' };
+              cfg.urls = ok ? [{ label: 'This computer', url: `http://127.0.0.1:${cfg.port}/remote#${cfg.token}` }] : [];
+              return copy();
+            },
+            regenToken: async () => { cfg.token = 'b'.repeat(64); if (cfg.urls.length) cfg.urls[0].url = `http://127.0.0.1:${cfg.port}/remote#${cfg.token}`; return copy(); },
+            sendState: st => window.__remoteStates.push(st),
+            onCommand: cb => { window.__remoteCmdCb = cb; },
+          };
+        })(),
       };
       window.mkFile = (name='a.wav') => new File([new Uint8Array(wav)], name, { type: 'audio/wav' });
     }, wav);
@@ -140,6 +160,102 @@ const file = INDEX;
       return { written: Object.keys(window.__written), path: currentSavePath };
     });
     ck('E7 denied write → Save As dialog → saved', r.written.join() === '/shows/picked.cuepro' && r.path === '/shows/picked.cuepro', JSON.stringify(r));
+    await page.close();
+  }
+
+  // Remote control, desktop side: the Settings UI, the state stream to the phone remote, and commands coming back
+  {
+    const { page } = await electronPage();
+    const r = await page.evaluate(async () => {
+      const out = {};
+      showSettingsModal();
+      await new Promise(res => setTimeout(res, 100));
+      out.offAtFirst = document.getElementById('remoteEnabled') && !document.getElementById('remoteEnabled').checked && document.getElementById('remoteLan').disabled &&
+                       /nothing is listening/.test(document.getElementById('remoteBox').textContent);
+      out.tokenHidden = document.getElementById('remoteToken').type === 'password';
+      document.getElementById('remoteEnabled').click();                                    // → applyRemote()
+      await new Promise(res => setTimeout(res, 150));
+      out.enableCall = JSON.stringify(__remoteCalls[0]) === '{"enabled":true,"lan":false,"port":28491}';
+      out.runningLocal = /Running — this computer only \(port 28491\)/.test(document.getElementById('remoteBox').textContent);
+      out.link = document.getElementById('remoteUrl0')?.value === `http://127.0.0.1:28491/remote#${'a'.repeat(64)}`;
+      out.lanEnabledNow = !document.getElementById('remoteLan').disabled;
+      document.getElementById('remoteLan').click();
+      await new Promise(res => setTimeout(res, 150));
+      out.lanCall = __remoteCalls[1].lan === true && /reachable from your network/.test(document.getElementById('remoteBox').textContent);
+      // a port that is already taken → a clear error line, not a silent failure
+      __remoteFail = true;
+      const port = document.getElementById('remotePort'); port.value = '30000'; port.dispatchEvent(new Event('change'));
+      await new Promise(res => setTimeout(res, 150));
+      out.portError = /already in use/.test(document.getElementById('remoteBox').textContent) && __remoteCalls[2].port === 30000;
+      __remoteFail = false;
+      // regenerate → the new token replaces the old in the UI
+      document.querySelector('#remoteBox .modal-btn:last-child').click();
+      await new Promise(res => setTimeout(res, 150));
+      out.newToken = document.getElementById('remoteToken').value === 'b'.repeat(64);
+      return out;
+    });
+    ck('Settings → Remote control: off by default, enable/LAN/port call the main process with exactly those values, status + link + errors shown, token hidden and regenerable',
+      Object.values(r).every(v => v === true), JSON.stringify(r));
+    await page.close();
+  }
+  {
+    const { page } = await electronPage();
+    const r = await page.evaluate(async () => {
+      const out = {};
+      loadFile(0, mkFile('kick.wav')); pads[0].name = 'Kick'; addToStack(0); loadFile(1, mkFile('snare.wav')); pads[1].name = 'Snare';
+      await new Promise(res => setTimeout(res, 400));
+      out.silentWhileOff = __remoteStates.length === 0;                                     // nothing is sent until remote control is on
+      await window.electronAPI.remote.setConfig({ enabled: true, lan: false, port: 28491 });
+      await refreshRemoteActive();
+      await new Promise(res => setTimeout(res, 500));
+      const first = __remoteStates[__remoteStates.length - 1];
+      out.shape = !!first && first.v === 1 && first.pads.length === pads.length && first.pads[0].name === 'Kick' && first.pads[0].loaded === true && first.pads[0].playing === false &&
+                  first.pads[9].loaded === false && first.stack.length === 1 && first.stack[0].name === 'Kick' && first.scene.name === 'Scene 1' && first.masterVol === 1 && first.locked === false;
+      const n0 = __remoteStates.length;
+      await new Promise(res => setTimeout(res, 700));
+      out.unchangedNotResent = __remoteStates.length === n0;                                // idle + identical → no traffic
+      playPad(0);
+      await new Promise(res => setTimeout(res, 450));
+      const playing = __remoteStates[__remoteStates.length - 1];
+      out.playingPushed = playing.pads[0].playing === true && Number.isInteger(playing.pads[0].remain) && playing.pads[0].remain >= 1 && playing.pads[0].remain <= 2;   // 2 s test file
+      toggleShowLock();
+      await new Promise(res => setTimeout(res, 450));
+      out.lockPushed = __remoteStates[__remoteStates.length - 1].locked === true;
+      toggleShowLock();
+      return out;
+    });
+    ck('Remote state stream: silent while remote control is off; a full snapshot once on; only re-sent when something changes; carries playing / countdown / lock',
+      Object.values(r).every(v => v === true), JSON.stringify(r));
+    await page.close();
+  }
+  {
+    const { page } = await electronPage();
+    const r = await page.evaluate(async () => {
+      loadFile(0, mkFile('kick.wav')); loadFile(1, mkFile('snare.wav')); addToStack(0); addToStack(1);
+      const cb = __remoteCmdCb;
+      const out = { subscribed: typeof cb === 'function' };
+      cb({ type: 'pad_toggle', id: 0 }); out.playedFromRemote = pads[0].playing;
+      cb({ type: 'stop_all' }); out.stopped = !pads[0].playing;
+      cb({ type: 'cue_select', index: 1 }); cb({ type: 'cue_play' }); out.cuePlay = pads[1].playing;
+      cb({ type: 'clear_pad', id: 1 }); cb({ type: 'load_project', path: '/x' }); cb('rm -rf /'); cb(null); cb({ type: 'pad_toggle', id: -5 });
+      out.hostileIgnored = !!pads[1].file && pads[1].playing;
+      return out;
+    });
+    ck('commands from the main process drive playback; edit-type or malformed commands are ignored', Object.values(r).every(v => v === true), JSON.stringify(r));
+    await page.close();
+  }
+  {
+    const { page } = await electronPage();
+    const r = await page.evaluate(async () => {
+      loadFile(0, mkFile('kick.wav')); pads[0].filePath = '/audio/one.wav';           // exists in the mock filesystem
+      loadFile(1, mkFile('gone.wav')); pads[1].filePath = '/audio/moved-away.wav';    // does not
+      currentSavePath = null;
+      await new Promise(res => setTimeout(res, 200));
+      const res = await runPreShowCheck();
+      return res.items.map(i => `${i.level}|${i.padId}|${i.text}`);
+    });
+    ck('Pre-show check (desktop): warns when a loaded sound\'s original file has moved, and when the project was never saved',
+      r.some(x => /^warn\|1\|.*original file has moved/.test(x)) && !r.some(x => /^warn\|0\|.*moved/.test(x)) && r.some(x => /^warn\|null\|.*hasn't been saved/.test(x)), JSON.stringify(r));
     await page.close();
   }
 

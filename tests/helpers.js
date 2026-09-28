@@ -7,7 +7,7 @@ const ROOT  = path.resolve(__dirname, '..');
 const INDEX = process.env.KCUE_INDEX || path.join(ROOT, 'index.html');
 
 // A silent 8-bit mono WAV (default 6 s) — small, decodes everywhere, long enough for fade tests.
-function wavBytes(seconds = 6) {
+function wavBytes(seconds = 6, { tone = false } = {}) {
   const rate = 8000, n = rate * seconds;
   const b = new Uint8Array(44 + n), v = new DataView(b.buffer);
   const w = (o, s) => [...s].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
@@ -15,6 +15,8 @@ function wavBytes(seconds = 6) {
   v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
   v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
   w(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
+  // tone: silent first half, then a 440 Hz burst that swells — gives the waveform a shape the tests can check
+  if (tone) for (let i = n >> 1; i < n; i++) b[44 + i] = 128 + Math.round(100 * Math.sin(2 * Math.PI * 440 * i / rate) * ((i - (n >> 1)) / (n >> 1)));
   return Array.from(b);
 }
 

@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   joinPath:             (...parts)      => ipcRenderer.invoke('path-join', ...parts),
   openDonate:           ()              => ipcRenderer.invoke('open-donate'),
 
+  // Opt-in remote control (Stream Deck / phone remote): settings, state for the remote, and commands coming back
+  remote: {
+    getConfig:  ()    => ipcRenderer.invoke('remote-get-config'),
+    setConfig:  (cfg) => ipcRenderer.invoke('remote-set-config', cfg),
+    regenToken: ()    => ipcRenderer.invoke('remote-regen-token'),
+    sendState:  (st)  => ipcRenderer.send('remote-state', st),
+    onCommand:  (cb)  => ipcRenderer.on('remote-command', (_, cmd) => cb(cmd)),
+  },
+
   // Update events (main → renderer)
   onUpdateProgress: (cb) => ipcRenderer.on('update-download-progress', (_, data) => cb(data)),
   onUpdateReady:    (cb) => ipcRenderer.on('update-ready',             (_, data) => cb(data)),

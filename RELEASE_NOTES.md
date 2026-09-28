@@ -1,3 +1,32 @@
+### Panic, undo, remote control, MIDI, waveforms and more (v1.3.0)
+
+**Live-show safety**
+- **Esc = panic** — stops everything instantly, always, even with focus in a slider, and cancels any pending auto-advance. New **STOP FADE** toggle (header): STOP ALL and the ■ buttons fade out over the FADE time; press STOP ALL again to cut
+- **Pre-show check (✔)** — verifies every sound, cue and setting and says READY or NOT READY, with a "Go to pad" link for every problem
+- **Undo (Ctrl+Z)** for cleared pads, replaced sounds, removed cues, cleared stacks and deleted scenes
+- **Show lock (🔒, Ctrl+Shift+L)** — nothing can be edited, loaded or deleted; playback keeps working
+- Press the key of a pad that is **fading out** and it comes back instead of stopping; a second stop no longer stretches the fade
+
+**Controlling it from elsewhere** *(all opt-in, off by default)*
+- **Stream Deck / Bitfocus Companion / scripts** through a token-protected local API (playback only); a **phone / tablet remote page** for your show network; **MIDI controllers** with *Learn*. See `docs/REMOTE.md`. The server is hardened against hostile web pages (no CORS, Host / Origin checks, JSON only, size limits) and is covered by attack tests
+
+**Working faster**
+- **Countdown** on every playing pad and in the cue stack; **waveforms** behind the progress bar for easy IN / OUT points
+- **Fill Pads** and multi-file drop (natural sort, non-audio skipped); **reorder the cue stack** with ▲▼ or by dragging; drag a pad's name into the stack
+- **Audio output device** picker (interface / PA feed) with a warning if it is unplugged
+- New **Settings** dialog (theme, language, output, waveforms, remote, MIDI)
+
+**Languages** — **English, Ελληνικά, Deutsch** (follows your system, or choose in Settings). Translations were written by an AI assistant and would benefit from a native speaker's review.
+
+**Support** — the donate button now goes to **Ko-fi** (ko-fi.com/dkostoudis).
+
+**Under the hood**
+- The header now measures itself and compacts as needed, so STOP ALL / VOL / FADE stay on screen in any window size and language
+- The desktop app only accepts the Chromium permissions it needs (MIDI, clipboard copy)
+- ~230 automated checks run on every pull request (including attack tests for the remote server)
+
+---
+
 ### Reliability & safety (v1.2.8)
 
 **Playback**
