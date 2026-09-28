@@ -192,6 +192,13 @@ const rejects = async p => { try { await p; return false; } catch (e) { return e
     ck('truncated download rejected and the partial file removed', !!e1 && !fs.existsSync(dest), String(e1));
     const e2 = await rejects(m.downloadFile(base + '/wrongsize', dest, null, body.length));
     ck('size differing from the release asset size is rejected and removed', /Incomplete/.test(e2) && !fs.existsSync(dest), String(e2));
+    const sha = require('crypto').createHash('sha256').update(body).digest('hex');
+    await m.downloadFile(base + '/ok', dest, null, body.length, sha.toUpperCase());
+    ck('a download matching the published SHA-256 (any letter case) is accepted', fs.statSync(dest).size === body.length);
+    fs.rmSync(dest);
+    const e3 = await rejects(m.downloadFile(base + '/ok', dest, null, body.length, '0'.repeat(64)));
+    ck('a download with the right size but the wrong SHA-256 is rejected and removed', /checksum/.test(e3) && !fs.existsSync(dest), String(e3));
+    ck('a download that arrived via a redirect is checked against the checksum too', /checksum/.test(await rejects(m.downloadFile(base + '/rel', dest, null, body.length, 'f'.repeat(64)))) && !fs.existsSync(dest));
     ck('a redirect to plain http is refused', /non-HTTPS/.test(await rejects(m.downloadFile(base + '/http', dest, null, 0))));
     ck('HTTP 404 is rejected', /HTTP 404/.test(await rejects(m.downloadFile(base + '/404', dest, null, 0))));
     ck('an http:// start URL is refused', /non-HTTPS/.test(await rejects(m.downloadFile('http://localhost/x', dest, null, 0))));

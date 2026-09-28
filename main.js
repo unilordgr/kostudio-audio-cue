@@ -2,14 +2,13 @@ const { app, BrowserWindow, ipcMain, dialog, shell, net, session } = require('el
 const path    = require('path');
 const fs      = require('fs');
 const https   = require('https');
+const crypto  = require('crypto');
 const os      = require('os');
 const { spawn, execFile } = require('child_process');
 const { promisify } = require('util');
 const { createRemote } = require('./remote');
 
 const execFileP = promisify(execFile);
-
-app.commandLine.appendSwitch('enable-experimental-web-platform-features');
 
 let mainWindow = null;
 
@@ -150,10 +149,14 @@ async function downloadAndInstall(releaseData, win) {
   win.webContents.send('update-download-progress', { percent: 0, label: `Downloading ${releaseData.tag_name}…` });
 
   try {
+    // GitHub records a SHA-256 for every uploaded asset ("digest": "sha256:…"). Checking it catches a corrupted or
+    // swapped download that happens to have the right size. (It is integrity, not authenticity: the digest comes
+    // from the same release, so it does not replace code signing.) Older releases have no digest — size only.
+    const digest = /^sha256:([0-9a-f]{64})$/i.exec(String(asset.digest || ''))?.[1] || null;
     await downloadFile(asset.browser_download_url, destPath, (downloaded, total) => {
       const percent = total ? Math.round(downloaded / total * 100) : -1;
       win.webContents.send('update-download-progress', { percent, label: `Downloading update… ${percent}%` });
-    }, asset.size);
+    }, asset.size, digest);
   } catch (e) {
     win.webContents.send('update-error', { message: 'Download failed: ' + e.message });
     return;
@@ -315,7 +318,7 @@ async function installMac(dmgPath, win) {
 
 // ── Download helper (streams with redirect following) ─────
 
-function downloadFile(url, destPath, onProgress, expectedSize) {
+function downloadFile(url, destPath, onProgress, expectedSize, expectedSha256 = null) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = (err) => {
@@ -346,8 +349,9 @@ function downloadFile(url, destPath, onProgress, expectedSize) {
         }
         const total = parseInt(res.headers['content-length'] || '0', 10);
         let downloaded = 0;
+        const hash = crypto.createHash('sha256');
         const file = fs.createWriteStream(destPath);
-        res.on('data', chunk => { downloaded += chunk.length; onProgress?.(downloaded, total); });
+        res.on('data', chunk => { downloaded += chunk.length; hash.update(chunk); onProgress?.(downloaded, total); });
         res.on('error', err => { file.destroy(); fail(err); });
         res.on('close', () => {
           if (!res.complete) { file.destroy(); fail(new Error('Connection closed before the download finished')); }
@@ -359,6 +363,10 @@ function downloadFile(url, destPath, onProgress, expectedSize) {
             const want = expectedSize || total;
             if (want && downloaded !== want) {
               fail(new Error(`Incomplete download (${downloaded} of ${want} bytes)`));
+              return;
+            }
+            if (expectedSha256 && hash.digest('hex') !== String(expectedSha256).toLowerCase()) {
+              fail(new Error('The download does not match its published checksum'));
               return;
             }
             settled = true;

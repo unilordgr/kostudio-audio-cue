@@ -1,8 +1,9 @@
 name: Tests
 
 # Runs on every pull request (the build workflow only runs on main), and on main for a signal
-# after merge. The suite needs no Electron binary: main.js is tested with `electron` mocked, and
-# index.html is driven in a real Chromium via Playwright.
+# after merge. The suite drives index.html in a real Chromium via Playwright, tests main.js / remote.js
+# with `electron` mocked, AND launches the real Electron app (headless, under xvfb) — first from source,
+# then the packaged Linux build, which proves electron-builder put every file the app needs into it.
 on:
   pull_request:
   push:
@@ -18,7 +19,7 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -30,12 +31,20 @@ jobs:
           node-version: '22'
           cache: npm
 
-      # --ignore-scripts: skips Electron's postinstall (a ~100 MB binary download the tests don't use)
+      # --ignore-scripts, then the Electron binary explicitly (the same download its postinstall would do)
       - name: Install dependencies
         run: npm ci --ignore-scripts
+
+      - name: Install the Electron binary
+        run: node node_modules/electron/install.js
 
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests (including the real Electron app)
+        run: xvfb-run -a npm test
+
+      - name: Package the app (Linux, unpacked) and smoke-test the packaged build
+        run: |
+          npx electron-builder --linux --dir --publish never
+          KCUE_APP_BIN=dist/linux-unpacked/kostudio-audio-cue xvfb-run -a node tests/electron.test.js

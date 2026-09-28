@@ -2605,6 +2605,13 @@ function browseFile(padId) {
   inp.click();
 }
 
+// Where a picked / dropped file lives on disk (desktop app only — browsers never tell us). Newer Electron has no File.path.
+function localPathOf(file) {
+  let p = '';
+  try { p = window.electronAPI?.getPathForFile ? window.electronAPI.getPathForFile(file) : ''; } catch { /* not a real file */ }
+  return (typeof p === 'string' && p) || (typeof file?.path === 'string' && file.path) || null;
+}
+
 function loadFile(padId, file, quiet = false) {
   if (lockedOut()) return false;
   if (!isAudioFile(file)) { setStatus(`"${file?.name ?? 'That file'}" is not an audio file`); return false; }
@@ -2612,7 +2619,7 @@ function loadFile(padId, file, quiet = false) {
   if (pad.file) { const snap = snapshotPad(pad); pushUndo(`replaced the sound on pad ${padId + 1}`, () => restorePad(pads[padId], snap), pad.file.size); }
   clearFadeTimer(padId);
   attachAudio(pad, file);
-  pad.filePath = file.path || null;
+  pad.filePath = localPathOf(file);
   pad.name    = pad.name || stripExt(file.name);
   pad.playing  = false;
   pad.paused   = false;
