@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOpenAudioDialog:  ()              => ipcRenderer.invoke('dialog-open-audio'),
   showOpenFolderDialog: ()              => ipcRenderer.invoke('dialog-open-folder'),
   joinPath:             (...parts)      => ipcRenderer.invoke('path-join', ...parts),
+  openDonate:           ()              => ipcRenderer.invoke('open-donate'),
 
   // Update events (main → renderer)
   onUpdateProgress: (cb) => ipcRenderer.on('update-download-progress', (_, data) => cb(data)),

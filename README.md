@@ -166,6 +166,25 @@ The Windows `.exe` and Mac `.dmg` files are built automatically via GitHub Actio
 
 ---
 
+## Development & Tests
+
+```bash
+npm ci --ignore-scripts        # install (skips Electron's large binary download; not needed for tests)
+npx playwright install chromium
+npm test                       # runs everything in tests/
+```
+
+| Test file | What it covers |
+|---|---|
+| `tests/ui.test.js` | Playback, fades, cue stack, keyboard, header layout, CSP and donate link — in a real Chromium |
+| `tests/loaders.test.js` | Project save/load/restore for the Electron path (mocked `electronAPI`) and the iPad path (real IndexedDB) |
+| `tests/main.test.js` | `main.js` with Electron mocked: IPC allow-list, updater, download helper, donate handler |
+| `tests/repo.test.js` | Consistency checks: licence, manifest and icons, packaging list, CSP, one donate URL everywhere |
+
+The same suite runs on every pull request via GitHub Actions (`.github/workflows/test.yml`).
+
+---
+
 ## Tech Stack
 
 - **Electron** — desktop wrapper
@@ -174,10 +193,20 @@ The Windows `.exe` and Mac `.dmg` files are built automatically via GitHub Actio
 - **File System Access API** — save/load in browser mode
 - **IndexedDB** — project registry in browser mode
 - **electron-builder** — packaging
-- **GitHub Actions** — automated Windows + Mac build and release
+- **GitHub Actions** — automated Windows + Mac build and release, and tests on every pull request
+
+---
+
+## Support
+
+Kostudio Audio Cue is free. If it helps your shows, you can support development:
+
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-ffc439?style=for-the-badge&logo=paypal&logoColor=003087)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=etutorialsgr%40gmail.com&currency_code=EUR&item_name=Support%20Kostudio%20Audio%20Cue)
+
+The app also has a **♥ Donate** button in the header.
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 [needitcreative.com](https://needitcreative.com) — free for personal and **commercial** use: you may use, copy, modify, merge, publish, distribute, sublicense and sell it, with no fee and no permission needed. The only requirement is to keep the copyright and licence notice in copies of the software. It is provided "as is", without warranty.

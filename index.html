@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- The app loads nothing from the network, so nothing remote is allowed. 'unsafe-inline' stays because the
+     UI uses inline handlers/styles; the rest of the policy still stops remote scripts, images, frames and
+     exfiltration (connect-src) if markup ever slips through. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/256x256.png">
@@ -112,7 +116,9 @@ body {
 /* ── Header ── */
 header {
   position: fixed;
-  top: 0; left: 0; right: var(--stack-w);
+  /* Full width: the stack panel starts below the header, so stopping short of it (right: var(--stack-w))
+     only squeezed the header — at the 960px minimum window STOP ALL and VOL ended up off-screen. */
+  top: 0; left: 0; right: 0;
   height: var(--header-h);
   z-index: 100;
   display: flex;
@@ -149,6 +155,19 @@ header {
 .hdr-btn:hover       { border-color: var(--accent); color: var(--accent); }
 .hdr-btn.save:hover  { border-color: var(--save-col); color: var(--save-col); }
 .header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+a.hdr-btn { text-decoration: none; display: inline-flex; align-items: center; }
+.hdr-btn.donate:hover { border-color: #ffc439; color: #ffc439; }
+/* Narrow desktop windows: shed the least important header content first, so the transport
+   controls (FADE / VOL / STOP ALL) always stay on screen. */
+@media (max-width: 1320px) {
+  .logo { font-size: 13px; letter-spacing: 2px; }
+  .hdr-btn.donate .lbl { display: none; }
+}
+@media (max-width: 1140px) {
+  .logo, .logo + .hdr-sep { display: none; }
+  header { gap: 6px; padding: 0 12px; }
+  .hdr-btn { padding: 5px 10px; }
+}
 .vol-wrap { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
 input[type=range] {
   -webkit-appearance: none;
@@ -1232,11 +1251,13 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
   <button class="hdr-btn"      onclick="handleLoad()">📂 Load</button>
   <button class="hdr-btn"      onclick="showShortcutsModal()">⌨ Shortcuts</button>
 <button class="theme-btn"    onclick="toggleTheme()" id="themeBtn">DARK MODE</button>
+  <a class="hdr-btn donate" id="donateBtn" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=etutorialsgr%40gmail.com&currency_code=EUR&item_name=Support%20Kostudio%20Audio%20Cue"
+     target="_blank" rel="noopener noreferrer" aria-label="Donate" title="Kostudio Audio Cue is free — support development with a PayPal donation">♥<span class="lbl">&nbsp;Donate</span></a>
   <div class="header-right">
     <div class="fade-dur-wrap">
       <span>FADE</span>
       <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
-             oninput="fadeDuration = Math.max(0.1, parseFloat(this.value) || 2)" title="Fade duration (seconds)">
+             oninput="fadeDuration = Math.min(20, Math.max(0.1, parseFloat(this.value) || 2))" title="Fade duration (seconds)">
       <span>s</span>
     </div>
     <div class="hdr-sep"></div>
@@ -1396,6 +1417,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderStack();
   startRaf();
   document.addEventListener('keydown', onKey);
+  document.getElementById('donateBtn')?.addEventListener('click', e => {
+    if (IS_ELECTRON) { e.preventDefault(); window.electronAPI.openDonate().catch(() => {}); }
+  });
   document.addEventListener('dragover', e => e.preventDefault());
   document.addEventListener('drop',     e => e.preventDefault());
   initTheme();
@@ -1534,16 +1558,18 @@ function playPad(id, withFade = false) {
     if (err.name === 'AbortError') return;                 // superseded by a newer play/pause — not a failure
     if (pad.audio !== audio || !pad.playing) return;
     clearFadeTimer(id);
-    pad.playing = false;
-    pad.paused  = false;
+    pad.playing  = false;
+    pad.paused   = false;
+    pad.stopping = false;
     refreshPad(id);
     updatePlayCueBtn();
     setStatus(err.name === 'NotAllowedError'
       ? `"${pad.name}" blocked by the browser — tap the screen once, then try again`
       : `Cannot play "${pad.name}" — the audio file is unsupported or unreadable`);
   });
-  pad.playing = true;
-  pad.paused  = false;
+  pad.playing  = true;
+  pad.paused   = false;
+  pad.stopping = false;
   refreshPad(id);
   setStatus(`${resuming ? 'Resumed' : 'Playing'} "${pad.name}"`);
   if (useFade) startFade(id, targetVol, fadeDuration);
@@ -1554,8 +1580,9 @@ function pausePad(id) {
   if (!pad.audio || !pad.playing) return;
   clearFadeTimer(id);
   pad.audio.pause();
-  pad.playing = false;
-  pad.paused  = true;
+  pad.playing  = false;
+  pad.paused   = true;
+  pad.stopping = false;
   refreshPad(id);
   setStatus(`"${pad.name}" paused`);
 }
@@ -1564,14 +1591,18 @@ function stopPad(id, withFade = false) {
   const pad = pads[id];
   if (!pad.audio) return;
   if (withFade) {
+    // Already fading out: let that fade finish — restarting it would stretch the fade and delay silence
+    if (pad.stopping) return;
+    pad.stopping = true;
     startFade(id, 0, fadeDuration, () => {
       if (pad.audio) {
         pad.audio.pause();
         pad.audio.currentTime = 0;
         pad.audio.volume = clamp01(pad.vol * masterVol);
       }
-      pad.playing = false;
-      pad.paused  = false;
+      pad.playing  = false;
+      pad.paused   = false;
+      pad.stopping = false;
       refreshPad(id);
       updatePlayCueBtn();
     });
@@ -1579,17 +1610,30 @@ function stopPad(id, withFade = false) {
     clearFadeTimer(id);
     pad.audio.pause();
     pad.audio.currentTime = 0;
-    pad.playing = false;
-    pad.paused  = false;
+    pad.playing  = false;
+    pad.paused   = false;
+    pad.stopping = false;
     refreshPad(id);
     updatePlayCueBtn();
   }
 }
 
+// A pad that is fading out can be brought back (operator hit the wrong key): fade it up again
+// from wherever the fade got to, without restarting the sound.
+function reviveStopping(id) {
+  const pad = pads[id];
+  pad.stopping = false;
+  startFade(id, 1, fadeDuration);      // any non-zero target = "up to the live pad × master level"
+  refreshPad(id);
+  setStatus(`"${pad.name}" brought back`);
+}
+
 // Pad click: play/pause this pad, fade out any other playing pad
 function togglePad(id) {
   const pad = pads[id];
-  if (pad.playing) {
+  if (pad.playing && pad.stopping) {
+    reviveStopping(id);
+  } else if (pad.playing) {
     pausePad(id);
   } else {
     pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
@@ -1601,7 +1645,10 @@ function togglePad(id) {
 function togglePadCrossfade(id) {
   const pad = pads[id];
   if (!pad.file) return;
-  if (pad.playing) {
+  if (pad.playing && pad.stopping) {
+    pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
+    reviveStopping(id);
+  } else if (pad.playing) {
     stopPad(id, true);
   } else {
     pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
@@ -1709,8 +1756,9 @@ function loadFile(padId, file) {
   attachAudio(pad, file);
   pad.filePath = file.path || null;
   pad.name    = pad.name || stripExt(file.name);
-  pad.playing = false;
-  pad.paused  = false;
+  pad.playing  = false;
+  pad.paused   = false;
+  pad.stopping = false;
   // IN/OUT points belong to the previous file — on a shorter one they'd cut it off or play silence
   pad.inPoint = pad.outPoint = null;
   syncLoopFlag(pad);
@@ -1735,8 +1783,9 @@ function attachAudio(pad, file) {
       audio.play().catch(() => {});
       return;
     }
-    pad.playing = false;
-    pad.paused  = false;
+    pad.playing  = false;
+    pad.paused   = false;
+    pad.stopping = false;
     refreshPad(pad.id);
     updatePlayCueBtn();
     setStatus(`"${pad.name}" finished`);
@@ -1746,8 +1795,9 @@ function attachAudio(pad, file) {
     if (pad.audio !== audio) return;
     if (pad.playing) {
       clearFadeTimer(pad.id);
-      pad.playing = false;
-      pad.paused  = false;
+      pad.playing  = false;
+      pad.paused   = false;
+      pad.stopping = false;
       refreshPad(pad.id);
       updatePlayCueBtn();
     }
@@ -1771,7 +1821,7 @@ function clearPad(id) {
     // Re-find the selected cue by identity so removing earlier entries can't shift the selection onto a different cue
     s.stackIdx = current && s.stack.includes(current) ? s.stack.indexOf(current) : -1;
   });
-  pad.file = null; pad.filePath = null; pad.missingPath = null; pad.name = ''; pad.playing = false; pad.paused = false;
+  pad.file = null; pad.filePath = null; pad.missingPath = null; pad.name = ''; pad.playing = false; pad.paused = false; pad.stopping = false;
   pad.inPoint = pad.outPoint = null;
   refreshPad(id);
   renderStack();

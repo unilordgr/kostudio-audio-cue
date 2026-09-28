@@ -30,7 +30,13 @@
 - Downloads are checked for size and completeness, use HTTPS only, and time out instead of hanging
 
 **Other**
+- New **♥ Donate** button in the header (PayPal) — the app stays free; opens in your browser
+- Now licensed under the **MIT licence** (© needitcreative.com): free for personal and commercial use — see `LICENSE`
+- Pressing the key of a pad that is fading out now brings it back instead of pausing it; a second stop request no longer stretches the fade
+- Fixed: at the minimum window width (and even slightly above it) the **STOP ALL, VOL and FADE controls were pushed off-screen** — the header now uses the full width and drops the logo / donate label when space is tight
+- The app now declares a strict Content-Security-Policy (it never loads anything from the internet)
 - iPad: Add to Home Screen now uses the Kcue icon; the web app's manifest points at a page and icons that exist
+- Behind the scenes: an automated test suite (`npm test`) now runs on every pull request, and the lockfile is back in sync so builds are reproducible
 
 ---
 

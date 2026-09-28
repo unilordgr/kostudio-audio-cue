@@ -12,6 +12,11 @@ app.commandLine.appendSwitch('enable-experimental-web-platform-features');
 
 let mainWindow = null;
 
+// The only external link the app opens. It is a constant on purpose: the renderer just
+// asks "open the donate page" and never supplies a URL, so a compromised page can't
+// use this to launch arbitrary links or protocols.
+const DONATE_URL = 'https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=etutorialsgr%40gmail.com&currency_code=EUR&item_name=Support%20Kostudio%20Audio%20Cue';
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -403,6 +408,13 @@ ipcMain.handle('fs-read-text', async (_, filePath) => {
 ipcMain.handle('path-join', async (_, ...parts) => {
   if (!parts.every(x => typeof x === 'string')) throw new Error('Invalid path');
   return path.join(...parts);
+});
+
+// ── IPC: Donate ───────────────────────────────────────────
+
+ipcMain.handle('open-donate', async () => {
+  await shell.openExternal(DONATE_URL);
+  return true;
 });
 
 // ── IPC: Dialogs ──────────────────────────────────────────
