@@ -59,10 +59,13 @@ jobs:
         # .dmg files exist on disk, we treat the build as successful.
         run: |
           npm run dist-mac || {
-            if ls dist/*.dmg 2>/dev/null | grep -q .; then
-              echo "DMG files created — hdiutil detach error was the only issue, continuing."
+            # Both architectures must exist: the README links to both, and the in-app updater
+            # picks the DMG matching the user's CPU.
+            if [ -f dist/Kostudio-Audio-Cue-arm64.dmg ] && [ -f dist/Kostudio-Audio-Cue-x64.dmg ]; then
+              echo "Both DMGs created — hdiutil detach error was the only issue, continuing."
             else
-              echo "Mac build actually failed — no .dmg files found."
+              echo "Mac build actually failed — expected arm64 and x64 DMGs, found:"
+              ls dist || true
               exit 1
             fi
           }
@@ -77,6 +80,10 @@ jobs:
   publish-release:
     needs: [build-windows, build-mac]
     runs-on: ubuntu-latest
+    # Two quick pushes must not race on delete + create of the same release
+    concurrency:
+      group: publish-release
+      cancel-in-progress: false
 
     steps:
       - name: Checkout code
@@ -104,51 +111,26 @@ jobs:
       - name: Write release notes
         run: |
           TAG="v${{ steps.version.outputs.version }}"
-          cat > /tmp/release-notes.md << NOTES
-          ## What's new in ${TAG}
-
-          ### macOS fix (v1.2.7)
-          - Fixed: "damaged and can't be opened" error on macOS — set identity:null and hardenedRuntime:false so Gatekeeper no longer rejects the unsigned app
-          - README: updated first-run instructions with the correct xattr fix command
-
-          ### App icon (v1.2.6)
-          - New Kcue icon across the app -- taskbar, dock, title bar, and browser tab
-          - Scale control (− / + zoom buttons) is now always fixed and never scales with the UI
-          - Cue stack panel and footer bar are now fixed overlays -- they stay readable at any zoom level
-
-          ### iPad fixes (v1.2.5)
-          - Fixed: tapping a pad now correctly opens the file picker on iOS Safari
-          - Fixed: all buttons now respond instantly -- removed 300ms touch delay
-          - Fixed: grey tap flash removed from pads and buttons
-          - Fixed: pad labels now say "Tap to load audio" instead of "Click or drop file"
-          - Added: long-press on pad name to rename on touch
-
-          ### iPad / Touch support (v1.2.4)
-          - Download the iPad HTML file, open in Safari on iPad, tap Share -> Add to Home Screen to install as a standalone app
-          - Cue stack moves to a bottom sheet -- tap the pill handle to expand/collapse
-          - Play Cue + Next Cue always visible even when the list is collapsed
-          - Save and Load work natively in Safari (stored on device via IndexedDB)
-          - Export / Import .cuepro files to back up or transfer between devices
-          - Safe-area support for notch and home indicator
-
-          ### Other changes
-          - Removed non-functional Sound FX / Freesound panel
-
-          ---
-
-          Windows: Download the .exe -- portable, no install required.
-          Mac: Download the .dmg, open it, drag the app to Applications. On first launch right-click -> Open if macOS warns you.
-          iPad / Browser: Download Kostudio Audio Cue (iPad-Web).html, open in Safari and Add to Home Screen.
-          NOTES
+          {
+            echo "## What's new in ${TAG}"
+            echo
+            cat RELEASE_NOTES.md
+            echo
+            echo "---"
+            echo
+            echo "- **Windows:** download the .exe — portable, no install required."
+            echo "- **Mac:** download the .dmg for your chip, drag the app to Applications, then run \`xattr -cr \"/Applications/Kostudio Audio Cue.app\"\` once in Terminal (the app is unsigned)."
+            echo "- **iPad / Browser:** download \`Kostudio-Audio-Cue-iPad-Web.html\`, open it in Safari and Add to Home Screen — or use the GitHub Pages site."
+          } > /tmp/release-notes.md
 
       - name: Publish versioned release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.version.outputs.version }}"
-          gh release delete "$TAG" --yes --repo ${{ github.repository }} 2>/dev/null || true
-          git push origin ":refs/tags/$TAG" 2>/dev/null || true
+          gh release delete "$TAG" --yes --cleanup-tag --repo ${{ github.repository }} 2>/dev/null || true
           gh release create "$TAG" release-files/* \
             --repo ${{ github.repository }} \
+            --target ${{ github.sha }} \
             --title "Kostudio Audio Cue ${TAG}" \
             --notes-file /tmp/release-notes.md

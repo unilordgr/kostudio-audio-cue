@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readTextFile:         (path)          => ipcRenderer.invoke('fs-read-text', path),
   showSaveDialog:       (defaultPath)   => ipcRenderer.invoke('dialog-save', defaultPath),
   showOpenFileDialog:   ()              => ipcRenderer.invoke('dialog-open-file'),
+  showOpenAudioDialog:  ()              => ipcRenderer.invoke('dialog-open-audio'),
   showOpenFolderDialog: ()              => ipcRenderer.invoke('dialog-open-folder'),
   joinPath:             (...parts)      => ipcRenderer.invoke('path-join', ...parts),
 

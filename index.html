@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/256x256.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kostudio Cue">
@@ -1360,6 +1361,7 @@ let capturingHotkey = false;
 let pendingCombo    = null;
 
 const fadeTimers  = {};
+let   advTimer    = null;   // auto-advance delay
 let   asTimer     = null;   // autosave debounce
 let   currentSavePath = null; // last save path (Electron)
 const IS_ELECTRON       = !!(typeof window !== 'undefined' && window.electronAPI);
@@ -1396,10 +1398,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('keydown', onKey);
   document.addEventListener('dragover', e => e.preventDefault());
   document.addEventListener('drop',     e => e.preventDefault());
-  db = await initDB();
   initTheme();
   applyScales();
   initTouchLayout();
+  // IndexedDB can be unavailable (private mode, blocked upgrade) — the rest of the app must still start.
+  try { db = await initDB(); } catch { setStatus('Browser storage unavailable — Save / Load to the browser is disabled'); }
   checkAutosave();
 });
 
@@ -1418,7 +1421,8 @@ function initDB() {
       if (!d.objectStoreNames.contains('ipad-projects')) d.createObjectStore('ipad-projects', { keyPath: 'name' });
     };
     req.onsuccess = e => res(e.target.result);
-    req.onerror   = rej;
+    req.onerror   = () => rej(req.error);
+    req.onblocked = () => rej(new Error('IndexedDB upgrade blocked by another tab'));
   });
 }
 function dbGet(store, key) {
@@ -1429,8 +1433,11 @@ function dbGet(store, key) {
 }
 function dbPut(store, value) {
   return new Promise((res, rej) => {
-    const req = db.transaction(store,'readwrite').objectStore(store).put(value);
-    req.onsuccess = () => res(); req.onerror = rej;
+    // Resolve on commit: a quota error can abort the transaction after the request succeeded.
+    const tx = db.transaction(store,'readwrite');
+    tx.oncomplete = () => res();
+    tx.onerror = tx.onabort = () => rej(tx.error);
+    tx.objectStore(store).put(value);
   });
 }
 function dbGetAll(store) {
@@ -1441,9 +1448,34 @@ function dbGetAll(store) {
 }
 function dbDelete(store, key) {
   return new Promise((res, rej) => {
-    const req = db.transaction(store,'readwrite').objectStore(store).delete(key);
-    req.onsuccess = () => res(); req.onerror = rej;
+    const tx = db.transaction(store,'readwrite');
+    tx.oncomplete = () => res();
+    tx.onerror = tx.onabort = () => rej(tx.error);
+    tx.objectStore(store).delete(key);
   });
+}
+
+// ── Audio helpers ─────────────────────────────────────────
+// HTMLMediaElement.volume throws IndexSizeError outside [0,1], and a NaN from a
+// bad project file would throw on every fade tick — always go through clamp01.
+function clamp01(v) {
+  v = Number(v);
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
+}
+
+// Stop and fully release a pad's audio element and its blob URL.
+function releaseAudio(pad) {
+  const audio = pad.audio;
+  pad.audio = null;
+  if (audio) {
+    try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch {}
+  }
+  if (pad.audioUrl) { URL.revokeObjectURL(pad.audioUrl); pad.audioUrl = null; }
+}
+
+// Native looping always wraps to 0:00, so hand looping to the 'ended' handler when an IN point is set.
+function syncLoopFlag(pad) {
+  if (pad.audio) pad.audio.loop = pad.loop && pad.inPoint === null;
 }
 
 // ── Fade engine ───────────────────────────────────────────
@@ -1453,24 +1485,27 @@ function startFade(id, targetVol, durationSec, onComplete) {
   clearFadeTimer(id);
   const pad = pads[id];
   if (!pad?.audio) { onComplete?.(); return; }
-  if (!durationSec || durationSec <= 0) {
-    pad.audio.volume = targetVol;
+  durationSec = Number(durationSec);
+  // A fade-in tracks the live pad/master volume so dragging a slider mid-fade isn't undone when it ends.
+  const target = () => targetVol === 0 ? 0 : clamp01(pad.vol * masterVol);
+  if (!(durationSec > 0) || !Number.isFinite(durationSec)) {
+    pad.audio.volume = target();
     onComplete?.();
     return;
   }
-  const startVol   = pad.audio.volume;
-  const totalSteps = Math.max(1, Math.round(durationSec * 1000 / FADE_STEP_MS));
-  let step = 0;
+  const startVol = pad.audio.volume;
+  // Measure elapsed time rather than counting ticks: timers stall while the main
+  // thread is busy, and a stretched crossfade leaves the old cue playing too long.
+  const t0 = performance.now();
 
   if (targetVol === 0) document.getElementById(`pad${id}`)?.classList.add('fading');
 
   fadeTimers[id] = setInterval(() => {
-    step++;
-    const t = Math.min(step / totalSteps, 1);
-    if (pad.audio) pad.audio.volume = startVol + (targetVol - startVol) * t;
-    if (step >= totalSteps) {
+    const t = Math.min((performance.now() - t0) / (durationSec * 1000), 1);
+    if (pad.audio) pad.audio.volume = clamp01(startVol + (target() - startVol) * t);
+    if (t >= 1) {
       clearFadeTimer(id);
-      if (pad.audio) pad.audio.volume = targetVol;
+      if (pad.audio) pad.audio.volume = target();
       onComplete?.();
     }
   }, FADE_STEP_MS);
@@ -1493,8 +1528,20 @@ function playPad(id, withFade = false) {
   const targetVol  = pad.vol * masterVol;
   if (!resuming) pad.audio.currentTime = pad.inPoint ?? 0;
   const useFade = !resuming && (withFade || pad.fadeEnabled);
-  pad.audio.volume = useFade ? 0 : targetVol;
-  pad.audio.play().catch(() => {});
+  pad.audio.volume = useFade ? 0 : clamp01(targetVol);
+  const audio = pad.audio;
+  audio.play().catch(err => {
+    if (err.name === 'AbortError') return;                 // superseded by a newer play/pause — not a failure
+    if (pad.audio !== audio || !pad.playing) return;
+    clearFadeTimer(id);
+    pad.playing = false;
+    pad.paused  = false;
+    refreshPad(id);
+    updatePlayCueBtn();
+    setStatus(err.name === 'NotAllowedError'
+      ? `"${pad.name}" blocked by the browser — tap the screen once, then try again`
+      : `Cannot play "${pad.name}" — the audio file is unsupported or unreadable`);
+  });
   pad.playing = true;
   pad.paused  = false;
   refreshPad(id);
@@ -1521,7 +1568,7 @@ function stopPad(id, withFade = false) {
       if (pad.audio) {
         pad.audio.pause();
         pad.audio.currentTime = 0;
-        pad.audio.volume = pad.vol * masterVol;
+        pad.audio.volume = clamp01(pad.vol * masterVol);
       }
       pad.playing = false;
       pad.paused  = false;
@@ -1563,20 +1610,21 @@ function togglePadCrossfade(id) {
 }
 
 function stopAll() {
+  clearTimeout(advTimer);   // a pending auto-advance must not start a cue after STOP ALL
   pads.forEach(p => { if (p.playing) stopPad(p.id, false); });
   setStatus('All stopped');
   updatePlayCueBtn();
 }
 
 function setMasterVolume(v) {
-  masterVol = parseFloat(v);
-  pads.forEach(p => { if (p.audio && !fadeTimers[p.id]) p.audio.volume = p.vol * masterVol; });
+  masterVol = clamp01(v);
+  pads.forEach(p => { if (p.audio && !fadeTimers[p.id]) p.audio.volume = clamp01(p.vol * masterVol); });
   scheduleAutosave();
 }
 
 function setPadVolume(id, v) {
-  pads[id].vol = parseFloat(v);
-  if (pads[id].audio && !fadeTimers[id]) pads[id].audio.volume = pads[id].vol * masterVol;
+  pads[id].vol = clamp01(v);
+  if (pads[id].audio && !fadeTimers[id]) pads[id].audio.volume = clamp01(pads[id].vol * masterVol);
   const pct = document.getElementById(`pvol-pct-${id}`);
   if (pct) pct.textContent = Math.round(pads[id].vol * 100) + '%';
   scheduleAutosave();
@@ -1599,6 +1647,7 @@ function setInPoint(id) {
     if (pad.outPoint !== null && pad.inPoint >= pad.outPoint) pad.outPoint = null;
     setStatus(`IN point set at ${fmt(pad.inPoint)}`);
   }
+  syncLoopFlag(pad);
   refreshPad(id);
   scheduleAutosave();
 }
@@ -1614,6 +1663,7 @@ function setOutPoint(id) {
     if (pad.inPoint !== null && pad.outPoint <= pad.inPoint) pad.inPoint = null;
     setStatus(`OUT point set at ${fmt(pad.outPoint)}`);
   }
+  syncLoopFlag(pad);
   refreshPad(id);
   scheduleAutosave();
 }
@@ -1621,7 +1671,7 @@ function setOutPoint(id) {
 function toggleLoop(id) {
   const pad = pads[id];
   pad.loop = !pad.loop;
-  if (pad.audio) pad.audio.loop = pad.loop;
+  syncLoopFlag(pad);
   refreshPad(id);
   scheduleAutosave();
 }
@@ -1656,33 +1706,57 @@ function browseFile(padId) {
 function loadFile(padId, file) {
   const pad = pads[padId];
   clearFadeTimer(padId);
-  if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
   attachAudio(pad, file);
   pad.filePath = file.path || null;
   pad.name    = pad.name || stripExt(file.name);
   pad.playing = false;
+  pad.paused  = false;
+  // IN/OUT points belong to the previous file — on a shorter one they'd cut it off or play silence
+  pad.inPoint = pad.outPoint = null;
+  syncLoopFlag(pad);
   refreshPad(padId);
+  updatePlayCueBtn();
   setStatus(`Loaded "${pad.name}"`);
   scheduleAutosave();
 }
 
 function attachAudio(pad, file) {
-  const audio   = new Audio(URL.createObjectURL(file));
-  audio.loop    = pad.loop;
-  audio.volume  = pad.vol * masterVol;
+  releaseAudio(pad);                       // free the previous element and its blob URL
+  const url     = URL.createObjectURL(file);
+  const audio   = new Audio(url);
+  audio.loop    = pad.loop && pad.inPoint === null;
+  audio.volume  = clamp01(pad.vol * masterVol);
   audio.preload = 'auto';
   audio.addEventListener('ended', () => {
-    if (!pad.loop) {
+    if (pad.audio !== audio) return;       // stale element from a replaced file
+    if (pad.loop) {
+      // Native loop is off when an IN point is set — wrap to the IN point by hand
+      audio.currentTime = pad.inPoint ?? 0;
+      audio.play().catch(() => {});
+      return;
+    }
+    pad.playing = false;
+    pad.paused  = false;
+    refreshPad(pad.id);
+    updatePlayCueBtn();
+    setStatus(`"${pad.name}" finished`);
+    if (autoAdv) checkAutoAdvance(pad.id);
+  });
+  audio.addEventListener('error', () => {
+    if (pad.audio !== audio) return;
+    if (pad.playing) {
+      clearFadeTimer(pad.id);
       pad.playing = false;
       pad.paused  = false;
       refreshPad(pad.id);
       updatePlayCueBtn();
-      setStatus(`"${pad.name}" finished`);
-      if (autoAdv) checkAutoAdvance(pad.id);
     }
+    setStatus(`Cannot play "${pad.name}" — the audio file is unsupported or unreadable`);
   });
-  pad.file  = file;
-  pad.audio = audio;
+  pad.file        = file;
+  pad.audio       = audio;
+  pad.audioUrl    = url;
+  pad.missingPath = null;
 }
 
 // ── Clear pad ─────────────────────────────────────────────
@@ -1690,12 +1764,15 @@ function clearPad(id) {
   const pad = pads[id];
   if (!pad.file) return;
   clearFadeTimer(id);
-  if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
+  releaseAudio(pad);
   scenes.forEach(s => {
+    const current = s.stack[s.stackIdx];               // undefined when nothing is selected
     s.stack = s.stack.filter(item => item.padId !== id);
-    if (s.stackIdx >= s.stack.length) s.stackIdx = s.stack.length - 1;
+    // Re-find the selected cue by identity so removing earlier entries can't shift the selection onto a different cue
+    s.stackIdx = current && s.stack.includes(current) ? s.stack.indexOf(current) : -1;
   });
-  pad.file = null; pad.audio = null; pad.name = ''; pad.playing = false;
+  pad.file = null; pad.filePath = null; pad.missingPath = null; pad.name = ''; pad.playing = false; pad.paused = false;
+  pad.inPoint = pad.outPoint = null;
   refreshPad(id);
   renderStack();
   setStatus(`Pad ${id + 1} cleared`);
@@ -1715,7 +1792,8 @@ function addToStack(padId) {
 function removeFromStack(i) {
   const s = getScene();
   s.stack.splice(i, 1);
-  if (s.stackIdx >= s.stack.length) s.stackIdx = s.stack.length - 1;
+  if (i < s.stackIdx) s.stackIdx--;                   // keep the selection on the same cue
+  else if (s.stackIdx >= s.stack.length) s.stackIdx = s.stack.length - 1;
   renderStack();
   scheduleAutosave();
 }
@@ -1728,13 +1806,26 @@ function clearStack() {
   scheduleAutosave();
 }
 
-function nextCue() {
+function nextCue(auto = false) {
+  clearTimeout(advTimer);
   const s = getScene();
   if (!s.stack.length) return;
+  // Auto-advance stops at the end of the stack; it must never wrap round and replay the show.
+  if (auto && s.stackIdx >= s.stack.length - 1) return;
+  const nextIdx = (s.stackIdx + 1) % s.stack.length;
+  const item    = s.stack[nextIdx];
+  if (!pads[item.padId]?.audio) {
+    // A cue with no audio (file missing after a load / restore) must not cut the sound that is playing.
+    s.stackIdx = nextIdx;
+    renderStack();
+    setStatus(`Cue ${nextIdx + 1} "${pads[item.padId]?.name || 'Unnamed'}" has no audio — relink the file`);
+    return;
+  }
   if (s.stackIdx >= 0 && s.stack[s.stackIdx]) stopPad(s.stack[s.stackIdx].padId, true);
-  s.stackIdx = (s.stackIdx + 1) % s.stack.length;
-  const item = s.stack[s.stackIdx];
-  if (item) { playPad(item.padId, true); renderStack(); updatePlayCueBtn(); }
+  s.stackIdx = nextIdx;
+  playPad(item.padId, true);
+  renderStack();
+  updatePlayCueBtn();
 }
 
 function playStackItem(i) {
@@ -1749,6 +1840,11 @@ function playCue() {
   if (s.stackIdx < 0 || !s.stack[s.stackIdx]) return;
   const item = s.stack[s.stackIdx];
   const pad  = pads[item.padId];
+  if (!pad.audio) {
+    // Check before stopping anything — otherwise the room goes silent and nothing replaces it
+    setStatus(`"${pad.name || 'Unnamed'}" has no audio — relink the file`);
+    return;
+  }
   if (pad.playing) {
     // Already playing → stop it
     stopPad(item.padId, true);
@@ -1779,7 +1875,14 @@ function updatePlayCueBtn() {
 function checkAutoAdvance(finishedPadId) {
   const s = getScene();
   if (s.stackIdx < 0 || !s.stack[s.stackIdx]) return;
-  if (s.stack[s.stackIdx].padId === finishedPadId) setTimeout(nextCue, 250);
+  if (s.stackIdx >= s.stack.length - 1) return;          // end of the stack — stop, don't loop
+  if (s.stack[s.stackIdx].padId !== finishedPadId) return;
+  const idx = s.stackIdx;
+  clearTimeout(advTimer);
+  advTimer = setTimeout(() => {
+    // Only advance if the operator hasn't moved the stack (or changed scene) in the meantime
+    if (getScene() === s && s.stackIdx === idx) nextCue(true);
+  }, 250);
 }
 
 function toggleAutoAdvance() {
@@ -1827,8 +1930,11 @@ function addScene() {
 
 function removeScene(idx) {
   if (scenes.length <= 1) return;
+  const sc = scenes[idx];
+  if (sc.stack.length && !confirm(`Delete "${sc.name}" and its ${sc.stack.length} cue${sc.stack.length !== 1 ? 's' : ''}?`)) return;
   scenes.splice(idx, 1);
-  if (currentSceneIdx >= scenes.length) currentSceneIdx = scenes.length - 1;
+  if (idx < currentSceneIdx) currentSceneIdx--;         // keep the same scene selected
+  else if (currentSceneIdx >= scenes.length) currentSceneIdx = scenes.length - 1;
   renderSceneTabs();
   renderStack();
   scheduleAutosave();
@@ -1994,9 +2100,10 @@ function refreshPadEl(el, pad) {
   const pbar = document.getElementById(`pbar${pad.id}`);
   if (pbar) {
     const doSeek = (offsetXInBar) => {
-      if (!pad.audio?.duration) return;
+      const dur = pad.audio?.duration;
+      if (!dur || !Number.isFinite(dur)) return;         // streams / headerless files report Infinity
       const frac = Math.max(0, Math.min(1, offsetXInBar / pbar.offsetWidth));
-      pad.audio.currentTime = frac * pad.audio.duration;
+      pad.audio.currentTime = Math.min(frac * dur, Math.max(0, dur - 0.1));   // never seek onto the end — it fires 'ended'
     };
     // Convert event offsetX to pbar-relative coords even when e.target is a child element
     const pbarOffsetX = (e) => {
@@ -2038,16 +2145,23 @@ function refreshPadEl(el, pad) {
     }
   }
 
-  el.addEventListener('click', e => {
-    if (e.target.closest('[data-action],input')) return;
-    pad.file ? togglePad(pad.id) : browseFile(pad.id);
-  });
-  el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('drag-over'); });
-  el.addEventListener('dragleave', ()  => el.classList.remove('drag-over'));
-  el.addEventListener('drop', e => {
-    e.preventDefault(); el.classList.remove('drag-over');
-    if (e.dataTransfer.files[0]) loadFile(pad.id, e.dataTransfer.files[0]);
-  });
+  // `el` persists across refreshes (only its innerHTML is rebuilt), so these must be bound
+  // exactly once — otherwise every refresh stacks another handler and a pad click toggles
+  // play/pause several times, or opens several file pickers.
+  if (!el._bound) {
+    el._bound = true;
+    const id = pad.id;
+    el.addEventListener('click', e => {
+      if (e.target.closest('[data-action],input')) return;
+      pads[id].file ? togglePad(id) : browseFile(id);
+    });
+    el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', ()  => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); el.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) loadFile(id, e.dataTransfer.files[0]);
+    });
+  }
 }
 
 function refreshPad(id) {
@@ -2062,8 +2176,7 @@ function fmt(secs) {
 }
 
 function startRaf() {
-  (function tick() {
-    pads.forEach(pad => {
+  const tickPad = pad => {
       if (!pad.audio || !pad.file) return;
       const bar     = document.getElementById(`prog${pad.id}`);
       const timeEl  = document.getElementById(`ptime${pad.id}`);
@@ -2111,8 +2224,10 @@ function startRaf() {
           }
         }
       }
-    });
-    requestAnimationFrame(tick);
+  };
+  (function tick() {
+    requestAnimationFrame(tick);   // schedule first, and isolate each pad: one bad pad must not stop the loop
+    pads.forEach(pad => { try { tickPad(pad); } catch (e) { console.error('tick', e); } });
   })();
 }
 
@@ -2139,6 +2254,7 @@ function getCombo(e) {
   const parts = [];
   if (e.ctrlKey)  parts.push('Ctrl');
   if (e.altKey)   parts.push('Alt');
+  if (e.metaKey && !['Shift','Control','Alt','Meta'].includes(e.key)) parts.push('Meta');
   if (e.shiftKey && !['Shift','Control','Alt','Meta'].includes(e.key)) parts.push('Shift');
   if (!['Control','Alt','Shift','Meta'].includes(e.key)) {
     const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
@@ -2148,7 +2264,14 @@ function getCombo(e) {
 }
 
 function onKey(e) {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  // Ignore typing in text fields — but not sliders/checkboxes: after dragging the master-volume
+  // slider focus stays on it, and SPACE / pad keys must keep working.
+  const t = e.target;
+  if (t.tagName === 'TEXTAREA' || t.isContentEditable ||
+      (t.tagName === 'INPUT' && !['range','checkbox','radio','button','color'].includes(t.type))) return;
+  // Holding a key auto-repeats keydown: without this, a held pad key toggles the pad on/off
+  // and a held SPACE races through the whole stack.
+  if (e.repeat) { e.preventDefault(); return; }
   const modalOpen = !document.getElementById('modalOverlay').classList.contains('hidden');
 
   if (capturingHotkey) {
@@ -2166,9 +2289,20 @@ function onKey(e) {
   if (capturing !== null) {
     e.preventDefault();
     if (e.key === 'Escape') { endCapture(capturing); return; }
+    if (['Control','Alt','Shift','Meta','CapsLock','Dead','Unidentified'].includes(e.key)) return;   // modifier alone isn't a key
+    if (e.key === ' ') { setStatus('SPACE is reserved for Next Cue — press another key'); return; }
     const newKey   = e.key.toLowerCase();
+    if (customShortcuts.some(sc => sc.combo === getCombo(e))) {
+      setStatus(`"${getCombo(e)}" is already a custom shortcut — press another key`);
+      return;
+    }
     const conflict = pads.find(p => p.id !== capturing && p.key === newKey);
-    if (conflict) { conflict.key = pads[capturing].key; refreshPad(conflict.id); }
+    if (conflict) {
+      conflict.key = pads[capturing].key;
+      refreshPad(conflict.id);
+      const cb = document.getElementById(`sh-pad-key-${conflict.id}`);
+      if (cb) cb.textContent = conflict.key.toUpperCase();
+    }
     pads[capturing].key = newKey;
     endCapture(capturing);
     return;
@@ -2210,9 +2344,113 @@ function endCapture(id) {
   scheduleAutosave();
 }
 
+// ── Project data validation ───────────────────────────────
+// Project files (.cuepro, cue-project.json, iPad imports) and the autosave are untrusted input.
+// Colours, ids and names end up in innerHTML, style attributes and inline handlers, and volumes in
+// HTMLMediaElement.volume (which throws outside [0,1]) — so everything is normalised once, here,
+// BEFORE any live state is touched: a bad file must not silence a running show or half-apply.
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const MAX_PADS  = 500;
+let projectLoading = false;   // blocks a second load starting while audio is still being read
+
+function safeNum(v, lo, hi, dflt) {
+  if (v === null || v === undefined || v === '') return dflt;
+  v = Number(v);
+  return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
+}
+
+function normalizePad(pc, i) {
+  pc = pc && typeof pc === 'object' ? pc : {};
+  const inPoint = safeNum(pc.inPoint, 0, 86400, null);
+  let outPoint  = safeNum(pc.outPoint, 0, 86400, null);
+  if (inPoint !== null && outPoint !== null && outPoint <= inPoint) outPoint = null;
+  return {
+    id: i,                                         // ids are array indexes everywhere else in the app
+    key:   typeof pc.key  === 'string' ? pc.key.slice(0, 20)   : '',
+    color: HEX_COLOR.test(pc.color)    ? pc.color              : COLORS[i % COLORS.length],
+    name:  typeof pc.name === 'string' ? pc.name.slice(0, 200) : '',
+    file: null, audio: null, audioUrl: null, filePath: null,
+    missingPath: null,                             // saved path whose file wasn't found — kept so Save doesn't drop the link
+    loop: pc.loop === true, playing: false, paused: false,
+    vol:  safeNum(pc.vol, 0, 1, 1),
+    fadeEnabled: pc.fadeEnabled === true,
+    inPoint, outPoint,
+  };
+}
+
+// Validate + normalise a project/session object. Pure: throws a readable Error, never touches live state.
+function parseProjectConfig(config) {
+  if (!config || typeof config !== 'object') throw new Error('not a project file');
+  if (!Array.isArray(config.pads)) {
+    throw new Error(Array.isArray(config.config?.pads)
+      ? 'this is an iPad / browser export — import it from the Load screen of the web app'
+      : 'no pads found in file');
+  }
+  if (!config.pads.length)          throw new Error('the project has no pads');
+  if (config.pads.length > MAX_PADS) throw new Error(`too many pads (max ${MAX_PADS})`);
+
+  const padList = config.pads.map(normalizePad);
+  const validId = id => Number.isInteger(id) && id >= 0 && id < padList.length;
+
+  const rawScenes = Array.isArray(config.scenes) && config.scenes.length
+    ? config.scenes
+    : [{ name: 'Scene 1', stack: config.stack, stackIdx: config.stackIdx }];   // legacy single-stack projects
+  const sceneList = rawScenes.map((sc, i) => {
+    const stack = (Array.isArray(sc?.stack) ? sc.stack : []).filter(validId).map(padId => ({ padId }));
+    const idx   = Number.isInteger(sc?.stackIdx) ? sc.stackIdx : -1;
+    return {
+      id: i,
+      name: typeof sc?.name === 'string' && sc.name.trim() ? sc.name.slice(0, 100) : `Scene ${i + 1}`,
+      stack,
+      stackIdx: Math.min(Math.max(idx, -1), stack.length - 1),
+    };
+  });
+
+  const shortcuts = (Array.isArray(config.customShortcuts) ? config.customShortcuts : [])
+    .filter(sc => sc && typeof sc.combo === 'string' && sc.combo && validId(sc.padId))
+    .map((sc, i) => ({ id: i, combo: sc.combo.slice(0, 40), padId: sc.padId }));
+
+  const curScene = Number.isInteger(config.currentSceneIdx) ? config.currentSceneIdx : 0;
+  return {
+    pads: padList,
+    scenes: sceneList,
+    currentSceneIdx: Math.min(Math.max(curScene, 0), sceneList.length - 1),
+    customShortcuts: shortcuts,
+    settings: {
+      autoAdv:      config.autoAdv === true,
+      masterVol:    safeNum(config.masterVol, 0, 1, 1),
+      fadeDuration: safeNum(config.fadeDuration, 0, 20, 2),
+      padsScale:    safeNum(config.padsScale ?? config.uiScale, 0.4, 2, 1),
+      stackScale:   safeNum(config.stackScale, 0.7, 1.6, 1),
+    },
+  };
+}
+
+// Swap a parsed project in as the live state: stop + release the old pads, apply, rebuild the UI.
+function commitProject(parsed) {
+  clearTimeout(advTimer);
+  pads.forEach(p => { clearFadeTimer(p.id); releaseAudio(p); });
+  pads            = parsed.pads;
+  scenes          = parsed.scenes;
+  sceneIdSeq      = scenes.length;
+  currentSceneIdx = parsed.currentSceneIdx;
+  customShortcuts = parsed.customShortcuts;
+  shortcutIdSeq   = customShortcuts.length;
+  ({ autoAdv, masterVol, fadeDuration, padsScale, stackScale } = parsed.settings);
+  // Audio was attached before these settings were applied, so it still carries the previous master volume
+  pads.forEach(p => { if (p.audio) p.audio.volume = clamp01(p.vol * masterVol); });
+  capturing = null;
+  document.getElementById('volSlider').value      = masterVol;
+  document.getElementById('fadeDurInput').value   = fadeDuration;
+  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
+  applyScales();
+  buildPads(); renderSceneTabs(); renderStack();
+}
+
 // ── Save / Load ───────────────────────────────────────────
 function sanitizeFilename(n) {
-  return String(n).replace(/[^\w.\- ]/g, '_').trim() || 'project';
+  // \w is ASCII-only, so non-Latin names (Greek, etc.) used to collapse to the same "_____" folder and overwrite each other
+  return String(n).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/[. ]+$/, '').trim().replace(/^\.+$/, '') || 'project';
 }
 
 async function saveProject(name) {
@@ -2272,78 +2510,45 @@ async function loadProject(name) {
 }
 
 async function doLoadFromFolder(dirHandle, projectName) {
-  let config;
+  if (projectLoading) return;
+  let config, parsed;
   try {
     const fh = await dirHandle.getFileHandle('cue-project.json');
     config   = JSON.parse(await (await fh.getFile()).text());
   } catch { setStatus('No cue-project.json found in this folder'); return; }
+  try { parsed = parseProjectConfig(config); }
+  catch (e) { setStatus(`Cannot load project — ${e.message}`); return; }
 
-  pads.forEach(p => { clearFadeTimer(p.id); if (p.audio) { p.audio.pause(); p.audio.src = ''; } });
+  projectLoading = true;
+  try {
+    const missing = [];
+    for (let i = 0; i < parsed.pads.length; i++) {
+      const pc = config.pads[i];
+      if (typeof pc?.audioFile !== 'string' || !pc.audioFile) continue;
+      try {
+        const fh = await dirHandle.getFileHandle(pc.audioFile);
+        attachAudio(parsed.pads[i], await fh.getFile());
+      } catch { missing.push({ padId: i, fileName: pc.audioFile, padName: parsed.pads[i].name }); }
+    }
+    commitProject(parsed);
 
-  pads = config.pads.map(pc => ({
-    id:          pc.id,
-    key:         pc.key         ?? '',
-    color:       pc.color       ?? COLORS[pc.id % COLORS.length],
-    name:        pc.name        ?? '',
-    file:        null, audio: null, filePath: null,
-    loop:        pc.loop        ?? false,
-    playing:     false, paused: false,
-    vol:         pc.vol         ?? 1.0,
-    fadeEnabled: pc.fadeEnabled ?? false,
-    inPoint:     pc.inPoint     ?? null,
-    outPoint:    pc.outPoint    ?? null,
-  }));
+    // Register under the name stored in the project itself — registering under whatever name the
+    // user clicked would repoint that entry at an unrelated folder if they browsed to the wrong one.
+    const regName = typeof config.name === 'string' && config.name.trim() ? config.name.trim().slice(0, 100) : projectName;
+    if (regName) {
+      try { await dbPut('projects', { name: regName, savedAt: config.savedAt ?? Date.now(), dirHandle }); }
+      catch (e) { console.warn('Could not update the project list', e); }
+    }
+    localStorage.removeItem('cue-autosave');
+    closeModal();
 
-  const missing = [];
-  for (const pc of config.pads) {
-    const pad = pads[pc.id];
-    if (!pad || !pc.audioFile) continue;
-    try {
-      const fh = await dirHandle.getFileHandle(pc.audioFile);
-      attachAudio(pad, await fh.getFile());
-    } catch { missing.push({ padId: pc.id, fileName: pc.audioFile, padName: pc.name }); }
-  }
-
-  if (config.version >= 3 && config.scenes) {
-    scenes = config.scenes.map(s => ({
-      id: s.id, name: s.name,
-      stack:    (s.stack || []).map(padId => ({ padId })),
-      stackIdx: s.stackIdx ?? -1,
-    }));
-    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
-    currentSceneIdx = Math.min(config.currentSceneIdx ?? 0, scenes.length - 1);
-  } else {
-    scenes = [{ id: 0, name: 'Scene 1', stack: (config.stack || []).map(padId => ({ padId })), stackIdx: config.stackIdx ?? -1 }];
-    sceneIdSeq = 1; currentSceneIdx = 0;
-  }
-
-  autoAdv         = config.autoAdv      ?? false;
-  masterVol       = config.masterVol    ?? 1;
-  fadeDuration    = config.fadeDuration ?? 2;
-  padsScale       = config.padsScale    ?? config.uiScale ?? 1.0;
-  stackScale      = config.stackScale   ?? 1.0;
-  customShortcuts = config.customShortcuts ?? [];
-  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
-
-  document.getElementById('volSlider').value    = masterVol;
-  document.getElementById('fadeDurInput').value = fadeDuration;
-  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
-  applyScales();
-
-  buildPads();
-  renderSceneTabs();
-  renderStack();
-
-  if (projectName) await dbPut('projects', { name: projectName, savedAt: config.savedAt ?? Date.now(), dirHandle });
-  localStorage.removeItem('cue-autosave');
-  closeModal();
-
-  if (missing.length) {
-    setStatus(`Loaded — ${missing.length} audio file(s) not found`);
-    showMissingFilesDialog(missing, projectName ?? config.name);
-  } else {
-    setStatus(`"${config.name}" loaded — ${config.pads.filter(p => p.audioFile).length} sound(s) ready`);
-  }
+    if (missing.length) {
+      setStatus(`Loaded — ${missing.length} audio file(s) not found`);
+      showMissingFilesDialog(missing, regName ?? '');
+    } else {
+      setStatus(`"${config.name ?? regName ?? 'Project'}" loaded — ${pads.filter(p => p.file).length} sound(s) ready`);
+    }
+  } finally { projectLoading = false; }
 }
 
 function showMissingFilesDialog(missing, projectName) {
@@ -2420,8 +2625,14 @@ function showSaveModal() {
 }
 
 async function showLoadModal() {
-  openModal('LOAD PROJECT', '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading…</div>', '');
-  const projects = await dbGetAll('projects');
+  const closeBtn = '<button class="modal-btn" onclick="closeModal()">Close</button>';
+  openModal('LOAD PROJECT', '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading…</div>', closeBtn);
+  let projects;
+  try { projects = await dbGetAll('projects'); }
+  catch {
+    document.getElementById('modalBody').innerHTML = '<div class="proj-empty">Browser storage is unavailable.<br>(Private browsing blocks it.)</div>';
+    return;
+  }
   projects.sort((a, b) => b.savedAt - a.savedAt);
   const bodyHTML = projects.length
     ? `<div class="proj-list">${projects.map(p => `
@@ -2481,7 +2692,8 @@ async function doElectronSave(savePath) {
     pads: pads.map(p => ({
       id: p.id, key: p.key, name: p.name,
       loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color,
-      audioPath: p.filePath || null,
+      // p.missingPath: the file wasn't found on load — keep the link so saving doesn't destroy it
+      audioPath: p.filePath || p.missingPath || null,
       inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null
     }))
   };
@@ -2491,87 +2703,61 @@ async function doElectronSave(savePath) {
     localStorage.removeItem('cue-autosave');
     setStatus(`Saved — "${projectName}"`);
   } catch (e) {
+    if (/Write not permitted/.test(e.message)) {   // path wasn't picked in this session — ask the user
+      currentSavePath = null;
+      doElectronSaveAs();
+      return;
+    }
     setStatus('Save failed: ' + e.message);
   }
 }
 
 // ── Electron Load ─────────────────────────────────────────
 async function loadElectronProject() {
+  if (projectLoading) return;
   const loadPath = await window.electronAPI.showOpenFileDialog();
   if (!loadPath) return;
 
-  let config;
+  let config, parsed;
   try {
-    const text = await window.electronAPI.readTextFile(loadPath);
-    config = JSON.parse(text);
+    config = JSON.parse(await window.electronAPI.readTextFile(loadPath));
   } catch { setStatus('Could not read project file'); return; }
+  // Reject anything that isn't an Electron project BEFORE touching state — otherwise loading the
+  // wrong kind of .cuepro would blank the show, and the next Save would overwrite that file with an empty project.
+  try { parsed = parseProjectConfig(config); }
+  catch (e) { setStatus(`Cannot load project — ${e.message}`); return; }
 
-  pads.forEach(p => { clearFadeTimer(p.id); if (p.audio) { p.audio.pause(); p.audio.src = ''; } });
-
-  pads = (config.pads || []).map(pc => ({
-    id: pc.id, key: pc.key ?? '', color: pc.color ?? COLORS[pc.id % COLORS.length],
-    name: pc.name ?? '', file: null, audio: null, filePath: null,
-    loop: pc.loop ?? false, playing: false, paused: false, vol: pc.vol ?? 1.0,
-    fadeEnabled: pc.fadeEnabled ?? false,
-    inPoint: pc.inPoint ?? null, outPoint: pc.outPoint ?? null
-  }));
-
-  const missing = [];
-  for (const pc of (config.pads || [])) {
-    const pad = pads.find(p => p.id === pc.id);
-    if (!pad || !pc.audioPath) continue;
-    try {
-      const exists = await window.electronAPI.fileExists(pc.audioPath);
-      if (exists) {
-        const buf      = await window.electronAPI.readFile(pc.audioPath);
-        const fileName = pc.audioPath.replace(/.*[\\/]/, '');
-        attachAudio(pad, new File([new Blob([buf])], fileName));
-        pad.filePath = pc.audioPath;
-      } else {
-        missing.push({ padId: pc.id, audioPath: pc.audioPath, padName: pc.name });
-      }
-    } catch {
-      missing.push({ padId: pc.id, audioPath: pc.audioPath, padName: pc.name });
+  projectLoading = true;
+  try {
+    const missing = [];
+    for (let i = 0; i < parsed.pads.length; i++) {
+      const pc  = config.pads[i];
+      const pad = parsed.pads[i];
+      if (typeof pc?.audioPath !== 'string' || !pc.audioPath) continue;
+      try {
+        if (await window.electronAPI.fileExists(pc.audioPath)) {
+          const buf      = await window.electronAPI.readFile(pc.audioPath);
+          const fileName = pc.audioPath.replace(/.*[\\/]/, '');
+          attachAudio(pad, new File([new Blob([buf])], fileName));
+          pad.filePath = pc.audioPath;
+          continue;
+        }
+      } catch {}
+      pad.missingPath = pc.audioPath;
+      missing.push({ padId: i, audioPath: pc.audioPath, padName: pad.name });
     }
-  }
 
-  restoreElectronProjectSettings(config);
-  currentSavePath = loadPath;
-  localStorage.removeItem('cue-autosave');
-  buildPads(); renderSceneTabs(); renderStack();
+    commitProject(parsed);
+    currentSavePath = loadPath;
+    localStorage.removeItem('cue-autosave');
 
-  if (missing.length) {
-    setStatus(`Loaded — ${missing.length} file(s) not found`);
-    showElectronMissingDialog(missing);
-  } else {
-    setStatus(`"${config.name}" loaded — ${pads.filter(p => p.file).length} sound(s) ready`);
-  }
-}
-
-function restoreElectronProjectSettings(config) {
-  if (config.scenes) {
-    scenes = config.scenes.map(s => ({
-      id: s.id, name: s.name,
-      stack: (s.stack || []).map(padId => ({ padId })),
-      stackIdx: s.stackIdx ?? -1
-    }));
-    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
-    currentSceneIdx = Math.min(config.currentSceneIdx ?? 0, scenes.length - 1);
-  } else {
-    scenes = [{ id: 0, name: 'Scene 1', stack: [], stackIdx: -1 }];
-    sceneIdSeq = 1; currentSceneIdx = 0;
-  }
-  autoAdv         = config.autoAdv         ?? false;
-  masterVol       = config.masterVol       ?? 1;
-  fadeDuration    = config.fadeDuration    ?? 2;
-  padsScale       = config.padsScale       ?? config.uiScale ?? 1.0;
-  stackScale      = config.stackScale      ?? 1.0;
-  customShortcuts = config.customShortcuts ?? [];
-  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
-  document.getElementById('volSlider').value      = masterVol;
-  document.getElementById('fadeDurInput').value   = fadeDuration;
-  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
-  applyScales();
+    if (missing.length) {
+      setStatus(`Loaded — ${missing.length} file(s) not found`);
+      showElectronMissingDialog(missing);
+    } else {
+      setStatus(`"${config.name ?? 'Project'}" loaded — ${pads.filter(p => p.file).length} sound(s) ready`);
+    }
+  } finally { projectLoading = false; }
 }
 
 // ── Missing files dialog (Electron) ──────────────────────
@@ -2601,16 +2787,16 @@ function showElectronMissingDialog(missing) {
 }
 
 async function electronLocateFile(padId) {
-  const filePath = await window.electronAPI.showOpenFileDialog();
+  const filePath = await window.electronAPI.showOpenAudioDialog();
   if (!filePath) return;
   const pad = pads[padId];
   if (!pad) return;
   try {
     const buf      = await window.electronAPI.readFile(filePath);
     const fileName = filePath.replace(/.*[\\/]/, '');
-    if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
     attachAudio(pad, new File([new Blob([buf])], fileName));
     pad.filePath = filePath;
+    _pendingMissing = _pendingMissing.filter(f => f.padId !== padId);
     refreshPad(padId);
     renderStack();
     const btn = document.getElementById(`locate-btn-${padId}`);
@@ -2628,10 +2814,9 @@ async function electronBrowseFolder() {
     const fullPath = await window.electronAPI.joinPath(folder, fileName);
     if (!(await window.electronAPI.fileExists(fullPath))) continue;
     const pad = pads[f.padId];
-    if (!pad) continue;
+    if (!pad || pad.file) continue;              // already linked by hand via Locate… — don't overwrite it
     try {
       const buf = await window.electronAPI.readFile(fullPath);
-      if (pad.audio) { pad.audio.pause(); pad.audio.src = ''; }
       attachAudio(pad, new File([new Blob([buf])], fileName));
       pad.filePath = fullPath;
       refreshPad(f.padId);
@@ -2730,6 +2915,11 @@ function confirmAddHotkey() {
   if (!pendingCombo) { setStatus('Press a key first'); return; }
   const padId = parseInt(document.getElementById('sh-pad-select').value, 10);
   if (customShortcuts.find(s => s.combo === pendingCombo)) { setStatus(`"${pendingCombo}" is already assigned`); return; }
+  if (pendingCombo === 'Space') { setStatus('SPACE is reserved for Next Cue'); return; }
+  if (pads.some(p => p.key && p.key === pendingCombo.toLowerCase())) {   // custom hotkeys are checked first, so this would silently shadow the pad key
+    setStatus(`"${pendingCombo}" is already a pad shortcut — remap that pad first`);
+    return;
+  }
   customShortcuts.push({ id: shortcutIdSeq++, combo: pendingCombo, padId });
   pendingCombo = null; capturingHotkey = false;
   renderShortcutsModal();
@@ -2744,8 +2934,13 @@ function removeCustomShortcut(id) {
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// For a value placed inside a single-quoted JS string inside a double-quoted HTML attribute,
+// e.g. onclick="fn('${escAttr(x)}')". Escape for the JS string first (backslash, quote, newline),
+// then for the HTML attribute (& < > ") — the attribute is decoded before the JS is parsed.
 function escAttr(s) {
-  return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  return String(s)
+    .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,'\\n')
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function stripExt(name) { return name.replace(/\.[^/.]+$/, ''); }
 function setStatus(msg) { const el = document.getElementById('statusTxt'); if (el) el.textContent = msg; }
@@ -2791,11 +2986,11 @@ function scheduleAutosave() {
 function saveAutosave() {
   const data = {
     savedAt: Date.now(),
-    masterVol, autoAdv, fadeDuration, padsScale, stackScale, currentSavePath,
+    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
-    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, hasAudio: !!p.file, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null })),
+    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, hasAudio: !!p.file, audioPath: p.filePath || p.missingPath || null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null })),
   };
   try { localStorage.setItem('cue-autosave', JSON.stringify(data)); } catch {}
 }
@@ -2821,53 +3016,17 @@ function showRestoreDialog(data) {
   );
 }
 function restoreSessionData(data) {
-  if (!data) return;
-  masterVol       = data.masterVol    ?? 1;
-  autoAdv         = data.autoAdv      ?? false;
-  fadeDuration    = data.fadeDuration ?? 2;
-  padsScale       = data.padsScale    ?? data.uiScale ?? 1.0;
-  stackScale      = data.stackScale   ?? 1.0;
-  currentSavePath = data.currentSavePath || null;
-
-  if (data.pads) {
-    while (pads.length < data.pads.length) {
-      const id = pads.length;
-      pads.push({ id, key: '', color: COLORS[id % COLORS.length], name: '', file: null, audio: null, loop: false, playing: false, vol: 1.0, fadeEnabled: false });
-    }
-    data.pads.forEach(pc => {
-      const pad = pads[pc.id];
-      if (!pad) return;
-      pad.key         = pc.key         ?? pad.key;
-      pad.name        = pc.name        ?? pad.name;
-      pad.loop        = pc.loop        ?? pad.loop;
-      pad.vol         = pc.vol         ?? pad.vol;
-      pad.fadeEnabled = pc.fadeEnabled ?? pad.fadeEnabled;
-      pad.color       = pc.color       ?? pad.color;
-      pad.inPoint     = pc.inPoint     ?? null;
-      pad.outPoint    = pc.outPoint    ?? null;
-    });
+  let parsed;
+  try { parsed = parseProjectConfig(data); }
+  catch (e) { setStatus(`Could not restore the saved session — ${e.message}`); return; }
+  // Keep the on-disk link of pads whose audio can't be recovered, so a later Save As doesn't drop it
+  if (IS_ELECTRON) {
+    data.pads.forEach((pc, i) => { if (typeof pc?.audioPath === 'string') parsed.pads[i].missingPath = pc.audioPath; });
   }
-
-  if (data.scenes) {
-    scenes = data.scenes.map(s => ({
-      id: s.id, name: s.name,
-      stack:    (s.stack || []).map(padId => ({ padId })),
-      stackIdx: s.stackIdx ?? -1,
-    }));
-    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
-    currentSceneIdx = Math.min(data.currentSceneIdx ?? 0, scenes.length - 1);
-  }
-
-  customShortcuts = data.customShortcuts ?? [];
-  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
-
-  document.getElementById('volSlider').value    = masterVol;
-  document.getElementById('fadeDurInput').value = fadeDuration;
-  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
-  applyScales();
-  buildPads();
-  renderSceneTabs();
-  renderStack();
+  commitProject(parsed);
+  // Write permission for a project path only lasts for the session it was chosen in, so the first
+  // Save after a restore goes through Save As (and can't overwrite the original with missing-audio links).
+  currentSavePath = null;
   setStatus('Session restored — re-drop any audio files shown with ⚠');
 }
 function fmtAgo(ms) {
@@ -2917,11 +3076,15 @@ if (typeof window !== 'undefined' && window.electronAPI?.onUpdateProgress) {
 }
 
 // ── Theme ─────────────────────────────────────────────────
-function initTheme() { applyTheme(localStorage.getItem('cue-theme') || 'light'); }
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('cue-theme'); } catch {}
+  applyTheme(saved || 'light');
+}
 function toggleTheme() { applyTheme((document.documentElement.dataset.theme || 'dark') === 'dark' ? 'light' : 'dark'); }
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  localStorage.setItem('cue-theme', theme);
+  try { localStorage.setItem('cue-theme', theme); } catch {}
   const btn = document.getElementById('themeBtn');
   if (btn) { btn.textContent = theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'; }
 }
@@ -2965,6 +3128,10 @@ async function showIdbSaveModal() {
 async function doSaveProjectIDB(name) {
   name = name.trim();
   if (!name) return;
+  // The store is keyed by name — saving over an existing project replaces it and all its audio
+  let existing = null;
+  try { existing = await dbGet('ipad-projects', name); } catch {}
+  if (existing && !confirm(`A project named "${name}" already exists on this device.\n\nReplace it?`)) return;
   setStatus('Saving…');
   closeModal();
 
@@ -2975,7 +3142,12 @@ async function doSaveProjectIDB(name) {
       try {
         const buf = await p.file.arrayBuffer();
         audioData[p.id] = { name: p.file.name, type: p.file.type, buf };
-      } catch (e) { console.warn('Could not read audio for pad', p.id, e); }
+      } catch (e) {
+        // Never save a project with silently missing audio over a good copy
+        console.warn('Could not read audio for pad', p.id, e);
+        setStatus(`Save cancelled — could not read the audio for "${p.name}"`);
+        return;
+      }
     }
   }
 
@@ -3004,8 +3176,14 @@ async function doSaveProjectIDB(name) {
 }
 
 async function showIdbLoadModal() {
-  openModal('LOAD PROJECT', '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading…</div>', '');
-  const projects = await dbGetAll('ipad-projects');
+  const closeBtn = '<button class="modal-btn" onclick="closeModal()">Close</button>';
+  openModal('LOAD PROJECT', '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading…</div>', closeBtn);
+  let projects;
+  try { projects = await dbGetAll('ipad-projects'); }
+  catch {
+    document.getElementById('modalBody').innerHTML = '<div class="proj-empty">Browser storage is unavailable.<br>(Private browsing blocks it.)</div>';
+    return;
+  }
   projects.sort((a, b) => b.savedAt - a.savedAt);
 
   const bodyHTML = projects.length
@@ -3030,62 +3208,34 @@ async function showIdbLoadModal() {
 }
 
 async function loadProjectIDB(name) {
+  if (projectLoading) return;
   const entry = await dbGet('ipad-projects', name);
   if (!entry) { setStatus('Project not found'); return; }
 
   const { config, audioData } = entry;
-  pads.forEach(p => { clearFadeTimer(p.id); if (p.audio) { p.audio.pause(); p.audio.src = ''; } });
+  let parsed;
+  try { parsed = parseProjectConfig(config); }
+  catch (e) { setStatus(`Cannot load "${name}" — ${e.message}`); return; }
 
-  pads = config.pads.map(pc => ({
-    id: pc.id, key: pc.key ?? '', color: pc.color ?? COLORS[pc.id % COLORS.length],
-    name: pc.name ?? '', file: null, audio: null, filePath: null,
-    loop: pc.loop ?? false, playing: false, paused: false, vol: pc.vol ?? 1.0,
-    fadeEnabled: pc.fadeEnabled ?? false,
-    inPoint: pc.inPoint ?? null, outPoint: pc.outPoint ?? null
-  }));
-
-  // Restore audio from stored ArrayBuffers
-  for (const [idStr, ad] of Object.entries(audioData || {})) {
-    const pad = pads.find(p => p.id === +idStr);
-    if (!pad) continue;
-    try {
-      const file = new File([ad.buf], ad.name, { type: ad.type });
-      attachAudio(pad, file);
-    } catch (e) { console.warn('Could not restore audio for pad', idStr, e); }
-  }
-
-  if (config.scenes) {
-    scenes = config.scenes.map(s => ({
-      id: s.id, name: s.name,
-      stack: (s.stack || []).map(padId => ({ padId })),
-      stackIdx: s.stackIdx ?? -1
-    }));
-    sceneIdSeq      = scenes.reduce((m, s) => Math.max(m, s.id + 1), 0);
-    currentSceneIdx = Math.min(config.currentSceneIdx ?? 0, scenes.length - 1);
-  } else {
-    scenes = [{ id: 0, name: 'Scene 1', stack: [], stackIdx: -1 }];
-    sceneIdSeq = 1; currentSceneIdx = 0;
-  }
-
-  autoAdv         = config.autoAdv      ?? false;
-  masterVol       = config.masterVol    ?? 1;
-  fadeDuration    = config.fadeDuration ?? 2;
-  padsScale       = config.padsScale    ?? 1.0;
-  stackScale      = config.stackScale   ?? 1.0;
-  customShortcuts = config.customShortcuts ?? [];
-  shortcutIdSeq   = customShortcuts.reduce((m, s) => Math.max(m, s.id + 1), 0);
-
-  document.getElementById('volSlider').value      = masterVol;
-  document.getElementById('fadeDurInput').value   = fadeDuration;
-  document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
-  applyScales();
-  buildPads(); renderSceneTabs(); renderStack();
-  localStorage.removeItem('cue-autosave');
-  closeModal();
-  setStatus(`"${config.name}" loaded — ${Object.keys(audioData || {}).length} sound(s) ready`);
+  projectLoading = true;
+  try {
+    // Restore audio from stored ArrayBuffers into the not-yet-live pads
+    for (const [idStr, ad] of Object.entries(audioData || {})) {
+      const pad = parsed.pads[+idStr];
+      if (!pad || !ad?.buf) continue;
+      try {
+        attachAudio(pad, new File([ad.buf], String(ad.name || 'audio'), { type: String(ad.type || '') }));
+      } catch (e) { console.warn('Could not restore audio for pad', idStr, e); }
+    }
+    commitProject(parsed);
+    localStorage.removeItem('cue-autosave');
+    closeModal();
+    setStatus(`"${config.name ?? name}" loaded — ${pads.filter(p => p.file).length} sound(s) ready`);
+  } finally { projectLoading = false; }
 }
 
 async function deleteIdbProject(name) {
+  if (!confirm(`Delete "${name}" and its audio from this device?\n\nThis cannot be undone — Export it first if you want a backup.`)) return;
   await dbDelete('ipad-projects', name);
   showIdbLoadModal();
 }
@@ -3133,7 +3283,13 @@ function importProjectFile() {
     if (!file) return;
     try {
       const data = JSON.parse(await file.text());
-      const projectName = data.config?.name || data.name || 'Imported Project';
+      if (!data || typeof data !== 'object') throw new Error('not a project file');
+      // Fail with a readable reason before anything is stored (parseProjectConfig is pure)
+      parseProjectConfig(data.config || data);
+      const projectName = String(data.config?.name || data.name || 'Imported Project').slice(0, 100);
+      let existing = null;
+      try { existing = await dbGet('ipad-projects', projectName); } catch {}
+      if (existing && !confirm(`A project named "${projectName}" already exists on this device.\n\nReplace it with the imported one?`)) return;
 
       // Decode base64 audio back to ArrayBuffer
       const audioData = {};
