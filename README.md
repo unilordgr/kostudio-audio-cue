@@ -71,7 +71,7 @@ Click **More info** → **Run anyway**.
 - **▶ PLAY CUE** — dedicated button plays the selected cue, stops all other audio first
 - **■ STOP CUE** — the same button transforms while playing; click again to stop with fade
 - **Multiple Scenes** — separate stacks per scene (e.g. Act 1, Act 2), tab-switched instantly
-- **Auto-advance** — automatically moves to the next cue when the current one finishes
+- **Auto-advance** — automatically moves to the next cue when the current one finishes, and stops at the end of the stack
 - **Stack text scale** — independently resize the cue stack text with − / + buttons
 
 ### Interface & Scale
@@ -96,15 +96,15 @@ Click **More info** → **Run anyway**.
 ### Auto-Update
 - On launch, the app silently checks GitHub for a newer version
 - If an update is available: a native dialog asks **Download Now** or **Later**
-- **Windows**: downloads the new `.exe` in the background, shows a progress bar in the app, then automatically replaces itself and restarts — no browser needed
-- **Mac**: downloads the DMG, attempts to copy the `.app` to Applications automatically
+- **Windows**: downloads the new `.exe` in the background and shows a progress bar in the app. When it's ready you choose **Restart Now** or **Later** — Later applies the update the next time you close the app, so it never interrupts a show
+- **Mac**: downloads the DMG for your chip (Apple Silicon or Intel), then copies the new `.app` over the old one, falling back to opening the DMG if it can't
 
 ---
 
 ## Getting Started
 
 ### Windows (Portable .exe)
-1. Download `Kostudio Audio Cue.exe` from the [latest release](../../releases/latest)
+1. Download `Kostudio-Audio-Cue-x64.exe` from the [latest release](../../releases/latest)
 2. Double-click — no installation needed
 3. Drag audio files onto pads or click a pad to browse
 
@@ -113,9 +113,15 @@ Click **More info** → **Run anyway**.
 2. Open the DMG, drag the app to **Applications**
 3. If macOS says "damaged and can't be opened", run in Terminal: `xattr -cr "/Applications/Kostudio Audio Cue.app"`
 
-### macOS / Browser (no install)
-Open `kostudio cue.html` directly in **Chrome** or **Edge**.
-> Safari is not supported — the File System Access API (Save/Load) requires Chrome or Edge.
+### Browser / iPad (no install)
+Use the hosted web app at **https://unilordgr.github.io/kostudio-audio-cue/**, or download `Kostudio-Audio-Cue-iPad-Web.html` from the [latest release](../../releases/latest) and open it locally.
+
+| Browser | Save / Load |
+|---|---|
+| **Chrome / Edge** | Saves a project folder (audio copied in) using the File System Access API |
+| **Safari / iPad** | Saves to the device's browser storage; use **Export… / Import .cuepro** to back up or move projects |
+
+On iPad: open it in Safari, tap **Share → Add to Home Screen** to install it as a standalone app.
 
 ---
 
@@ -156,7 +162,26 @@ npm run dist-win   # build Windows portable .exe
 npm run dist-mac   # build Mac DMG (run on macOS)
 ```
 
-Both the Windows `.exe` and Mac `.dmg` are built automatically via GitHub Actions on every push to `main`.
+The Windows `.exe` and Mac `.dmg` files are built automatically via GitHub Actions on every push to `main`, and published as the release for the `version` in `package.json` (an existing release with the same version is replaced). Release notes come from `RELEASE_NOTES.md`.
+
+---
+
+## Development & Tests
+
+```bash
+npm ci --ignore-scripts        # install (skips Electron's large binary download; not needed for tests)
+npx playwright install chromium
+npm test                       # runs everything in tests/
+```
+
+| Test file | What it covers |
+|---|---|
+| `tests/ui.test.js` | Playback, fades, cue stack, keyboard, header layout, CSP and donate link — in a real Chromium |
+| `tests/loaders.test.js` | Project save/load/restore for the Electron path (mocked `electronAPI`) and the iPad path (real IndexedDB) |
+| `tests/main.test.js` | `main.js` with Electron mocked: IPC allow-list, updater, download helper, donate handler |
+| `tests/repo.test.js` | Consistency checks: licence, manifest and icons, packaging list, CSP, one donate URL everywhere |
+
+The same suite runs on every pull request via GitHub Actions (`.github/workflows/test.yml`).
 
 ---
 
@@ -168,10 +193,27 @@ Both the Windows `.exe` and Mac `.dmg` are built automatically via GitHub Action
 - **File System Access API** — save/load in browser mode
 - **IndexedDB** — project registry in browser mode
 - **electron-builder** — packaging
-- **GitHub Actions** — automated Windows + Mac build and release
+- **GitHub Actions** — automated Windows + Mac build and release, and tests on every pull request
+
+---
+
+## Support
+
+Kostudio Audio Cue is free. If it helps your shows, you can support development:
+
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-ffc439?style=for-the-badge&logo=paypal&logoColor=003087)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=etutorialsgr%40gmail.com&currency_code=EUR&item_name=Support%20Kostudio%20Audio%20Cue)
+
+The app also has a **♥ Donate** button in the header.
 
 ---
 
 ## License
 
-MIT
+[Kostudio Audio Cue Free Use License](LICENSE) © 2026 [needitcreative.com](https://needitcreative.com)
+
+- ✅ **Free to use — including commercially.** Run it at paid shows, events, productions and broadcasts, and get paid for your work.
+- ✅ Free to copy, modify and share (free of charge, keeping the licence and copyright notice).
+- ❌ **You may not sell the software** — or modified versions of it — or charge for access to it (paid downloads, paid app-store listings, "pro" versions, bundles or subscriptions).
+- Need something else, like permission to resell? Contact needitcreative.com.
+
+It is provided "as is", without warranty. See [LICENSE](LICENSE) for the full terms.

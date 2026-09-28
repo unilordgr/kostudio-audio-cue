@@ -1,21 +1,30 @@
 {
   "name": "kostudio-audio-cue",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "Kostudio Audio Cue — Live Performance Sound Manager",
+  "author": "needitcreative.com",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unilordgr/kostudio-audio-cue.git"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dist-win": "electron-builder --win --publish never",
-    "dist-mac": "electron-builder --mac --publish never"
+    "dist-mac": "electron-builder --mac --publish never",
+    "test": "node tests/run.js"
   },
   "build": {
     "appId": "com.kostudio.audiocue",
     "productName": "Kostudio Audio Cue",
+    "copyright": "Copyright © 2026 needitcreative.com",
     "icon": "build/icons/icon.png",
     "files": [
       "main.js",
       "preload.js",
-      "index.html"
+      "index.html",
+      "build/icons/256x256.png"
     ],
     "win": {
       "icon": "build/icons/256x256.png",
@@ -47,6 +56,7 @@
   },
   "devDependencies": {
     "electron": "^29.4.6",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "playwright": "1.56.1"
   }
 }
