@@ -10,7 +10,7 @@
 //     refused, requests carrying a foreign Origin / Sec-Fetch-Site are rejected, JSON content-type is required
 //     (so "simple" cross-site POSTs can't get through), and Host must be an IP literal or localhost (DNS rebinding).
 //   • It can only PLAY things: a fixed whitelist of playback commands. It cannot edit, delete, load, save or lock.
-//   • Small, bounded: 4 KB bodies, 16 connections, 4 event streams, request timeouts.
+//   • Small, bounded: 4 KB bodies, 32 connections (8 per address), 4 event streams, request timeouts.
 //   • No failed-auth lockout on purpose: any web page can send junk to 127.0.0.1, so a lockout would let it
 //     lock the real Stream Deck out — and a 256-bit token can't be guessed anyway.
 
@@ -25,7 +25,8 @@ const MAX_BODY_BYTES   = 4096;
 const MAX_STATE_BYTES  = 256 * 1024;
 const MAX_PADS         = 500;
 const MAX_SSE_CLIENTS  = 4;
-const MAX_CONNECTIONS  = 16;
+const MAX_CONNECTIONS  = 32;
+const MAX_CONNECTIONS_PER_IP = 8;   // one host (a flooding laptop on the show Wi-Fi) can't use up every slot and lock the real remotes out
 
 // ── config (userData/remote.json, mode 0600) ───────────────
 function loadConfig(configPath) {
@@ -77,9 +78,10 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
   let status = { running: false, host: null, port: config.port, error: '' };
   let latestState = null;                 // JSON string
   const sockets = new Set();
+  const perIp = new Map();
   const sseClients = new Set();
   let heartbeat = null;
-  const t = { request: 10000, headers: 8000, keepAlive: 5000, heartbeat: 15000, check: 30000, ...timeouts };
+  const t = { request: 10000, headers: 8000, keepAlive: 5000, heartbeat: 15000, check: 1000, ...timeouts };
 
   const send = (res, code, body, headers = {}) => {
     const isStr = typeof body === 'string';
@@ -168,11 +170,16 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
     send(res, 404, { error: 'not found' });
   }
 
-  function stop() {
+  // start / stop / apply share `server`, so they run one at a time (two IPC calls in the same tick used to leave an
+  // orphaned listener that "disable" could not close)
+  let queue = Promise.resolve();
+  const serial = fn => { const run = queue.then(fn, fn); queue = run.then(() => {}, () => {}); return run; };
+
+  function stopNow() {
     clearInterval(heartbeat); heartbeat = null;
     sseClients.clear();
     for (const s of sockets) s.destroy();
-    sockets.clear();
+    sockets.clear(); perIp.clear();
     return new Promise(resolve => {
       if (!server) { status = { ...status, running: false }; return resolve(); }
       const srv = server; server = null;
@@ -180,7 +187,8 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
     });
   }
 
-  function start(override = {}) {
+  async function startNow(override = {}) {
+    if (server) await stopNow();
     return new Promise(resolve => {
       const port = override.port ?? config.port;
       const host = config.lan ? '0.0.0.0' : '127.0.0.1';
@@ -188,11 +196,23 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
       const srv = http.createServer({ connectionsCheckingInterval: t.check }, handle);
       srv.maxConnections = MAX_CONNECTIONS;
       srv.requestTimeout = t.request; srv.headersTimeout = t.headers; srv.keepAliveTimeout = t.keepAlive;
-      srv.on('connection', s => { sockets.add(s); s.on('close', () => sockets.delete(s)); });
+      srv.on('connection', s => {
+        const ip = s.remoteAddress || '?';
+        if ((perIp.get(ip) || 0) >= MAX_CONNECTIONS_PER_IP) { s.destroy(); return; }
+        perIp.set(ip, (perIp.get(ip) || 0) + 1);
+        sockets.add(s);
+        s.on('close', () => {
+          sockets.delete(s);
+          const n = (perIp.get(ip) || 1) - 1;
+          if (n > 0) perIp.set(ip, n); else perIp.delete(ip);
+        });
+        s.setTimeout(t.headers + 1000, () => s.destroy());   // a socket that never sends a request is hung up on; cleared by the first request
+      });
+      srv.on('request', req => req.socket.setTimeout(0));
       srv.on('clientError', (_e, s) => { try { s.destroy(); } catch { /* already gone */ } });
       srv.on('error', e => {                       // permanent: an error event with no listener would crash the main process
         status = { running: false, host, port, error: e.code === 'EADDRINUSE' ? `Port ${port} is already in use — pick another port` : `Could not start: ${e.message}` };
-        server = null;
+        if (server === srv) server = null;             // only ever forget our own listener
         log('remote: server error', e.message);
         resolve(status);
       });
@@ -216,18 +236,20 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
     return list;
   }
 
-  return {
+  const self = {
     getConfig: () => ({ enabled: config.enabled, lan: config.lan, port: config.port, token: config.token, configPath, status: { ...status }, urls: status.running ? urls() : [] }),
-    async apply(next = {}) {
+    apply(next = {}) {
       const port = Number.isInteger(next.port) && next.port >= 1024 && next.port <= 65535 ? next.port : config.port;
       config = { ...config,
         enabled: next.enabled === undefined ? config.enabled : next.enabled === true,
         lan:     next.lan     === undefined ? config.lan     : next.lan === true,
         port };
       saveConfig(configPath, config);
-      await stop();
-      if (config.enabled) await start();
-      return this.getConfig();
+      return serial(async () => {
+        await stopNow();
+        if (config.enabled) await startNow();
+        return self.getConfig();
+      });
     },
     async regenerateToken() {
       config = { ...config, token: crypto.randomBytes(32).toString('hex') };
@@ -236,8 +258,9 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
       sseClients.clear();
       return this.getConfig();
     },
-    async init() { saveConfig(configPath, config); if (config.enabled) await start(); return this.getConfig(); },
-    start, stop,
+    init() { saveConfig(configPath, config); return serial(async () => { if (config.enabled) await startNow(); return self.getConfig(); }); },
+    start: override => serial(() => startNow(override)),
+    stop:  () => serial(stopNow),
     updateState(state) {
       let json;
       try { json = JSON.stringify(state); } catch { return; }
@@ -247,6 +270,7 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
     },
     _config: () => config,
   };
+  return self;
 }
 
 module.exports = { createRemote, validateCommand, loadConfig, saveConfig, hostOk, DEFAULT_PORT, MAX_BODY_BYTES, MAX_PADS };

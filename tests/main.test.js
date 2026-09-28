@@ -61,6 +61,35 @@ const rejects = async p => { try { await p; return false; } catch (e) { return e
     (await handlers['fs-file-exists']({}, audio)) === true && (await handlers['fs-file-exists']({}, secret)) === false);
   ck('fs-read-text denies non-.cuepro', /Only \.cuepro/.test(await rejects(handlers['fs-read-text']({}, secret))));
 
+  // ── Windows: a project file must not be able to make the app touch a network / device path (NTLM leak, hangs)
+  const realPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const asWindows = async fn => { Object.defineProperty(process, 'platform', { value: 'win32' }); try { return await fn(); } finally { Object.defineProperty(process, 'platform', realPlatform); } };
+  const NET = /Network paths must be chosen/;
+  const hostile = ['\\\\evil.example\\share\\a.wav', '//evil.example/share/a.wav', '\\\\evil@80\\DavWWWRoot\\a.wav', '\\\\?\\UNC\\evil.example\\share\\a.wav',
+                   '\\\\.\\pipe\\x.wav', '\\\\?\\GLOBALROOT\\Device\\x.wav', '/\\evil.example/share/a.wav'];
+  const blocked = await asWindows(async () => {
+    const out = [];
+    for (const h of hostile) out.push(NET.test(await rejects(handlers['fs-read-file']({}, h))) && (await handlers['fs-file-exists']({}, h)) === false);
+    return out;
+  });
+  ck('Windows: UNC (\\\\host\\share, //host/share, WebDAV @80, \\\\?\\UNC) and device (\\\\.\\ , \\\\?\\GLOBALROOT) audio paths are refused, not read', blocked.every(Boolean), JSON.stringify(blocked));
+  ck('Windows: a UNC .cuepro path is refused too',
+    NET.test(await asWindows(() => rejects(handlers['fs-read-text']({}, '\\\\evil.example\\share\\x.cuepro')))));
+  const localOk = await asWindows(async () => [await rejects(handlers['fs-read-file']({}, 'C:\\shows\\a.wav')), await rejects(handlers['fs-read-file']({}, '\\\\?\\C:\\shows\\a.wav'))]);
+  ck('Windows: local drive paths (C:\\…, \\\\?\\C:\\…) are not blocked by the network rule', localOk.every(e => e && !NET.test(e)), JSON.stringify(localOk));
+  openResult = { canceled: false, filePaths: ['\\\\nas\\audio\\pick.wav'] };
+  await asWindows(() => handlers['dialog-open-audio']());
+  const afterPick = await asWindows(async () => [await rejects(handlers['fs-read-file']({}, '\\\\NAS\\Audio\\other.wav')),
+                                                 await rejects(handlers['fs-read-file']({}, '\\\\nas\\private\\other.wav')),
+                                                 await rejects(handlers['fs-read-file']({}, '\\\\evil.example\\audio\\other.wav'))]);
+  ck('Windows: a share the user picked in a dialog works (case-insensitive); other shares and other hosts stay refused',
+    afterPick[0] && !NET.test(afterPick[0]) && NET.test(afterPick[1]) && NET.test(afterPick[2]), JSON.stringify(afterPick));
+  ck('non-Windows: the network rule does not apply (a name that merely starts with backslashes is a normal file)',
+    !NET.test(await rejects(handlers['fs-read-file']({}, '\\\\evil.example\\share\\a.wav'))));
+  const big = path.join(work, 'big.cuepro'); fs.closeSync(fs.openSync(big, 'w')); fs.truncateSync(big, 513 * 1024 * 1024);
+  ck('an oversized .cuepro is refused before it is read into memory', /too large/.test(await rejects(handlers['fs-read-text']({}, big))));
+  fs.rmSync(big, { force: true });
+
   // ── IPC: writes need a dialog-approved .cuepro path
   const proj = path.join(work, 'show.cuepro');
   ck('write to an un-approved path is denied', /Write not permitted/.test(await rejects(handlers['fs-write-text']({}, proj, '{}'))));
@@ -69,6 +98,13 @@ const rejects = async p => { try { await p; return false; } catch (e) { return e
   ck('dialog-save returns and approves the path', (await handlers['dialog-save']({}, 'x')) === proj);
   await handlers['fs-write-text']({}, proj, '{"a":1}');
   ck('approved write succeeds and leaves no .tmp', fs.readFileSync(proj, 'utf8') === '{"a":1}' && !fs.existsSync(proj + '.tmp'));
+  const victim = path.join(work, 'victim.txt'), proj2 = path.join(work, 'show2.cuepro');
+  fs.writeFileSync(victim, 'PRECIOUS'); fs.symlinkSync(victim, proj2 + '.tmp');
+  saveResult = { canceled: false, filePath: proj2 };
+  await handlers['dialog-save']({}, 'x');
+  await handlers['fs-write-text']({}, proj2, '{"b":2}');
+  ck('Save does not follow a symlink planted at "<show>.cuepro.tmp" (victim file untouched, show written)',
+    fs.readFileSync(victim, 'utf8') === 'PRECIOUS' && fs.readFileSync(proj2, 'utf8') === '{"b":2}' && !fs.lstatSync(proj2).isSymbolicLink());
   ck('approved path still rejects non-string content', /Invalid content/.test(await rejects(handlers['fs-write-text']({}, proj, { a: 1 }))));
   saveResult = { canceled: false, filePath: path.join(work, 'noext') };
   ck('dialog-save appends .cuepro when the user typed no extension', (await handlers['dialog-save']({}, 'x')).endsWith('noext.cuepro'));
@@ -156,6 +192,13 @@ const rejects = async p => { try { await p; return false; } catch (e) { return e
     ck('truncated download rejected and the partial file removed', !!e1 && !fs.existsSync(dest), String(e1));
     const e2 = await rejects(m.downloadFile(base + '/wrongsize', dest, null, body.length));
     ck('size differing from the release asset size is rejected and removed', /Incomplete/.test(e2) && !fs.existsSync(dest), String(e2));
+    const sha = require('crypto').createHash('sha256').update(body).digest('hex');
+    await m.downloadFile(base + '/ok', dest, null, body.length, sha.toUpperCase());
+    ck('a download matching the published SHA-256 (any letter case) is accepted', fs.statSync(dest).size === body.length);
+    fs.rmSync(dest);
+    const e3 = await rejects(m.downloadFile(base + '/ok', dest, null, body.length, '0'.repeat(64)));
+    ck('a download with the right size but the wrong SHA-256 is rejected and removed', /checksum/.test(e3) && !fs.existsSync(dest), String(e3));
+    ck('a download that arrived via a redirect is checked against the checksum too', /checksum/.test(await rejects(m.downloadFile(base + '/rel', dest, null, body.length, 'f'.repeat(64)))) && !fs.existsSync(dest));
     ck('a redirect to plain http is refused', /non-HTTPS/.test(await rejects(m.downloadFile(base + '/http', dest, null, 0))));
     ck('HTTP 404 is rejected', /HTTP 404/.test(await rejects(m.downloadFile(base + '/404', dest, null, 0))));
     ck('an http:// start URL is refused', /non-HTTPS/.test(await rejects(m.downloadFile('http://localhost/x', dest, null, 0))));

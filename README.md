@@ -17,6 +17,8 @@ A professional live performance audio cue manager. Load sounds onto pads, build 
 
 > All releases: [github.com/unilordgr/kostudio-audio-cue/releases](https://github.com/unilordgr/kostudio-audio-cue/releases)
 
+**System requirements:** the desktop app is built on Electron 43 (Chromium 150), which needs **Windows 10 or newer** and **macOS 12 (Monterey) or newer**. On an older system, use the browser version (any current Chrome, Edge or Safari) or an [older release](https://github.com/unilordgr/kostudio-audio-cue/releases) (v1.2.x runs on older systems but no longer gets security fixes).
+
 ### First-run warnings (app is unsigned)
 
 **macOS — "damaged and can't be opened"**
@@ -122,6 +124,18 @@ Click **More info** → **Run anyway**.
 - If an update is available: a native dialog asks **Download Now** or **Later**
 - **Windows**: downloads the new `.exe` in the background and shows a progress bar in the app. When it's ready you choose **Restart Now** or **Later** — Later applies the update the next time you close the app, so it never interrupts a show
 - **Mac**: downloads the DMG for your chip (Apple Silicon or Intel), then copies the new `.app` over the old one, falling back to opening the DMG if it can't
+- Downloads use HTTPS only and are checked for size **and** against the SHA-256 GitHub publishes for the file. The builds are **not code-signed**, so the update is only as trustworthy as this GitHub repository — see [Security](#security--privacy)
+
+---
+
+## Security & privacy
+
+- **Nothing leaves your computer.** The app never loads anything from the internet (strict Content-Security-Policy); the only network traffic is the update check to GitHub, and the ♥ Donate button, which opens Ko-fi in your browser.
+- **Project files are treated as untrusted input** — they are validated before anything changes, sizes are capped (100 scenes, 2000 cues per scene, 500 pads, 500 shortcuts, 512 MB), and on Windows a project can't make the app open a network path (`\\server\share\…`) unless you picked that share in a file dialog yourself. Only open shows from people you trust all the same.
+- **The desktop app can only read audio files and `.cuepro` projects, and only write `.cuepro` files you chose in a Save dialog.** Window navigation, pop-ups and every Chromium permission except MIDI and clipboard copy are blocked.
+- **Remote control is off by default.** When you turn it on it listens on this computer only, unless you also tick the network box; it needs a secret token, can only start and stop sounds, and rejects requests from other web pages. On a network the connection is plain HTTP — use a private show network. Details: [docs/REMOTE.md](docs/REMOTE.md).
+- **Unsigned builds.** Windows SmartScreen and macOS Gatekeeper warn about the app because it is not signed with a paid certificate. Download it only from this repository's releases.
+- Found a vulnerability? Please read [SECURITY.md](SECURITY.md) and report it privately.
 
 ---
 
@@ -178,31 +192,37 @@ Click the key badge on any pad to reassign it.
 
 ## Building from Source
 
-**Requirements:** Node.js 18+
+**Requirements:** Node.js 22.12 or newer (Electron's installer needs it)
 
 ```bash
 git clone https://github.com/unilordgr/kostudio-audio-cue.git
 cd kostudio-audio-cue
-npm install
-npm start          # run on macOS / Linux
+npm ci             # installs Electron (a ~100 MB download) and the build tools
+npm start          # run the desktop app
 npm run dist-win   # build Windows portable .exe
 npm run dist-mac   # build Mac DMG (run on macOS)
 ```
 
-The Windows `.exe` and Mac `.dmg` files are built automatically via GitHub Actions on every push to `main`, and published as the release for the `version` in `package.json` (an existing release with the same version is replaced). Release notes come from `RELEASE_NOTES.md`.
+The Windows `.exe` and Mac `.dmg` files are built automatically via GitHub Actions on every push to `main`, and published as the release for the `version` in `package.json` (an existing release with the same version is replaced). Release notes come from `RELEASE_NOTES.md`. Only `main` publishes: to check that the installers still build on a branch, run the **Build Windows & Mac** workflow by hand on it (Actions → Run workflow) — it builds but does not publish.
 
 ---
 
 ## Development & Tests
 
 ```bash
-npm ci --ignore-scripts        # install (skips Electron's large binary download; not needed for tests)
+npm ci                         # includes the Electron binary
 npx playwright install chromium
 npm test                       # runs everything in tests/
+xvfb-run -a npm test           # on a headless Linux box (the real-app test needs a display)
 ```
+
+Without the Electron binary or a display, `tests/electron.test.js` says SKIP and everything else still runs. To test the *packaged* app instead of the source:
+`npx electron-builder --linux --dir --publish never && KCUE_APP_BIN=dist/linux-unpacked/kostudio-audio-cue xvfb-run -a node tests/electron.test.js`
 
 | Test file | What it covers |
 |---|---|
+| `tests/electron.test.js` | **The real desktop app**, headless: preload bridge, IPC allow-list, open / save through the real dialog IPC, a picked file keeping its disk path, playback, the remote server, permission handler, navigation guard, donate URL — also against the packaged build |
+| `tests/hardening.test.js` | Fixes from the v1.3.0 security and correctness reviews: hostile project files, translator limits, undo / STOP FADE / MIDI / pre-show-check edge cases |
 | `tests/ui.test.js` | Playback, fades, panic / STOP FADE, cue stack, undo, lock, waveform, MIDI, pre-show check, header layout, CSP, donate link — in a real Chromium |
 | `tests/loaders.test.js` | Project save/load/restore for the Electron path (mocked `electronAPI`) and the iPad path (real IndexedDB) |
 | `tests/main.test.js` | `main.js` with Electron mocked: IPC allow-list, permissions, remote-control wiring, updater, download helper, donate handler |
@@ -217,7 +237,7 @@ The same suite runs on every pull request via GitHub Actions (`.github/workflows
 
 ## Tech Stack
 
-- **Electron** — desktop wrapper
+- **Electron 43** (Chromium 150) — desktop wrapper (kept one major behind the newest on purpose: Electron 44 needs macOS 13, Electron 43 still runs on macOS 12)
 - **Vanilla JS / HTML / CSS** — no frameworks, single file renderer
 - **Web Audio API** — playback engine
 - **File System Access API** — save/load in browser mode

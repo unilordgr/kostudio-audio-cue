@@ -187,6 +187,37 @@ const refused = (port, host = '127.0.0.1') => new Promise(r => { const s = net.c
   slow.destroy();
   ck('a slowloris client that never finishes its headers is dropped by the server', closedAt > 0 && closedAt < 3500, `closed after ${closedAt} ms`);
 
+  // ── a flood from one address must not lock the real remotes out (no token needed for the flood)
+  const cfgF = await R.getConfig();
+  const flood = await Promise.all(Array.from({ length: 40 }, () => new Promise(res => {
+    const sk = net.connect({ port, host: '127.0.0.1', localAddress: '127.0.0.2' }); sk.on('connect', () => res(sk)); sk.on('error', () => res(null)); sk.on('close', () => {});
+  })));
+  await sleep(100);
+  const floodAlive = flood.filter(x => x && !x.destroyed).length;
+  const legit = await request(port, 'GET', '/state', { headers: auth(cfgF.token) }).then(x => x.status).catch(e => e.code);
+  flood.forEach(x => x?.destroy());
+  ck('40 idle sockets from one address (127.0.0.2) keep at most 8 open, and a valid request from another address (127.0.0.1) still gets through',
+    legit === 200 && floodAlive <= 8, `legit=${legit} floodAlive=${floodAlive}`);
+  const Rq = mk({ timeouts: { heartbeat: 150, check: 60000, headers: 400, request: 600 } });   // the periodic sweep is out of the picture
+  const cq = await Rq.apply({ enabled: true, lan: false, port: await freePort() });
+  const silent = net.connect(cq.status.port, '127.0.0.1');
+  const silentClosedAt = await new Promise(res => { const t0 = Date.now(); silent.on('close', () => res(Date.now() - t0)); silent.on('error', () => {}); setTimeout(() => res(-1), 4000); });
+  silent.destroy();
+  ck('a socket that connects and never sends a byte is hung up on by its own timer (not only by the slow periodic sweep)', silentClosedAt > 0 && silentClosedAt < 3000, `closed after ${silentClosedAt} ms`);
+  const kept = await new Promise(res => {                       // ...but a normal keep-alive client that talks is not cut off by that timer
+    const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+    const go = () => new Promise((ok, no) => { const r = http.get({ host: '127.0.0.1', port: cq.status.port, path: '/ping', agent, headers: { Host: `127.0.0.1:${cq.status.port}` } }, x => { x.resume(); x.on('end', () => ok(x.statusCode)); }); r.on('error', no); });
+    go().then(a => sleep(700).then(go).then(b => { agent.destroy(); res([a, b]); })).catch(e => res(e.code));
+  });
+  ck('a client that sends requests is not affected by the first-request timer', Array.isArray(kept) && kept[0] === 200 && kept[1] === 200, JSON.stringify(kept));
+  await Rq.stop();
+  const Rr = mk(); await Rr.init();
+  const racePort = await freePort();
+  await Promise.all([Rr.apply({ enabled: true, port: racePort }), Rr.apply({ enabled: true, port: racePort })]);   // two IPC calls in the same tick
+  const raceOff = await Rr.apply({ enabled: false });
+  ck('two apply() calls in one tick, then "disable": nothing is left listening and no error is reported',
+    raceOff.status.running === false && !raceOff.status.error && await refused(racePort), JSON.stringify(raceOff.status));
+
   // ── lifecycle: apply() persists + restarts; port conflicts are reported, not thrown; stop frees the port
   const blocker = net.createServer().listen(0, '127.0.0.1');
   await new Promise(r => blocker.once('listening', r));

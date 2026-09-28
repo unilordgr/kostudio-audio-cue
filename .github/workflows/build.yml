@@ -80,6 +80,8 @@ jobs:
   publish-release:
     needs: [build-windows, build-mac]
     runs-on: ubuntu-latest
+    # Only main publishes. A manual run on another branch (Actions → Run workflow) just proves the installers build.
+    if: github.ref == 'refs/heads/main'
     # Two quick pushes must not race on delete + create of the same release
     concurrency:
       group: publish-release

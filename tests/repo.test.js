@@ -63,6 +63,15 @@ ck('the lockfile matches package.json (npm ci works)', (() => {
   return JSON.stringify(lock.devDependencies) === JSON.stringify(pkg.devDependencies);
 })());
 
+ck('SECURITY.md and CONTRIBUTING.md exist and the README links both',
+  exists('SECURITY.md') && exists('CONTRIBUTING.md') && /\]\(SECURITY\.md\)/.test(read('README.md')) && /\]\(docs\/REMOTE\.md\)/.test(read('README.md')) && /SECURITY\.md/.test(read('CONTRIBUTING.md')));
+
+// ── only main may publish a release; other branches can run the build workflow by hand to test the installers
+ck('the publish-release job only runs on main (a manual build on a branch must not publish)',
+  /publish-release:[\s\S]*?if:\s*github\.ref == 'refs\/heads\/main'/.test(read('.github/workflows/build.yml')));
+ck('the PR test workflow runs the real Electron app under xvfb, from source and packaged',
+  /xvfb-run -a npm test/.test(read('.github/workflows/test.yml')) && /KCUE_APP_BIN=dist\/linux-unpacked/.test(read('.github/workflows/test.yml')));
+
 // ── the two macOS DMGs are built in parallel; if they share a volume name they mount on the same
 // /Volumes path and one build detaches the other's disk (the v1.3.0 release build failed this way)
 ck('dmg.title contains ${arch} so the arm64 and x64 DMGs mount as different volumes',

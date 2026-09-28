@@ -178,6 +178,12 @@ const file = INDEX;
       out.enableCall = JSON.stringify(__remoteCalls[0]) === '{"enabled":true,"lan":false,"port":28491}';
       out.runningLocal = /Running — this computer only \(port 28491\)/.test(document.getElementById('remoteBox').textContent);
       out.link = document.getElementById('remoteUrl0')?.value === `http://127.0.0.1:28491/remote#${'a'.repeat(64)}`;
+      out.urlHidden = document.getElementById('remoteUrl0').type === 'password';            // the link contains the token: masked until Show
+      const showBtn = [...document.querySelectorAll('#remoteBox .modal-btn')].find(b => b.textContent === 'Show');
+      showBtn.click();
+      out.showReveals = document.getElementById('remoteUrl0').type === 'text' && document.getElementById('remoteToken').type === 'text';
+      showBtn.click();
+      out.hidesAgain = document.getElementById('remoteUrl0').type === 'password' && document.getElementById('remoteToken').type === 'password';
       out.lanEnabledNow = !document.getElementById('remoteLan').disabled;
       document.getElementById('remoteLan').click();
       await new Promise(res => setTimeout(res, 150));

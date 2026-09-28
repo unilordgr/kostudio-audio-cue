@@ -1,3 +1,34 @@
+### Fixes from a security and correctness review (v1.3.1)
+
+**Live-show fixes**
+- **Ctrl+Z after opening another show** could put the previous show's sound into a pad of the new one — the undo history is now cleared when a show is loaded
+- **Undo no longer rewinds the show**: bringing back a removed cue keeps you on the cue you are on; undoing a deleted scene keeps you on the scene you are on
+- **STOP FADE + auto-advance**: a sound that ran out while STOP ALL was fading it could start the next cue. It no longer does. The first STOP ALL press now also fades a sound that was already crossfading out (it used to click it off)
+- **MIDI**: a mapping for an exact channel now wins over an "any channel" one, instead of both firing (a learned STOP ALL on a drum pad also started the pad underneath)
+- **Pre-show check**: an empty show is now NOT READY; a slow check can no longer write its result into another open dialog
+- **Ctrl+Z / Ctrl+Shift+L work on a Greek keyboard layout**
+- The header re-fits correctly after resizing the window (STOP ALL could end up a few pixels off-screen)
+- Pad names such as "Close" or "Delete" are no longer translated in the shortcuts and files-not-found dialogs; the "Automatic" language option is translated
+
+**Security** *(a project file from someone else is untrusted input)*
+- **Windows: a project can no longer make the app connect to a network path.** UNC / device paths in a project (`\\server\share\…`, WebDAV, `\\.\…`) used to be opened as soon as the project loaded, which could leak a Windows sign-in hash. They are now only read from a share you picked in a file dialog (opening a show from a NAS, Locate…, Browse Folder); local and mapped-drive paths work as before
+- A specially crafted project could freeze the app for minutes in Greek / German (a slow text-matching pattern) or with hundreds of thousands of cues. Paths are capped at 1024 characters, a show at 100 scenes / 2000 cues per scene / 500 shortcuts, a `.cuepro` at 512 MB; the translator no longer runs its patterns on very long text
+- Saving no longer follows a symlink left at `<show>.cuepro.tmp`
+- **Remote control**: one device flooding the port can no longer lock out the Stream Deck / phone (per-address connection limit, idle connections are dropped after ~9 s); turning remote control off can no longer leave a listener running; the access link is hidden until you press Show
+
+**A supported engine** *(the app now runs on Electron 43 / Chromium 150 instead of Electron 29 / Chromium 122, which stopped getting security fixes long ago)*
+- **System requirements changed: Windows 10 or newer, macOS 12 (Monterey) or newer.** On an older system use the browser version or v1.2.x. (Electron 44 would need macOS 13, so 43 was chosen on purpose.)
+- Electron 32 removed the way the app learned where a picked / dropped audio file lives on disk — without a fix, saved projects would have silently lost their links to the audio files. The app now asks Electron the supported way (`webUtils.getPathForFile`), and a test checks it
+- The app made one network request of its own at start-up on Windows / Linux: Chromium's spell checker downloading a dictionary from Google (and underlining pad names in red). Spell checking is off, and a test now fails if the running app makes any network request
+- Update downloads are checked against the SHA-256 GitHub publishes for the file, as well as the size. (The builds are still not code-signed — see SECURITY.md)
+- New docs: `SECURITY.md` (how to report a vulnerability, what is and isn't covered) and `CONTRIBUTING.md`; the README has a Security & privacy section
+
+**Under the hood**
+- 257 automated checks run on every pull request, including the **real Electron app** launched headless (from source, and the packaged Linux build), so a problem in `main.js`, the preload bridge or the packaging can no longer hide behind mocks
+- The release is only published from `main`; the build workflow can be run by hand on a branch to test the Windows / macOS installers first
+
+---
+
 ### Panic, undo, remote control, MIDI, waveforms and more (v1.3.0)
 
 **Live-show safety**
@@ -23,7 +54,7 @@
 **Under the hood**
 - The header now measures itself and compacts as needed, so STOP ALL / VOL / FADE stay on screen in any window size and language
 - The desktop app only accepts the Chromium permissions it needs (MIDI, clipboard copy)
-- ~230 automated checks run on every pull request (including attack tests for the remote server)
+- Over 200 automated checks run on every pull request (including attack tests for the remote server)
 
 ---
 
