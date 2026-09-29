@@ -159,6 +159,7 @@ a.hdr-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .hdr-btn.donate:hover { border-color: #ff5e5b; color: #ff5e5b; }
 .hdr-btn.stopfade { padding: 5px 9px; font-size: 11px; }
 .hdr-btn.icon { padding: 5px 9px; font-size: 13px; line-height: 1; }
+.hdr-btn.settings .gear { font-size: 17px; line-height: 1; vertical-align: -2px; }   /* the gear is the way into theme / language / audio output / remote / MIDI: big and labelled */
 .hdr-btn.icon.on { border-color: var(--danger); background: rgba(255,60,60,.12); }
 .footer-btn { padding: 2px 9px; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 4px; font-size: 11px; cursor: pointer; margin-right: 10px; white-space: nowrap; }
 .footer-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -1304,7 +1305,7 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
   <button class="hdr-btn save" onclick="handleSaveAs()" aria-label="Save As" title="Save As…">💾<span class="lbl"> Save As</span></button>
   <button class="hdr-btn"      onclick="handleLoad()" aria-label="Load" title="Load a project">📂<span class="lbl"> Load</span></button>
   <button class="hdr-btn"      onclick="showShortcutsModal()" aria-label="Shortcuts" title="Keyboard shortcuts">⌨<span class="lbl"> Shortcuts</span></button>
-<button class="hdr-btn icon"  onclick="showSettingsModal()" id="settingsBtn" title="Settings: theme, language, audio output, waveforms, remote control, MIDI">⚙</button>
+  <button class="hdr-btn settings" onclick="showSettingsModal()" id="settingsBtn" aria-label="Settings" title="Settings: theme, language, audio output, waveforms, remote control, MIDI"><span class="gear">⚙</span><span class="lbl"> Settings</span></button>
   <button class="hdr-btn icon"  onclick="showPreShowCheck()" id="checkBtn" title="Pre-show check: verifies every sound, cue and setting before doors open">✔</button>
   <button class="hdr-btn icon" id="lockBtn" onclick="toggleShowLock()" aria-pressed="false"
           title="Lock the show (Ctrl+Shift+L): disables editing, loading and deleting so nothing can be changed by accident. Playback still works.">🔓</button>
@@ -1616,6 +1617,7 @@ const I18N_TABLE = [
   ['Load', 'Άνοιγμα', 'Laden'],
   ['Load a project', 'Άνοιγμα έργου', 'Projekt laden'],
   ['Shortcuts', 'Συντομεύσεις', 'Tastenkürzel'],
+  ['Settings', 'Ρυθμίσεις', 'Einstellungen'],
   ['Keyboard shortcuts', 'Συντομεύσεις πληκτρολογίου', 'Tastaturkürzel'],
   ['Settings: theme, language, audio output, waveforms, remote control, MIDI', 'Ρυθμίσεις: θέμα, γλώσσα, έξοδος ήχου, κυματομορφές, τηλεχειρισμός, MIDI', 'Einstellungen: Design, Sprache, Audioausgang, Wellenformen, Fernsteuerung, MIDI'],
   ['Pre-show check: verifies every sound, cue and setting before doors open', 'Έλεγχος πριν την παράσταση: επαληθεύει κάθε ήχο, cue και ρύθμιση πριν ανοίξουν οι πόρτες', 'Vorab-Check: prüft jeden Sound, jede Cue und jede Einstellung, bevor das Publikum kommt'],
