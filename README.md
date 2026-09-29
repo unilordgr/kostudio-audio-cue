@@ -52,6 +52,7 @@ Click **More info** → **Run anyway**.
 - **Per-pad fade toggle** — enable or disable fade-in per pad independently
 - **Per-pad volume** — individual sliders plus a master volume control
 - **Loop toggle** — loop any cue indefinitely
+- **Fades at loop points and OUT points** — with a pad's **↓ FADE** on, a looping pad fades out into the loop point and back in after the jump (no more hard seam), and a pad that plays to its OUT point fades out and lands on silence exactly at OUT. It uses the header **FADE** time, shortened automatically for a very short IN–OUT region. Pads with FADE off behave exactly as before
 - **Countdown** — while a pad plays it shows the time *remaining* (to the end, or the OUT point); the cue stack shows each cue's length and the running cue's countdown
 - **Bring it back** — press the key of a pad that is fading out and it fades back up instead of stopping
 - **STOP FADE** — a header toggle: when on, STOP ALL and the ■ buttons fade out over the FADE time; pressing STOP ALL again cuts instantly
@@ -96,6 +97,11 @@ Click **More info** → **Run anyway**.
 
 ### Languages
 - **English, Ελληνικά, Deutsch** — follows your system language, or choose in Settings → Appearance. Control labels such as STOP ALL, FADE, VOL, IN and OUT stay in English, as on a mixing desk
+
+### Look & first run
+- **A dark, control-room look** by default (light theme in Settings), one consistent icon set, tabular numerals for every time, and **pad states readable from across the room** — playing (colour glow), paused, fading out, missing audio, locked
+- **Welcome card** on an empty show (three steps, "Add sounds…"), then a dismissible **quick-tips** strip (back from Settings → Help)
+- **NEXT marker** in the cue stack and a NEXT CUE button that says what SPACE will play; **toasts with Undo**; labelled **Settings**, **Check** and **Lock** buttons
 
 ### Interface & Scale
 - **Kcue app icon** — custom icon visible in taskbar, dock, title bar, and browser tab
@@ -222,6 +228,8 @@ Without the Electron binary or a display, `tests/electron.test.js` says SKIP and
 | Test file | What it covers |
 |---|---|
 | `tests/electron.test.js` | **The real desktop app**, headless: preload bridge, IPC allow-list, open / save through the real dialog IPC, a picked file keeping its disk path, playback, the remote server, permission handler, navigation guard, donate URL — also against the packaged build |
+| `tests/fades.test.js` | Loop-seam and OUT-point fades, measured on the real audio element's volume (clamping, level restore, stop / pause / FADE-off mid-fade) |
+| `tests/ux.test.js` | Usability fixes: welcome card and tips, NEXT marker, toasts and Undo, labelled header buttons and the compaction ladder, pad layout at every width, touch targets, locked-show clicks |
 | `tests/hardening.test.js` | Fixes from the v1.3.0 security and correctness reviews: hostile project files, translator limits, undo / STOP FADE / MIDI / pre-show-check edge cases |
 | `tests/ui.test.js` | Playback, fades, panic / STOP FADE, cue stack, undo, lock, waveform, MIDI, pre-show check, header layout, CSP, donate link — in a real Chromium |
 | `tests/loaders.test.js` | Project save/load/restore for the Electron path (mocked `electronAPI`) and the iPad path (real IndexedDB) |
