@@ -1,3 +1,29 @@
+### A new look, easier to use, and fades at loop and OUT points (v1.4.0)
+
+**Fades at loop points and OUT points**
+- With a pad's **↓ FADE** on, a **looping** pad now fades out into the loop point and back in after the jump (no more hard seam), and a pad that plays to its **OUT point** fades out and lands on silence exactly at OUT. It uses the header **FADE** time (shortened automatically for a very short IN–OUT region). Pads with FADE off behave exactly as before. The FADE button's tooltip explains it
+
+**Easier to use** *(from a usability review of the whole app)*
+- **Settings** is now a big, labelled button; **Check** and **Lock** have words too, and Check turns green / amber / red with the result of the last pre-show check
+- **First run:** an empty show shows a welcome card with three steps and an "Add sounds…" button; after the first sound a dismissible strip of quick tips appears (it can be brought back from Settings → Help)
+- **Cue stack:** the cue SPACE will play next is marked **NEXT**, and the NEXT CUE button says what it will play; SPACE on an empty list now says why nothing happened
+- **Undo** is visible: destructive actions raise a toast with an Undo button (also on iPad, which had no status line at all)
+- Fixed: below about 1300 px wide the **+ Stack**, OUT and ✕ buttons of a pad were clipped or unreachable (at the 960 px minimum window you could not add a sound to the cue list); the pad grid now uses as many columns as fit
+- Fixed: on iPad, **STOP ALL**, STOP FADE, VOL and FADE were scrolled off the end of the header
+- Fixed: with the show **locked**, clicking a dimmed ✕ / IN button started or paused the pad underneath
+- **Ctrl+S** saves; Enter confirms the Save dialog; the pre-show check lists the worst problems first, in plain words; every pad control and the STOP ALL / STOP FADE / FADE controls explain themselves in a tooltip; touch buttons are at least 44 px; Greek text no longer overflows at 960 px
+
+**A new look** *(from an art-direction pass)*
+- A dark, control-room look by default (new installs; anyone who chose a theme keeps it — Light is one click away in Settings), with a matching, refined light theme
+- One consistent icon set instead of emoji, a logo mark, tabular numerals for every time and countdown, and pad states you can read from across the room: **playing** (colour glow, live dot), **paused** (amber), **fading out** (amber glow), **missing audio** (amber hatched border), **locked**
+- **STOP ALL** is a solid red button with hover / pressed / focus states; animations are cheap and switch off when the system asks for reduced motion
+- The look uses modern CSS (`:has()`, container queries): fine on the desktop app, current Chrome / Edge and Safari / iPadOS 16.4 or newer; older Safari loses only the extra paused / missing pad styling
+
+**Under the hood**
+- 310 automated checks run on every pull request (new: fades measured on the real audio element, and 43 usability checks)
+
+---
+
 ### Fixes from a security and correctness review (v1.3.1)
 
 **Live-show fixes**

@@ -98,6 +98,11 @@ Click **More info** → **Run anyway**.
 ### Languages
 - **English, Ελληνικά, Deutsch** — follows your system language, or choose in Settings → Appearance. Control labels such as STOP ALL, FADE, VOL, IN and OUT stay in English, as on a mixing desk
 
+### Look & first run
+- **A dark, control-room look** by default (light theme in Settings), one consistent icon set, tabular numerals for every time, and **pad states readable from across the room** — playing (colour glow), paused, fading out, missing audio, locked
+- **Welcome card** on an empty show (three steps, "Add sounds…"), then a dismissible **quick-tips** strip (back from Settings → Help)
+- **NEXT marker** in the cue stack and a NEXT CUE button that says what SPACE will play; **toasts with Undo**; labelled **Settings**, **Check** and **Lock** buttons
+
 ### Interface & Scale
 - **Kcue app icon** — custom icon visible in taskbar, dock, title bar, and browser tab
 - **Header always fixed** — Save, Load, VOL, STOP ALL never scale or disappear
@@ -224,6 +229,7 @@ Without the Electron binary or a display, `tests/electron.test.js` says SKIP and
 |---|---|
 | `tests/electron.test.js` | **The real desktop app**, headless: preload bridge, IPC allow-list, open / save through the real dialog IPC, a picked file keeping its disk path, playback, the remote server, permission handler, navigation guard, donate URL — also against the packaged build |
 | `tests/fades.test.js` | Loop-seam and OUT-point fades, measured on the real audio element's volume (clamping, level restore, stop / pause / FADE-off mid-fade) |
+| `tests/ux.test.js` | Usability fixes: welcome card and tips, NEXT marker, toasts and Undo, labelled header buttons and the compaction ladder, pad layout at every width, touch targets, locked-show clicks |
 | `tests/hardening.test.js` | Fixes from the v1.3.0 security and correctness reviews: hostile project files, translator limits, undo / STOP FADE / MIDI / pre-show-check edge cases |
 | `tests/ui.test.js` | Playback, fades, panic / STOP FADE, cue stack, undo, lock, waveform, MIDI, pre-show check, header layout, CSP, donate link — in a real Chromium |
 | `tests/loaders.test.js` | Project save/load/restore for the Electron path (mocked `electronAPI`) and the iPad path (real IndexedDB) |
