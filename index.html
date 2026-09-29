@@ -1294,6 +1294,175 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
   .pads-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   UX LAYER — additive rules (kept in one block so it merges cleanly). Everything here only adds classes / overrides
+   a few existing rules on purpose; each group says why.
+═══════════════════════════════════════════════════════════ */
+
+/* Header: Check / Lock get a word. The word is the button's aria-label (translated by the i18n engine), drawn with CSS,
+   so the button's own text stays the bare icon. */
+.hdr-btn.cap { display: inline-flex; align-items: center; padding: 5px 11px; }
+.hdr-btn.cap::after { content: attr(aria-label); margin-left: 6px; font-size: 12px; letter-spacing: .5px; }
+#lockBtn.on { color: var(--danger); }
+#checkBtn[data-state="good"] { border-color: var(--playing); color: var(--playing); }
+#checkBtn[data-state="warn"] { border-color: #d9a400; color: #d9a400; }
+#checkBtn[data-state="bad"]  { border-color: var(--danger); color: var(--danger); }
+/* STOP FADE shows its state, not just a colour: ○ off / ● on (same width, so the header never re-flows when it flips) */
+.hdr-btn.stopfade::before { content: '○'; display: inline-block; width: 1em; margin-right: 4px; text-align: center; }
+.hdr-btn.stopfade.on::before { content: '●'; }
+/* FADE time: a boxed, purple control that matches the pads' ↓ FADE buttons, so the link between them is visible */
+.fade-dur-wrap { padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--fade-col); font-weight: 700; cursor: text; }
+.fade-dur-wrap:hover, .fade-dur-wrap:focus-within { border-color: var(--fade-col); }
+.fade-dur-wrap .fade-dur-input { width: 40px; font-size: 12px; font-weight: 700; }
+/* Header ladder (fitHeader steps through it until everything fits). Words are dropped in this order: Donate + Shortcuts
+   and the group gaps (level 1, the logo shrinks), the logo (2), Save As / Load (3), Check / Lock (4), Settings last (5).
+   Lock / Check / Settings keep their word as long as they can: they are the buttons an icon does not explain. */
+header[data-compact="1"] .hdr-btn.shortcuts .lbl, header[data-compact="2"] .hdr-btn.shortcuts .lbl { display: none; }
+header[data-compact="1"] .hdr-sep-g, header[data-compact="2"] .hdr-sep-g { display: none; }
+header[data-compact="3"] .hdr-btn.settings .lbl, header[data-compact="4"] .hdr-btn.settings .lbl { display: inline; }
+header[data-compact="3"] .hdr-sep-g, header[data-compact="4"] .hdr-sep-g, header[data-compact="5"] .hdr-sep-g { display: none; }
+header[data-compact="4"], header[data-compact="5"] { gap: 6px; padding: 0 12px; }
+header[data-compact="4"] .logo, header[data-compact="4"] .logo + .hdr-sep, header[data-compact="5"] .logo, header[data-compact="5"] .logo + .hdr-sep { display: none; }
+header[data-compact="4"] .hdr-btn, header[data-compact="5"] .hdr-btn { padding: 5px 10px; }
+header[data-compact="4"] .hdr-btn .lbl, header[data-compact="5"] .hdr-btn .lbl { display: none; }
+header[data-compact="4"] .hdr-btn.cap::after, header[data-compact="5"] .hdr-btn.cap::after { display: none; }
+header[data-compact="4"] .header-right, header[data-compact="5"] .header-right { gap: 8px; }
+
+/* Pads: as many columns as fit (never more than 4, never narrower than 232 px). The old fixed 4 columns clipped the
+   "+ Stack" and ✕ buttons below ~1280 px wide. The footer row also wraps instead of clipping. */
+@media (pointer: fine) {
+  .pads-grid { grid-template-columns: repeat(auto-fill, minmax(max(232px, calc((100% - 30px) / 4)), 1fr)); }
+}
+.pad-footer { flex-wrap: wrap; gap: 4px; }
+.pad-footer .btn-sm { padding: 3px 6px; }
+.pad-name[draggable="true"] { cursor: grab; }
+/* Empty pad: one clear call to action */
+.pad:not(.loaded) { transition: border-color .15s, background .15s; }
+.pad:not(.loaded):hover { border-color: var(--accent); }
+.pad-hint { flex-direction: column; gap: 4px; padding: 0 14px; text-align: center; line-height: 1.35; font-size: 11.5px; }
+.pad-hint .ph-plus { font-size: 26px; line-height: 1; font-weight: 300; }
+.pad:not(.loaded):hover .pad-hint { color: var(--accent); }
+
+/* First-run card + quick tips strip */
+.welcome[hidden], .tips-strip[hidden], .toast[hidden], .toast-undo[hidden] { display: none; }
+.welcome { margin: 0 0 14px; padding: 16px 18px 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); }
+.welcome-title { font-size: 15px; font-weight: 800; letter-spacing: .3px; color: var(--accent); margin-bottom: 12px; }
+.welcome-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.welcome-step { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.5; }
+.welcome-step b { display: block; font-size: 13px; margin-bottom: 2px; }
+.welcome-step span:not(.ws-n) { display: block; color: var(--muted); }
+.ws-n { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #000; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+html[data-theme="light"] .ws-n { color: #fff; }
+.ws-btn { margin-top: 8px; }
+.welcome-foot { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); }
+.tips-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--surface); font-size: 11.5px; color: var(--muted); }
+.ts-title { color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; font-size: 10.5px; }
+.ts-item kbd { margin-right: 3px; }
+.ts-x { margin-left: auto; padding: 3px 12px; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 11px; cursor: pointer; }
+.ts-x:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Cue stack: the title never wraps, the header row wraps instead of clipping, NEXT is marked, playing is marked */
+.stack-title { white-space: nowrap; letter-spacing: 1.5px; }
+.stack-head { flex-wrap: wrap; row-gap: 6px; gap: 5px; padding: 8px 8px 8px 12px; }
+.stack-head .stack-scale-wrap { padding: 2px 4px; gap: 2px; }
+.stack-head .stack-scale-val { min-width: 28px; }
+.undo-touch { display: none; margin-left: 0; }
+.stack-item[draggable="true"] { cursor: grab; }
+.stack-item.is-next { border-left: 3px solid var(--accent); padding-left: 6px; }
+.stack-item.is-playing .stack-dot { box-shadow: 0 0 0 2px var(--playing), 0 0 8px var(--playing); }
+.stack-item.is-playing .stack-lbl { font-weight: 700; }
+.stack-next-pill { flex-shrink: 0; font-size: 8.5px; font-weight: 800; letter-spacing: .6px; padding: 1px 6px; border-radius: 8px; background: var(--accent); color: #000; text-transform: uppercase; }
+html[data-theme="light"] .stack-next-pill { color: #fff; }
+.stack-mv, .stack-rm { opacity: .4; }
+.stack-item:hover .stack-mv, .stack-item:hover .stack-rm { opacity: 1; }
+.next-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.next-btn .nb-sub { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; font-weight: 600; letter-spacing: .3px; color: var(--muted); }
+.next-btn .nb-sub kbd { margin-right: 4px; }
+.next-btn:hover:not(:disabled) .nb-sub { color: inherit; }
+.auto-row .toggle-sw { flex-shrink: 0; }
+
+/* Footer: tips never wrap; the least important one goes first on narrow windows */
+.tips { flex-shrink: 0; white-space: nowrap; }
+.footer-status { min-width: 0; }
+.footer-status[data-tone="warn"] { color: var(--loop-col); opacity: 1; font-weight: 600; }
+@media (max-width: 1200px) { .tips .tip:last-child { display: none; } }
+@media (max-width: 1040px) { .tips .tip:first-child { display: none; } }
+
+/* Toast: warnings and "Undo" where the eyes already are (also the only status display on iPad, which has no footer) */
+.toast { position: fixed; left: calc((100vw - var(--stack-w)) / 2); transform: translateX(-50%); bottom: calc(var(--footer-h) + 14px); z-index: 150;
+  max-width: calc(100vw - var(--stack-w) - 32px); display: flex; align-items: center; gap: 12px; padding: 9px 14px; font-size: 13px;
+  background: var(--surface2); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+.toast[data-tone="warn"] { border-left-color: var(--loop-col); }
+.toast-msg { min-width: 0; overflow-wrap: anywhere; }
+.toast-undo { flex-shrink: 0; padding: 5px 14px; background: transparent; border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; }
+.toast-undo:hover { background: var(--accent); color: #000; }
+
+/* Settings / dialogs */
+.set-row .modal-btn { white-space: nowrap; flex-shrink: 0; }
+.set-help { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0 2px; }
+.modal-box.wide .modal-body { scrollbar-gutter: stable; }
+.chk-help { font-size: 12.5px; text-align: center; margin: -2px 0 10px; color: var(--text); }
+.chk-group { font-size: 10px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: var(--muted); margin: 12px 0 5px; }
+.chk-list > .chk-group:first-child { margin-top: 2px; }
+.ess-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; font-size: 12.5px; margin-bottom: 4px; }
+.ess-list .sh-key { cursor: default; justify-self: start; }
+.ess-list .sh-key:hover { border-color: var(--border); color: var(--muted); }
+
+/* Show lock: a click on a dimmed control must not fall through and start / pause the pad underneath (the JS ignores it too) */
+body.show-locked .pad-footer, body.show-locked .inout-row { cursor: not-allowed; }
+
+.touch-only { display: none !important; }
+/* Touch / iPad: ≥ 44 px targets, the right-hand header cluster (STOP ALL, VOL, FADE) is pinned so it can never scroll away,
+   the stack sheet gets an Undo (there is no footer on touch) */
+@media (pointer: coarse) {
+  .kb-only { display: none !important; }
+  .touch-only { display: block !important; }
+  header { overflow-y: hidden; }
+  .header-right { position: sticky; right: 0; z-index: 2; padding-left: 10px; background: var(--surface); box-shadow: -12px 0 10px -6px rgba(0,0,0,.4); }
+  .hdr-btn, .theme-btn, .stop-all { min-height: 44px; }
+  .hdr-btn.stopfade { padding: 7px 12px; }
+  .fade-dur-wrap { padding: 5px 10px; }
+  .fade-dur-wrap .fade-dur-input { width: 52px; font-size: 15px; padding: 7px 4px; }
+  input[type=range]::-webkit-slider-thumb { width: 22px; height: 22px; }
+  input[type=range] { height: 5px; }
+  .pads-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .btn-sm { min-height: 44px; padding: 6px 12px; font-size: 12px; }
+  .pad-footer { gap: 6px; }
+  .inout-btn { min-height: 40px; padding: 4px 12px; font-size: 11px; }
+  .transport-pp, .transport-stop { height: 48px; }
+  .transport-stop { width: 48px; }
+  .pad-progress { height: 24px; }
+  .pad-vol-slider { height: 6px; }
+  .pad-vol-slider::-webkit-slider-thumb { width: 24px; height: 24px; }
+  .pad-vol-row { min-height: 34px; }
+  .color-dot { width: 18px; height: 18px; position: relative; }
+  .color-dot::after { content: ''; position: absolute; inset: -12px; }
+  .undo-touch { display: inline-block; min-height: 36px; padding: 6px 12px; }
+  .clear-btn, .ts-x { min-height: 36px; padding: 6px 12px; }
+  .scale-btn { width: 36px; height: 36px; font-size: 18px; }
+  .stack-item { min-height: 44px; margin-bottom: 4px; }
+  .stack-mv { font-size: 15px; padding: 10px 12px; opacity: .8; }
+  .stack-rm { font-size: 24px; padding: 4px 14px; opacity: .8; }
+  .scene-tab { padding: 9px 16px; font-size: 13px; }
+  .stack-foot { padding: 8px 12px; }
+  .auto-row { flex-basis: auto; }
+  .play-cue-btn, .next-btn { padding: 8px; }
+  .play-cue-btn { align-self: stretch; }
+  .scene-tab.active .scene-tab-rm { display: flex; width: 22px; height: 22px; top: -8px; right: -6px; font-size: 14px; }
+  .scene-add-btn { width: 44px; height: 40px; margin-bottom: 0; }
+  .auto-row { min-height: 44px; padding-right: 6px; }
+  .toggle-sw { width: 44px; height: 24px; border-radius: 12px; }
+  .toggle-sw::after { width: 20px; height: 20px; }
+  .toggle-sw.on::after { left: 22px; }
+  .modal-btn { min-height: 44px; padding: 8px 20px; }
+  .modal-x { min-width: 44px; min-height: 44px; font-size: 26px; }
+  .proj-del { min-width: 44px; min-height: 44px; }
+  .sh-key, .sh-test, .sh-del { min-height: 36px; }
+  .toast { bottom: calc(var(--stack-sheet-h, 300px) + 14px); left: 50%; max-width: calc(100vw - 32px); }
+  .toast-undo { min-height: 40px; }
+  .tips-strip .ts-x { margin-left: 0; }
+}
+
 </style>
 </head>
 <body>
@@ -1301,37 +1470,61 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
 <header>
   <div class="logo">KOSTUDIO AUDIO CUE</div>
   <div class="hdr-sep"></div>
-  <button class="hdr-btn save" onclick="handleSave()">💾 Save</button>
-  <button class="hdr-btn save" onclick="handleSaveAs()" aria-label="Save As" title="Save As…">💾<span class="lbl"> Save As</span></button>
-  <button class="hdr-btn"      onclick="handleLoad()" aria-label="Load" title="Load a project">📂<span class="lbl"> Load</span></button>
-  <button class="hdr-btn"      onclick="showShortcutsModal()" aria-label="Shortcuts" title="Keyboard shortcuts">⌨<span class="lbl"> Shortcuts</span></button>
-  <button class="hdr-btn settings" onclick="showSettingsModal()" id="settingsBtn" aria-label="Settings" title="Settings: theme, language, audio output, waveforms, remote control, MIDI"><span class="gear">⚙</span><span class="lbl"> Settings</span></button>
-  <button class="hdr-btn icon"  onclick="showPreShowCheck()" id="checkBtn" title="Pre-show check: verifies every sound, cue and setting before doors open">✔</button>
-  <button class="hdr-btn icon" id="lockBtn" onclick="toggleShowLock()" aria-pressed="false"
+  <button class="hdr-btn save" onclick="handleSave()" title="Save the project (Ctrl+S)">💾 Save</button>
+  <button class="hdr-btn save" onclick="handleSaveAs()" aria-label="Save As" title="Save As… — save under a new name or in a new place">💾<span class="lbl"> Save As</span></button>
+  <button class="hdr-btn"      onclick="handleLoad()" aria-label="Load" title="Load a saved project">📂<span class="lbl"> Load</span></button>
+  <div class="hdr-sep hdr-sep-g"></div>
+  <button class="hdr-btn icon cap" onclick="showPreShowCheck()" id="checkBtn" aria-label="Check" title="Pre-show check: verifies every sound, cue and setting before doors open">✔</button>
+  <button class="hdr-btn icon cap" id="lockBtn" onclick="toggleShowLock()" aria-pressed="false" aria-label="Lock"
           title="Lock the show (Ctrl+Shift+L): disables editing, loading and deleting so nothing can be changed by accident. Playback still works.">🔓</button>
+  <div class="hdr-sep hdr-sep-g"></div>
+  <button class="hdr-btn shortcuts" onclick="showShortcutsModal()" aria-label="Shortcuts" title="Keyboard shortcuts and the keys every operator should know">⌨<span class="lbl"> Shortcuts</span></button>
+  <button class="hdr-btn settings" onclick="showSettingsModal()" id="settingsBtn" aria-label="Settings" title="Settings: audio output, theme, language, waveforms, remote control, MIDI"><span class="gear">⚙</span><span class="lbl"> Settings</span></button>
   <a class="hdr-btn donate" id="donateBtn" href="https://ko-fi.com/dkostoudis"
      target="_blank" rel="noopener noreferrer" aria-label="Donate" title="Kostudio Audio Cue is free — support development on Ko-fi">♥<span class="lbl">&nbsp;Donate</span></a>
   <div class="header-right">
-    <div class="fade-dur-wrap">
+    <label class="fade-dur-wrap" title="Fade time in seconds. It is used for crossfades between cues and pad keys, for STOP FADE, and for any pad whose ↓ FADE is on.">
       <span>FADE</span>
       <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
-             oninput="fadeDuration = Math.min(20, Math.max(0.1, parseFloat(this.value) || 2))" title="Fade duration (seconds)">
+             oninput="fadeDuration = Math.min(20, Math.max(0.1, parseFloat(this.value) || 2))" onchange="commitFadeInput(this)" aria-label="Fade duration (seconds)">
       <span>s</span>
-    </div>
+    </label>
     <div class="hdr-sep"></div>
     <div class="vol-wrap">
       <span>VOL</span>
-      <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)">
+      <input type="range" min="0" max="1" step="0.01" value="1" id="volSlider" oninput="setMasterVolume(this.value)" title="Master volume (all pads)" aria-label="Master volume (all pads)">
     </div>
     <button class="hdr-btn stopfade" id="stopFadeBtn" onclick="toggleStopFade()" aria-pressed="false"
-            title="When on, STOP ALL and the ■ buttons fade out over the FADE time instead of cutting. Escape always cuts instantly.">STOP FADE</button>
-    <button class="stop-all" onclick="stopAll()" title="Stop everything (Esc = instant cut)">■ STOP ALL</button>
+            title="STOP FADE off: STOP ALL and the ■ buttons cut instantly. On: they fade out over the FADE time instead. Esc always cuts instantly.">STOP FADE</button>
+    <button class="stop-all" onclick="stopAll()" title="Stop every sound. With STOP FADE on it fades out over the FADE time (press again to cut). Esc always cuts instantly.">■ STOP ALL</button>
   </div>
 </header>
 
 <div id="appWrap">
 <main>
   <div class="pads-section">
+    <div class="welcome" id="welcome" hidden>
+      <div class="welcome-title">Welcome — build your show in three steps</div>
+      <div class="welcome-steps">
+        <div class="welcome-step"><span class="ws-n">1</span><div><b>Add your sounds</b><span>Click any pad, drop audio files anywhere on the window, or load many at once.</span>
+          <button class="modal-btn primary ws-btn" id="welcomeAdd" onclick="pickFilesForPads()">⇪ Add sounds…</button></div></div>
+        <div class="welcome-step"><span class="ws-n">2</span><div><b>Line them up</b><span>Press “+ Stack” on a pad to put it in the cue list on the right. Drag cues to reorder them.</span></div></div>
+        <div class="welcome-step"><span class="ws-n">3</span><div><b>Run the show</b><span class="kb-only"><kbd>SPACE</kbd> plays the next cue. <kbd>ESC</kbd> stops everything instantly.</span><span class="touch-only">Tap NEXT CUE (bottom) for the next cue. STOP ALL (top right) stops everything.</span></div></div>
+      </div>
+      <div class="welcome-foot"><span class="kb-only">Before doors open, press ✔ Check. Save your show with Ctrl+S.</span><span class="touch-only">Before doors open, tap ✔ Check. Tap Save now and then.</span></div>
+    </div>
+    <div class="tips-strip" id="tipsStrip" hidden>
+      <b class="ts-title">Quick tips</b>
+      <span class="ts-item kb-only"><kbd>ESC</kbd> stops everything, instantly</span>
+      <span class="ts-item kb-only"><kbd>SPACE</kbd> plays the next cue</span>
+      <span class="ts-item touch-only">STOP ALL (top right) stops everything</span>
+      <span class="ts-item touch-only">NEXT CUE plays the next cue</span>
+      <span class="ts-item">Starting a pad fades out the one that is playing</span>
+      <span class="ts-item">“+ Stack” builds the cue list</span>
+      <span class="ts-item">✔ Check before doors open</span>
+      <span class="ts-item kb-only">Ctrl+Z undoes</span>
+      <button class="ts-x" onclick="dismissTips()" title="Hide these tips (you can bring them back in Settings → Help)">Got it</button>
+    </div>
     <div class="pads-grid" id="padsGrid"></div>
   </div>
 </main>
@@ -1349,17 +1542,18 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
       <span class="stack-scale-val" id="stackScaleVal">100%</span>
       <button class="scale-btn" onclick="adjustStackScale(0.1)" title="Larger text">+</button>
     </div>
-    <button class="clear-btn" onclick="clearStack()">Clear</button>
+    <button class="clear-btn undo-touch" id="undoTouchBtn" onclick="undo()" disabled title="Undo the last change">↶ Undo</button>
+    <button class="clear-btn" onclick="clearStack()" title="Remove every cue from this scene (Undo brings them back)">Clear</button>
   </div>
   <div class="scene-tabs-wrap" id="sceneTabsWrap"></div>
   <div class="stack-list" id="stackList"></div>
   <div class="stack-foot">
-    <div class="auto-row" onclick="toggleAutoAdvance()">
+    <div class="auto-row" onclick="toggleAutoAdvance()" title="When a cue finishes, start the next one automatically. Off: you press SPACE for each cue.">
       <div class="toggle-sw" id="autoToggle"></div>
       <span>Auto-advance</span>
     </div>
-    <button class="play-cue-btn" id="playCueBtn" onclick="playCue()" disabled>▶ PLAY CUE</button>
-    <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled>NEXT CUE ▶</button>
+    <button class="play-cue-btn" id="playCueBtn" onclick="playCue()" disabled title="Play (or stop) the highlighted cue, cutting whatever else is playing">▶ PLAY CUE</button>
+    <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled title="Fade out the current cue and start the next one — same as SPACE">NEXT CUE ▶</button>
   </div>
 </div>
 
@@ -1375,20 +1569,25 @@ html[data-theme="light"] header { background: linear-gradient(90deg,#ffffff 0%,#
   <div class="tips">
     <div class="tip"><kbd>KEY</kbd> play</div>
     <div class="tip"><kbd>SPACE</kbd> next</div>
-    <div class="tip"><kbd>ESC</kbd> stop all</div>
+    <div class="tip"><kbd>ESC</kbd> stop now</div>
     <div class="tip">click bar to seek</div>
   </div>
 </footer>
 
 <div class="modal-overlay hidden" id="modalOverlay" onclick="handleOverlayClick(event)">
-  <div class="modal-box" id="modalBox">
+  <div class="modal-box" id="modalBox" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-hdr">
       <span class="modal-title" id="modalTitle"></span>
-      <button class="modal-x" onclick="closeModal()">×</button>
+      <button class="modal-x" onclick="closeModal()" aria-label="Close" title="Close (Esc)">×</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-ftr" id="modalFtr"></div>
   </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden>
+  <span class="toast-msg" id="toastMsg"></span>
+  <button class="toast-undo" id="toastUndo" tabindex="-1" onclick="toastUndo();this.blur()" hidden>↶ Undo</button>
 </div>
 
 <div id="updateBanner">
@@ -1453,6 +1652,7 @@ const prefs = {
   lang: '',            // '' = follow the browser / OS language
   midiEnabled: false,  // listen to MIDI controllers (Chromium / Electron only)
   midiMap: [],         // [{ msg:'note'|'cc', ch:-1..15, num:0..127, cmd:{…remote command…} }]
+  tipsDismissed: false, // the "Quick tips" strip above the pads; brought back from Settings → Help
 };
 function loadPrefs() {
   let saved = {};
@@ -1464,6 +1664,7 @@ function loadPrefs() {
   prefs.lang     = typeof saved.lang === 'string' ? saved.lang.slice(0, 8) : '';
   prefs.midiEnabled = saved.midiEnabled === true;
   prefs.midiMap  = sanitizeMidiMap(saved.midiMap);
+  prefs.tipsDismissed = saved.tipsDismissed === true;
 }
 function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch {} }
 
@@ -1613,20 +1814,14 @@ const I18N_TABLE = [
   ['💾 Save', '💾 Αποθήκευση', '💾 Speichern'],
   ['Save', 'Αποθήκευση', 'Speichern'],
   ['Save As', 'Αποθήκευση ως', 'Speichern unter'],
-  ['Save As…', 'Αποθήκευση ως…', 'Speichern unter…'],
   ['Load', 'Άνοιγμα', 'Laden'],
-  ['Load a project', 'Άνοιγμα έργου', 'Projekt laden'],
   ['Shortcuts', 'Συντομεύσεις', 'Tastenkürzel'],
   ['Settings', 'Ρυθμίσεις', 'Einstellungen'],
-  ['Keyboard shortcuts', 'Συντομεύσεις πληκτρολογίου', 'Tastaturkürzel'],
-  ['Settings: theme, language, audio output, waveforms, remote control, MIDI', 'Ρυθμίσεις: θέμα, γλώσσα, έξοδος ήχου, κυματομορφές, τηλεχειρισμός, MIDI', 'Einstellungen: Design, Sprache, Audioausgang, Wellenformen, Fernsteuerung, MIDI'],
   ['Pre-show check: verifies every sound, cue and setting before doors open', 'Έλεγχος πριν την παράσταση: επαληθεύει κάθε ήχο, cue και ρύθμιση πριν ανοίξουν οι πόρτες', 'Vorab-Check: prüft jeden Sound, jede Cue und jede Einstellung, bevor das Publikum kommt'],
   ['Lock the show (Ctrl+Shift+L): disables editing, loading and deleting so nothing can be changed by accident. Playback still works.', 'Κλείδωμα παράστασης (Ctrl+Shift+L): απενεργοποιεί την επεξεργασία, το άνοιγμα και τη διαγραφή ώστε να μην αλλάξει κάτι κατά λάθος. Η αναπαραγωγή συνεχίζει κανονικά.', 'Show sperren (Strg+Umschalt+L): deaktiviert Bearbeiten, Laden und Löschen, damit nichts versehentlich verändert wird. Die Wiedergabe funktioniert weiter.'],
   ['Donate', 'Δωρεά', 'Spenden'],
   ['Kostudio Audio Cue is free — support development on Ko-fi', 'Το Kostudio Audio Cue είναι δωρεάν — στηρίξτε την ανάπτυξη στο Ko-fi', 'Kostudio Audio Cue ist kostenlos — unterstütze die Entwicklung auf Ko-fi'],
   ['Fade duration (seconds)', 'Διάρκεια fade (δευτερόλεπτα)', 'Fade-Dauer (Sekunden)'],
-  ['When on, STOP ALL and the ■ buttons fade out over the FADE time instead of cutting. Escape always cuts instantly.', 'Όταν είναι ενεργό, το STOP ALL και τα κουμπιά ■ κάνουν fade out στη διάρκεια FADE αντί να κόβουν αμέσως. Το Escape κόβει πάντα αμέσως.', 'Wenn aktiv, blenden STOP ALL und die ■-Tasten über die FADE-Zeit aus, statt sofort zu stoppen. Escape stoppt immer sofort.'],
-  ['Stop everything (Esc = instant cut)', 'Διακοπή όλων (Esc = άμεσο κόψιμο)', 'Alles stoppen (Esc = sofort abbrechen)'],
   ['Pad volume: {0}%', 'Ένταση pad: {0}%', 'Pad-Lautstärke: {0}%'],
   ['Downloading update…', 'Λήψη ενημέρωσης…', 'Update wird heruntergeladen…'],
   ['↶ Undo', '↶ Αναίρεση', '↶ Rückgängig'],
@@ -1638,7 +1833,6 @@ const I18N_TABLE = [
   ['KEY', 'ΠΛΗΚΤΡΟ', 'TASTE'],
   ['play', 'αναπαραγωγή', 'abspielen'],
   ['next', 'επόμενο', 'weiter'],
-  ['stop all', 'διακοπή όλων', 'alles stoppen'],
   ['click bar to seek', 'κλικ στη μπάρα για μετακίνηση', 'auf die Leiste klicken zum Springen'],
 
   // ── cue stack + scenes
@@ -1652,26 +1846,16 @@ const I18N_TABLE = [
   ['▶ PLAY CUE', '▶ ΕΚΤΕΛΕΣΗ CUE', '▶ CUE STARTEN'],
   ['■ STOP CUE', '■ ΔΙΑΚΟΠΗ CUE', '■ CUE STOPPEN'],
   ['NEXT CUE ▶', 'ΕΠΟΜΕΝΟ CUE ▶', 'NÄCHSTE CUE ▶'],
-  ['Use “+ Stack” on any loaded pad (or drag a pad\'s name here) to build your cue sequence.', 'Πατήστε «+ Λίστα» σε οποιοδήποτε φορτωμένο pad (ή σύρετε το όνομα ενός pad εδώ) για να φτιάξετε τη σειρά των cue.', 'Nutze „+ Liste“ an einem geladenen Pad (oder ziehe den Namen eines Pads hierher), um deine Cue-Folge aufzubauen.'],
   ['Move up', 'Μετακίνηση πάνω', 'Nach oben'],
   ['Move down', 'Μετακίνηση κάτω', 'Nach unten'],
   ['No audio loaded for this cue — relink the file', 'Δεν έχει φορτωθεί ήχος για αυτό το cue — συνδέστε ξανά το αρχείο', 'Für diese Cue ist kein Audio geladen — Datei neu verknüpfen'],
   ['Unnamed', 'Χωρίς όνομα', 'Unbenannt'],
-  ['Add scene', 'Προσθήκη σκηνής', 'Szene hinzufügen'],
 
   // ── pads
-  ['Click or drop file', 'Κλικ ή σύρετε αρχείο', 'Klicken oder Datei ablegen'],
-  ['Tap to load audio', 'Πατήστε για φόρτωση ήχου', 'Zum Laden von Audio tippen'],
-  ['+ drop audio', '+ σύρετε ήχο', '+ Audio ablegen'],
   ['+ Stack', '+ Λίστα', '+ Liste'],
   ['Change colour', 'Αλλαγή χρώματος', 'Farbe ändern'],
-  ['Set IN point at current position', 'Ορισμός σημείου IN στην τρέχουσα θέση', 'IN-Punkt an aktueller Position setzen'],
-  ['Set OUT point at current position', 'Ορισμός σημείου OUT στην τρέχουσα θέση', 'OUT-Punkt an aktueller Position setzen'],
-  ['Click to reset IN point', 'Κλικ για επαναφορά του σημείου IN', 'Klicken, um den IN-Punkt zurückzusetzen'],
-  ['Click to reset OUT point', 'Κλικ για επαναφορά του σημείου OUT', 'Klicken, um den OUT-Punkt zurückzusetzen'],
   ['Stop & rewind', 'Διακοπή & επαναφορά', 'Stopp & zurückspulen'],
-  ['Remove audio', 'Αφαίρεση ήχου', 'Audio entfernen'],
-  ['Drag onto the cue stack to add it', 'Σύρετε στη λίστα cue για προσθήκη', 'Auf die Cue-Liste ziehen, um es hinzuzufügen'],
+  ['Double-click to rename it. Drag it onto the cue list to add it.', 'Διπλό κλικ για μετονομασία. Σύρετε το στη λίστα cue για προσθήκη.', 'Doppelklick zum Umbenennen. Auf die Cue-Liste ziehen, um es hinzuzufügen.'],
   ['elapsed {0} of {1}', 'παρήλθαν {0} από {1}', '{0} von {1} vergangen'],
   ['Add Cue', 'Προσθήκη Cue', 'Cue hinzufügen'],
   ['Add a new cue pad', 'Προσθήκη νέου pad cue', 'Neues Cue-Pad hinzufügen'],
@@ -1680,6 +1864,8 @@ const I18N_TABLE = [
   ['Pad {0}', 'Pad {0}', 'Pad {0}'],
   ['Pad {0} (empty)', 'Pad {0} (κενό)', 'Pad {0} (leer)'],
   ['Pad {0} — {1}', 'Pad {0} — {1}', 'Pad {0} — {1}'],
+  ['Click or drop file', 'Κλικ ή σύρετε αρχείο', 'Klicken oder Datei ablegen'],
+  ['Tap to load audio', 'Πατήστε για φόρτωση ήχου', 'Zum Laden von Audio tippen'],
   ['empty', 'κενό', 'leer'],
 
   // ── generic dialog buttons / words
@@ -1809,7 +1995,6 @@ const I18N_TABLE = [
   ['{0} sound(s) loaded · {1} cue(s) in {2} scene(s)', '{0} ήχος(οι) φορτωμένος(οι) · {1} cue σε {2} σκηνή(ές)', '{0} Sound(s) geladen · {1} Cue(s) in {2} Szene(n)'],
   ['{0} problem(s)', '{0} πρόβλημα(τα)', '{0} Problem(e)'],
   ['{0} warning(s)', '{0} προειδοποίηση(εις)', '{0} Warnung(en)'],
-  ['Nothing to report — every sound opens, every cue has audio and the settings look right.', 'Τίποτα προς αναφορά — κάθε ήχος ανοίγει, κάθε cue έχει ήχο και οι ρυθμίσεις φαίνονται σωστές.', 'Nichts zu melden — jeder Sound lässt sich öffnen, jede Cue hat Audio und die Einstellungen sehen richtig aus.'],
   ['↻ Check again', '↻ Νέος έλεγχος', '↻ Erneut prüfen'],
   ['Go to pad', 'Μετάβαση στο pad', 'Zum Pad'],
   ['Pad {0} "{1}": the audio file can\'t be opened ({2})', 'Pad {0} "{1}": το αρχείο ήχου δεν μπορεί να ανοιχτεί ({2})', 'Pad {0} "{1}": Die Audiodatei lässt sich nicht öffnen ({2})'],
@@ -1858,7 +2043,6 @@ const I18N_TABLE = [
   ['cleared the stack ({0} cue(s))', 'καθαρίστηκε η λίστα ({0} cue)', 'Liste geleert ({0} Cue(s))'],
   ['deleted scene "{0}"', 'διαγράφηκε η σκηνή "{0}"', 'Szene "{0}" gelöscht'],
   ['reordered the stack', 'άλλαξε η σειρά της λίστας', 'Liste neu geordnet'],
-  ['🔒 The show is locked — unlock (🔒 in the header) to make changes', '🔒 Η παράσταση είναι κλειδωμένη — ξεκλειδώστε (🔒 στην κεφαλίδα) για αλλαγές', '🔒 Die Show ist gesperrt — zum Ändern entsperren (🔒 in der Kopfzeile)'],
   ['🔒 Show locked — editing is disabled, playback works as normal', '🔒 Παράσταση κλειδωμένη — η επεξεργασία είναι απενεργοποιημένη, η αναπαραγωγή λειτουργεί κανονικά', '🔒 Show gesperrt — Bearbeiten ist deaktiviert, die Wiedergabe funktioniert normal'],
   ['🔓 Show unlocked', '🔓 Παράσταση ξεκλειδώθηκε', '🔓 Show entsperrt'],
   ['Browser storage unavailable — Save / Load to the browser is disabled', 'Ο χώρος αποθήκευσης του προγράμματος περιήγησης δεν είναι διαθέσιμος — η αποθήκευση / το άνοιγμα στο πρόγραμμα περιήγησης είναι απενεργοποιημένα', 'Browser-Speicher nicht verfügbar — Speichern / Laden im Browser ist deaktiviert'],
@@ -1954,6 +2138,102 @@ const I18N_TABLE = [
   ['the project has no pads', 'το έργο δεν έχει pads', 'das Projekt hat keine Pads'],
   ['too many pads (max {0})', 'πάρα πολλά pads (μέγιστο {0})', 'zu viele Pads (maximal {0})'],
   ['this is an iPad / browser export — import it from the Load screen of the web app', 'αυτή είναι εξαγωγή iPad / προγράμματος περιήγησης — εισαγάγετέ την από την οθόνη Άνοιγμα της web εφαρμογής', 'das ist ein iPad-/Browser-Export — importiere es im Laden-Fenster der Web-App'],
+
+  // ── UX pass: labels, tooltips, first-run help, undo / toast, pre-show wording
+  ['Tap NEXT CUE (bottom) for the next cue. STOP ALL (top right) stops everything.', 'Πατήστε NEXT CUE (κάτω) για το επόμενο cue. Το STOP ALL (πάνω δεξιά) σταματά τα πάντα.', 'Tippe unten auf NEXT CUE für die nächste Cue. STOP ALL (oben rechts) stoppt alles.'],
+  ['Before doors open, tap ✔ Check. Tap Save now and then.', 'Πριν ανοίξουν οι πόρτες, πατήστε ✔ Έλεγχος. Πατήστε κατά διαστήματα Αποθήκευση.', 'Tippe vor Einlass auf ✔ Prüfen. Tippe zwischendurch auf Speichern.'],
+  ['STOP ALL (top right) stops everything', 'Το STOP ALL (πάνω δεξιά) σταματά τα πάντα', 'STOP ALL (oben rechts) stoppt alles'],
+  ['NEXT CUE plays the next cue', 'Το NEXT CUE παίζει το επόμενο cue', 'NEXT CUE startet die nächste Cue'],
+  ['Save the project (Ctrl+S)', 'Αποθήκευση του έργου (Ctrl+S)', 'Projekt speichern (Strg+S)'],
+  ['Save As… — save under a new name or in a new place', 'Αποθήκευση ως… — με νέο όνομα ή σε νέα θέση', 'Speichern unter… — unter neuem Namen oder an neuem Ort speichern'],
+  ['Load a saved project', 'Άνοιγμα αποθηκευμένου έργου', 'Gespeichertes Projekt laden'],
+  ['Check', 'Έλεγχος', 'Prüfen'],
+  ['Lock', 'Κλείδωμα', 'Sperren'],
+  ['Locked', 'Κλειδωμένο', 'Gesperrt'],
+  ['Keyboard shortcuts and the keys every operator should know', 'Συντομεύσεις πληκτρολογίου και τα πλήκτρα που πρέπει να γνωρίζει κάθε χειριστής', 'Tastenkürzel und die Tasten, die jede Bedienperson kennen sollte'],
+  ['Settings: audio output, theme, language, waveforms, remote control, MIDI', 'Ρυθμίσεις: έξοδος ήχου, θέμα, γλώσσα, κυματομορφές, τηλεχειρισμός, MIDI', 'Einstellungen: Audioausgang, Design, Sprache, Wellenformen, Fernsteuerung, MIDI'],
+  ['Fade time in seconds. It is used for crossfades between cues and pad keys, for STOP FADE, and for any pad whose ↓ FADE is on.', 'Διάρκεια fade σε δευτερόλεπτα. Χρησιμοποιείται στα crossfade μεταξύ cue και πλήκτρων pad, στο STOP FADE και σε κάθε pad με ενεργό ↓ FADE.', 'Fade-Zeit in Sekunden. Sie gilt für Überblendungen zwischen Cues und Pad-Tasten, für STOP FADE und für jedes Pad mit aktivem ↓ FADE.'],
+  ['Master volume (all pads)', 'Κύρια ένταση (όλα τα pads)', 'Hauptlautstärke (alle Pads)'],
+  ['STOP FADE off: STOP ALL and the ■ buttons cut instantly. On: they fade out over the FADE time instead. Esc always cuts instantly.', 'STOP FADE ανενεργό: το STOP ALL και τα κουμπιά ■ κόβουν αμέσως. Ενεργό: κάνουν fade out στη διάρκεια FADE. Το Esc κόβει πάντα αμέσως.', 'STOP FADE aus: STOP ALL und die ■-Tasten stoppen sofort. An: sie blenden stattdessen über die FADE-Zeit aus. Esc stoppt immer sofort.'],
+  ['Stop every sound. With STOP FADE on it fades out over the FADE time (press again to cut). Esc always cuts instantly.', 'Διακοπή όλων των ήχων. Με ενεργό STOP FADE κάνει fade out στη διάρκεια FADE (πατήστε ξανά για άμεσο κόψιμο). Το Esc κόβει πάντα αμέσως.', 'Alle Sounds stoppen. Mit aktivem STOP FADE wird über die FADE-Zeit ausgeblendet (nochmals drücken zum sofortigen Stopp). Esc stoppt immer sofort.'],
+  ['stop now', 'άμεση διακοπή', 'sofort stoppen'],
+  ['Close (Esc)', 'Κλείσιμο (Esc)', 'Schließen (Esc)'],
+  ['Undo the last change', 'Αναίρεση της τελευταίας αλλαγής', 'Letzte Änderung rückgängig machen'],
+  ['Welcome — build your show in three steps', 'Καλώς ήρθατε — φτιάξτε την παράσταση σε τρία βήματα', 'Willkommen — baue deine Show in drei Schritten'],
+  ['Add your sounds', 'Προσθέστε τους ήχους σας', 'Füge deine Sounds hinzu'],
+  ['Click any pad, drop audio files anywhere on the window, or load many at once.', 'Κάντε κλικ σε ένα pad, σύρετε αρχεία ήχου οπουδήποτε στο παράθυρο ή φορτώστε πολλά μαζί.', 'Klicke auf ein Pad, ziehe Audiodateien irgendwo ins Fenster oder lade viele auf einmal.'],
+  ['⇪ Add sounds…', '⇪ Προσθήκη ήχων…', '⇪ Sounds hinzufügen…'],
+  ['Line them up', 'Βάλτε τους στη σειρά', 'Bring sie in Reihenfolge'],
+  ['Press “+ Stack” on a pad to put it in the cue list on the right. Drag cues to reorder them.', 'Πατήστε «+ Λίστα» σε ένα pad για να μπει στη λίστα cue δεξιά. Σύρετε τα cue για να αλλάξετε τη σειρά.', 'Drücke „+ Liste“ an einem Pad, damit es in die Cue-Liste rechts kommt. Ziehe Cues, um sie neu zu ordnen.'],
+  ['Run the show', 'Ξεκινήστε την παράσταση', 'Starte die Show'],
+  ['plays the next cue.', 'παίζει το επόμενο cue.', 'startet die nächste Cue.'],
+  ['stops everything instantly.', 'σταματά τα πάντα αμέσως.', 'stoppt sofort alles.'],
+  ['Before doors open, press ✔ Check. Save your show with Ctrl+S.', 'Πριν ανοίξουν οι πόρτες, πατήστε ✔ Έλεγχος. Αποθηκεύστε την παράσταση με Ctrl+S.', 'Bevor das Publikum kommt, drücke ✔ Prüfen. Speichere deine Show mit Strg+S.'],
+  ['Quick tips', 'Γρήγορες συμβουλές', 'Kurztipps'],
+  ['stops everything, instantly', 'σταματά τα πάντα, αμέσως', 'stoppt alles, sofort'],
+  ['plays the next cue', 'παίζει το επόμενο cue', 'startet die nächste Cue'],
+  ['Starting a pad fades out the one that is playing', 'Η εκκίνηση ενός pad κάνει fade out σε αυτό που παίζει', 'Ein Pad zu starten blendet das laufende aus'],
+  ['“+ Stack” builds the cue list', 'Το «+ Λίστα» φτιάχνει τη λίστα cue', '„+ Liste“ baut die Cue-Liste auf'],
+  ['✔ Check before doors open', '✔ Έλεγχος πριν ανοίξουν οι πόρτες', '✔ Prüfen, bevor das Publikum kommt'],
+  ['Ctrl+Z undoes', 'Το Ctrl+Z αναιρεί', 'Strg+Z macht rückgängig'],
+  ['Got it', 'Κατάλαβα', 'Verstanden'],
+  ['Hide these tips (you can bring them back in Settings → Help)', 'Απόκρυψη αυτών των συμβουλών (μπορείτε να τις επαναφέρετε από Ρυθμίσεις → Βοήθεια)', 'Diese Tipps ausblenden (unter Einstellungen → Hilfe wieder einblendbar)'],
+  ['Missing — click to choose the file again', 'Λείπει — κάντε κλικ για να επιλέξετε ξανά το αρχείο', 'Fehlt — klicken, um die Datei neu zu wählen'],
+  ['Missing — tap to choose the file again', 'Λείπει — πατήστε για να επιλέξετε ξανά το αρχείο', 'Fehlt — tippen, um die Datei neu zu wählen'],
+  ['Play / pause (key {0}). Starting a pad fades out any other pad that is playing.', 'Αναπαραγωγή / παύση (πλήκτρο {0}). Η εκκίνηση ενός pad κάνει fade out σε κάθε άλλο pad που παίζει.', 'Abspielen / Pause (Taste {0}). Ein Pad zu starten blendet jedes andere laufende Pad aus.'],
+  ['Play / pause. Starting a pad fades out any other pad that is playing.', 'Αναπαραγωγή / παύση. Η εκκίνηση ενός pad κάνει fade out σε κάθε άλλο pad που παίζει.', 'Abspielen / Pause. Ein Pad zu starten blendet jedes andere laufende Pad aus.'],
+  ['Shortcut key — click to change it', 'Πλήκτρο συντόμευσης — κάντε κλικ για αλλαγή', 'Tastenkürzel — klicken zum Ändern'],
+  ['Click or drag to jump to any point in the sound', 'Κάντε κλικ ή σύρετε για να μεταβείτε σε οποιοδήποτε σημείο του ήχου', 'Klicken oder ziehen, um an eine beliebige Stelle im Sound zu springen'],
+  ['IN point at {0} — click to clear it', 'Σημείο IN στο {0} — κάντε κλικ για διαγραφή', 'IN-Punkt bei {0} — klicken zum Löschen'],
+  ['Set the IN point: the sound will start from here. Drag the bar (or let it play) to the right spot, then click IN.', 'Ορισμός σημείου IN: ο ήχος θα ξεκινά από εδώ. Σύρετε τη μπάρα (ή αφήστε τον να παίξει) στο σωστό σημείο και πατήστε IN.', 'IN-Punkt setzen: Der Sound startet ab hier. Ziehe die Leiste (oder lass ihn spielen) an die richtige Stelle und klicke auf IN.'],
+  ['OUT point at {0} — click to clear it', 'Σημείο OUT στο {0} — κάντε κλικ για διαγραφή', 'OUT-Punkt bei {0} — klicken zum Löschen'],
+  ['Set the OUT point: the sound will end (or loop back) here. Drag the bar (or let it play) to the right spot, then click OUT.', 'Ορισμός σημείου OUT: ο ήχος θα τελειώνει (ή θα επιστρέφει στην αρχή) εδώ. Σύρετε τη μπάρα (ή αφήστε τον να παίξει) στο σωστό σημείο και πατήστε OUT.', 'OUT-Punkt setzen: Der Sound endet (oder springt zurück) hier. Ziehe die Leiste (oder lass ihn spielen) an die richtige Stelle und klicke auf OUT.'],
+  ['Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it', 'Loop: επαναλαμβάνει συνεχώς αυτόν τον ήχο (ανάμεσα στα σημεία IN και OUT, αν έχουν οριστεί) μέχρι να τον σταματήσετε', 'Loop: wiederholt diesen Sound ständig (zwischen IN- und OUT-Punkt, falls gesetzt), bis du ihn stoppst'],
+  ['FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and fades out and back in each time it loops. Off: hard start, hard loop point, hard end.', 'FADE: απαλές άκρες, με τη διάρκεια FADE της κεφαλίδας. Ενεργό: κάνει fade in στην εκκίνηση, fade out στο σημείο OUT και fade out και ξανά fade in σε κάθε επανάληψη. Ανενεργό: απότομη εκκίνηση, απότομο σημείο επανάληψης, απότομο τέλος.', 'FADE: weiche Übergänge mit der FADE-Zeit aus der Kopfzeile. An: blendet beim Start ein, am OUT-Punkt aus und bei jedem Loop aus und wieder ein. Aus: harter Start, harter Loop-Punkt, hartes Ende.'],
+  ['Add this sound to the end of the cue list. SPACE then plays the cues in order.', 'Προσθήκη αυτού του ήχου στο τέλος της λίστας cue. Το SPACE παίζει έπειτα τα cue με τη σειρά.', 'Diesen Sound ans Ende der Cue-Liste setzen. SPACE spielt die Cues dann der Reihe nach ab.'],
+  ['Remove this sound from the pad (Undo brings it back)', 'Αφαίρεση αυτού του ήχου από το pad (η Αναίρεση τον επαναφέρει)', 'Diesen Sound vom Pad entfernen (mit Rückgängig kommt er zurück)'],
+  ['Remove every cue from this scene (Undo brings them back)', 'Αφαίρεση όλων των cue από αυτή τη σκηνή (η Αναίρεση τα επαναφέρει)', 'Alle Cues aus dieser Szene entfernen (mit Rückgängig kommen sie zurück)'],
+  ['When a cue finishes, start the next one automatically. Off: you press SPACE for each cue.', 'Όταν τελειώνει ένα cue, ξεκινά αυτόματα το επόμενο. Ανενεργό: πατάτε SPACE για κάθε cue.', 'Wenn eine Cue endet, startet die nächste automatisch. Aus: du drückst für jede Cue SPACE.'],
+  ['Play (or stop) the highlighted cue, cutting whatever else is playing', 'Εκτέλεση (ή διακοπή) του επιλεγμένου cue, κόβοντας ό,τι άλλο παίζει', 'Die markierte Cue starten (oder stoppen) und alles andere abbrechen'],
+  ['Fade out the current cue and start the next one — same as SPACE', 'Fade out του τρέχοντος cue και εκκίνηση του επόμενου — όπως το SPACE', 'Aktuelle Cue ausblenden und die nächste starten — wie SPACE'],
+  ['Your cue list is empty.', 'Η λίστα cue είναι κενή.', 'Deine Cue-Liste ist leer.'],
+  ['Press “+ Stack” on a pad (or drag a pad\'s name here) to add it.', 'Πατήστε «+ Λίστα» σε ένα pad (ή σύρετε το όνομα ενός pad εδώ) για να το προσθέσετε.', 'Drücke „+ Liste“ an einem Pad (oder ziehe den Namen eines Pads hierher), um es hinzuzufügen.'],
+  ['Then', 'Έπειτα', 'Danach'],
+  ['plays the cues in order.', 'παίζει τα cue με τη σειρά.', 'spielt die Cues der Reihe nach ab.'],
+  ['(start over)', '(από την αρχή)', '(von vorn)'],
+  ['Next', 'Επόμ.', 'Weiter'],
+  ['SPACE plays this cue next', 'Το SPACE παίζει αυτό το cue στη συνέχεια', 'SPACE spielt diese Cue als Nächstes'],
+  ['Click to select it (PLAY CUE plays it). Drag to reorder.', 'Κλικ για επιλογή (το PLAY CUE το παίζει). Σύρετε για αλλαγή σειράς.', 'Klicken zum Auswählen (PLAY CUE spielt sie ab). Ziehen zum Umordnen.'],
+  ['Tap to select it (PLAY CUE plays it)', 'Πατήστε για επιλογή (το PLAY CUE το παίζει)', 'Tippen zum Auswählen (PLAY CUE spielt sie ab)'],
+  ['Remove from the stack', 'Αφαίρεση από τη λίστα', 'Aus der Liste entfernen'],
+  ['Remove from the stack (Undo brings it back)', 'Αφαίρεση από τη λίστα (η Αναίρεση το επαναφέρει)', 'Aus der Liste entfernen (mit Rückgängig kommt sie zurück)'],
+  ['Click to switch to this scene. Double-click to rename it.', 'Κλικ για μετάβαση σε αυτή τη σκηνή. Διπλό κλικ για μετονομασία.', 'Klicken, um zu dieser Szene zu wechseln. Doppelklick zum Umbenennen.'],
+  ['Delete this scene', 'Διαγραφή αυτής της σκηνής', 'Diese Szene löschen'],
+  ['Add a scene: a separate cue list, e.g. one per act', 'Προσθήκη σκηνής: ξεχωριστή λίστα cue, π.χ. μία ανά πράξη', 'Szene hinzufügen: eine eigene Cue-Liste, z. B. eine pro Akt'],
+  ['The cue list is empty — press "+ Stack" on a pad to add sounds', 'Η λίστα cue είναι κενή — πατήστε «+ Λίστα» σε ένα pad για να προσθέσετε ήχους', 'Die Cue-Liste ist leer — drücke „+ Liste“ an einem Pad, um Sounds hinzuzufügen'],
+  ['Removed cue {0} from the stack', 'Αφαιρέθηκε το cue {0} από τη λίστα', 'Cue {0} aus der Liste entfernt'],
+  ['Scene "{0}" deleted', 'Η σκηνή "{0}" διαγράφηκε', 'Szene "{0}" gelöscht'],
+  ['🔒 The show is locked — press Ctrl+Shift+L or the Locked button in the header to unlock it', '🔒 Η παράσταση είναι κλειδωμένη — πατήστε Ctrl+Shift+L ή το κουμπί Κλειδωμένο στην κεφαλίδα για ξεκλείδωμα', '🔒 Die Show ist gesperrt — zum Entsperren Strg+Umschalt+L oder die Schaltfläche „Gesperrt“ in der Kopfzeile drücken'],
+  ['Fix before the show', 'Διορθώστε πριν την παράσταση', 'Vor der Show beheben'],
+  ['Check these', 'Ελέγξτε αυτά', 'Bitte prüfen'],
+  ['Good to know', 'Καλό να γνωρίζετε', 'Gut zu wissen'],
+  ['Fix the red items before doors open.', 'Διορθώστε τα κόκκινα πριν ανοίξουν οι πόρτες.', 'Behebe die roten Punkte, bevor das Publikum kommt.'],
+  ['The show will run. Read the yellow items and make sure each one is what you want.', 'Η παράσταση θα τρέξει. Διαβάστε τα κίτρινα και βεβαιωθείτε ότι το καθένα είναι αυτό που θέλετε.', 'Die Show läuft. Lies die gelben Punkte und stelle sicher, dass jeder so gewollt ist.'],
+  ['Every sound opens and every cue has audio. Still do a quick listen-through.', 'Κάθε ήχος ανοίγει και κάθε cue έχει ήχο. Κάντε παρόλα αυτά μια γρήγορη ακρόαση.', 'Jeder Sound öffnet sich und jede Cue hat Audio. Höre trotzdem kurz alles durch.'],
+  ['Help', 'Βοήθεια', 'Hilfe'],
+  ['The short list of things every operator should know. It sits above the pads until you hide it.', 'Η σύντομη λίστα με όσα πρέπει να γνωρίζει κάθε χειριστής. Εμφανίζεται πάνω από τα pads μέχρι να την κρύψετε.', 'Die Kurzliste dessen, was jede Bedienperson wissen sollte. Sie steht über den Pads, bis du sie ausblendest.'],
+  ['Show quick tips', 'Εμφάνιση γρήγορων συμβουλών', 'Kurztipps anzeigen'],
+  ['Keys', 'Πλήκτρα', 'Tasten'],
+  ['Esc, SPACE, Ctrl+Z, the pad keys and how to change them.', 'Esc, SPACE, Ctrl+Z, τα πλήκτρα των pads και πώς αλλάζουν.', 'Esc, SPACE, Strg+Z, die Pad-Tasten und wie man sie ändert.'],
+  ['⌨ Shortcuts', '⌨ Συντομεύσεις', '⌨ Tastenkürzel'],
+  ['Essentials', 'Βασικά', 'Das Wichtigste'],
+  ['— these keys are fixed', '— αυτά τα πλήκτρα είναι σταθερά', '— diese Tasten sind fest'],
+  ['Stops everything instantly. Always works.', 'Σταματά τα πάντα αμέσως. Λειτουργεί πάντα.', 'Stoppt sofort alles. Funktioniert immer.'],
+  ['Fades out the current cue and starts the next one.', 'Κάνει fade out στο τρέχον cue και ξεκινά το επόμενο.', 'Blendet die aktuelle Cue aus und startet die nächste.'],
+  ['Each pad has its own key (below): it plays or stops that pad and fades out whatever else is playing.', 'Κάθε pad έχει το δικό του πλήκτρο (παρακάτω): παίζει ή σταματά αυτό το pad και κάνει fade out ό,τι άλλο παίζει.', 'Jedes Pad hat seine eigene Taste (unten): Sie startet oder stoppt dieses Pad und blendet alles andere Laufende aus.'],
+  ['Undoes the last change.', 'Αναιρεί την τελευταία αλλαγή.', 'Macht die letzte Änderung rückgängig.'],
+  ['Saves the project.', 'Αποθηκεύει το έργο.', 'Speichert das Projekt.'],
+  ['Locks or unlocks the show.', 'Κλειδώνει ή ξεκλειδώνει την παράσταση.', 'Sperrt oder entsperrt die Show.'],
 ];
 I18N.el = {}; I18N.de = {};
 for (const [en, el, de] of I18N_TABLE) { I18N.el[en] = el; I18N.de[en] = de; }
@@ -1962,10 +2242,9 @@ for (const [en, el, de] of I18N_TABLE) { I18N.el[en] = el; I18N.de[en] = de; }
 function fitHeader() {
   const h = document.querySelector('header');
   if (!h) return;
-  if (IS_TOUCH) { delete h.dataset.compact; return; }          // on touch the header scrolls sideways instead
   h.classList.add('fitting');                                  // no transitions while measuring (a button padding mid-animation reads too wide/narrow)
   try {
-    for (let level = 0; level <= 3; level++) {
+    for (let level = 0; level <= 5; level++) {
       h.dataset.compact = level;
       if (h.scrollWidth <= h.clientWidth) return;              // fits at this level
     }
@@ -1979,6 +2258,7 @@ const undoStack = [];
 const UNDO_MAX  = 30;
 const UNDO_MAX_BYTES = 300 * 1024 * 1024;   // audio kept alive for undo (in Electron it lives in memory) is capped
 function pushUndo(label, restore, bytes = 0) {
+  hideToast();                                       // an "Undo" toast belongs to one action: a newer one replaces it
   undoStack.push({ label, restore, bytes });
   let total = undoStack.reduce((n, u) => n + u.bytes, 0);
   while (undoStack.length > UNDO_MAX || (total > UNDO_MAX_BYTES && undoStack.length > 1)) total -= undoStack.shift().bytes;
@@ -1986,6 +2266,7 @@ function pushUndo(label, restore, bytes = 0) {
 }
 function undo() {
   if (lockedOut()) return;
+  hideToast();
   const u = undoStack.pop();
   if (!u) { setStatus('Nothing to undo'); return; }
   try { u.restore(); setStatus(`Undid: ${u.label}`); }
@@ -1999,6 +2280,8 @@ function refreshUndoBtn() {
   const top = undoStack[undoStack.length - 1];
   b.disabled = !top || showLocked;
   b.title = top ? `Undo: ${top.label} (Ctrl+Z)` : 'Nothing to undo';
+  const t = document.getElementById('undoTouchBtn');        // iPad has no footer: the same button lives in the stack sheet
+  if (t) { t.disabled = b.disabled; t.title = b.title; }
 }
 function snapshotPad(pad) {
   return { name: pad.name, file: pad.file, filePath: pad.filePath, missingPath: pad.missingPath, loop: pad.loop, vol: pad.vol,
@@ -2035,16 +2318,17 @@ function restoreStacks(snaps) {
 let showLocked = false;
 function lockedOut() {
   if (!showLocked) return false;
-  setStatus('🔒 The show is locked — unlock (🔒 in the header) to make changes');
+  setStatus('🔒 The show is locked — press Ctrl+Shift+L or the Locked button in the header to unlock it');
   return true;
 }
 function toggleShowLock() {
   showLocked = !showLocked;
   document.body.classList.toggle('show-locked', showLocked);
   const b = document.getElementById('lockBtn');
-  if (b) { b.classList.toggle('on', showLocked); b.textContent = showLocked ? '🔒' : '🔓'; b.setAttribute('aria-pressed', showLocked ? 'true' : 'false'); }
+  if (b) { b.classList.toggle('on', showLocked); b.textContent = showLocked ? '🔒' : '🔓'; b.setAttribute('aria-pressed', showLocked ? 'true' : 'false'); b.setAttribute('aria-label', showLocked ? 'Locked' : 'Lock'); }
   if (capturing !== null) { capturing = null; buildPads(); }
   refreshUndoBtn();
+  requestAnimationFrame(fitHeader);                    // "Lock" ↔ "Locked" changes the button's width: keep STOP ALL on screen
   setStatus(showLocked ? '🔒 Show locked — editing is disabled, playback works as normal' : '🔓 Show unlocked');
 }
 
@@ -2652,6 +2936,7 @@ function loadFile(padId, file, quiet = false) {
   if (lockedOut()) return false;
   if (!isAudioFile(file)) { setStatus(`"${file?.name ?? 'That file'}" is not an audio file`); return false; }
   const pad = pads[padId];
+  const replaced = !!pad.file;
   if (pad.file) { const snap = snapshotPad(pad); pushUndo(`replaced the sound on pad ${padId + 1}`, () => restorePad(pads[padId], snap), pad.file.size); }
   clearFadeTimer(padId);
   attachAudio(pad, file);
@@ -2665,7 +2950,7 @@ function loadFile(padId, file, quiet = false) {
   syncLoopFlag(pad);
   refreshPad(padId);
   updatePlayCueBtn();
-  if (!quiet) { setStatus(`Loaded "${pad.name}"`); scheduleAutosave(); }
+  if (!quiet) { setStatus(`Loaded "${pad.name}"`, { undo: replaced }); scheduleAutosave(); }
   return true;
 }
 
@@ -2734,7 +3019,7 @@ function clearPad(id) {
   pad.inPoint = pad.outPoint = null;
   refreshPad(id);
   renderStack();
-  setStatus(`Pad ${id + 1} cleared`);
+  setStatus(`Pad ${id + 1} cleared`, { undo: true });
   scheduleAutosave();
 }
 
@@ -2758,6 +3043,7 @@ function removeFromStack(i) {
   if (i < s.stackIdx) s.stackIdx--;                   // keep the selection on the same cue
   else if (s.stackIdx >= s.stack.length) s.stackIdx = s.stack.length - 1;
   renderStack();
+  setStatus(`Removed cue ${i + 1} from the stack`, { undo: true });
   scheduleAutosave();
 }
 
@@ -2769,14 +3055,14 @@ function clearStack() {
   pushUndo(`cleared the stack (${s.stack.length} cue(s))`, () => restoreStacks(stacks));
   s.stack = []; s.stackIdx = -1;
   renderStack();
-  setStatus('Stack cleared');
+  setStatus('Stack cleared', { undo: true });
   scheduleAutosave();
 }
 
 function nextCue(auto = false) {
   clearTimeout(advTimer);
   const s = getScene();
-  if (!s.stack.length) return;
+  if (!s.stack.length) { if (!auto) setStatus('The cue list is empty — press "+ Stack" on a pad to add sounds'); return; }
   // Auto-advance stops at the end of the stack; it must never wrap round and replay the show.
   if (auto && s.stackIdx >= s.stack.length - 1) return;
   const nextIdx = (s.stackIdx + 1) % s.stack.length;
@@ -2875,29 +3161,49 @@ function stackTimeText(pad) {
 function renderStack() {
   const s    = getScene();
   const list = document.getElementById('stackList');
-  const btn  = document.getElementById('nextBtn');
-  btn.disabled = !s.stack.length;
+  updateNextBtn();
   if (!s.stack.length) {
-    list.innerHTML = '<div class="stack-empty">Use “+ Stack” on any loaded pad (or drag a pad\'s name here) to build your cue sequence.</div>';
+    list.innerHTML = '<div class="stack-empty">Your cue list is empty.<br>Press “+ Stack” on a pad (or drag a pad\'s name here) to add it.<br>Then <kbd>SPACE</kbd> plays the cues in order.</div>';
     updatePlayCueBtn();
     return;
   }
+  const nextIdx = (s.stackIdx + 1) % s.stack.length;
   list.innerHTML = s.stack.map((item, i) => {
     const pad     = pads[item.padId];
     const active  = i === s.stackIdx;
     const noAudio = !pad.audio;
-    return `<div class="stack-item${active ? ' active' : ''}${noAudio ? ' no-audio' : ''}" data-i="${i}" draggable="${IS_TOUCH ? 'false' : 'true'}" onclick="playStackItem(${i})"
-         ${noAudio ? 'title="No audio loaded for this cue — relink the file"' : ''}>
+    return `<div class="stack-item${active ? ' active' : ''}${i === nextIdx ? ' is-next' : ''}${pad.playing ? ' is-playing' : ''}${noAudio ? ' no-audio' : ''}" data-i="${i}" draggable="${IS_TOUCH ? 'false' : 'true'}" onclick="playStackItem(${i})"
+         title="${noAudio ? 'No audio loaded for this cue — relink the file' : IS_TOUCH ? 'Tap to select it (PLAY CUE plays it)' : 'Click to select it (PLAY CUE plays it). Drag to reorder.'}">
       <span class="stack-n">${i + 1}</span>
       <div class="stack-dot" style="background:${pad.color}"></div>
       <span class="stack-lbl"${pad.name ? ' data-notr' : ''}>${escHtml(pad.name || 'Unnamed')}</span>
+      ${i === nextIdx ? '<span class="stack-next-pill" title="SPACE plays this cue next">Next</span>' : ''}
       <span class="stack-time" data-pad="${item.padId}">${stackTimeText(pad)}</span>
       <span class="stack-mv" onclick="event.stopPropagation();moveStackItem(${i},-1)" title="Move up">▲</span>
       <span class="stack-mv" onclick="event.stopPropagation();moveStackItem(${i},1)" title="Move down">▼</span>
-      <span class="stack-rm" onclick="event.stopPropagation();removeFromStack(${i})">×</span>
+      <span class="stack-rm" role="button" aria-label="Remove from the stack" title="Remove from the stack (Undo brings it back)" onclick="event.stopPropagation();removeFromStack(${i})">×</span>
     </div>`;
   }).join('');
   updatePlayCueBtn();
+}
+
+// The NEXT CUE button says exactly what SPACE will do: which cue, and by name
+function updateNextBtn() {
+  const btn = document.getElementById('nextBtn'), s = getScene();
+  if (!btn) return;
+  btn.disabled = !s.stack.length;
+  if (!s.stack.length) { btn.textContent = 'NEXT CUE ▶'; return; }
+  const idx = (s.stackIdx + 1) % s.stack.length, pad = pads[s.stack[idx].padId];
+  const again = s.stackIdx >= 0 && s.stackIdx === s.stack.length - 1;
+  btn.innerHTML = `<span>NEXT CUE ▶</span><span class="nb-sub"><kbd>SPACE</kbd> ${idx + 1} · <span${pad?.name ? ' data-notr' : ''}>${escHtml(pad?.name || 'Unnamed')}</span>${again ? ' <span>(start over)</span>' : ''}</span>`;
+}
+// Mark the cue rows whose pad is sounding (called whenever a pad refreshes, i.e. on every play / pause / stop)
+function syncStackPlaying() {
+  const s = getScene();
+  document.querySelectorAll('#stackList .stack-item').forEach(row => {
+    const it = s.stack[+row.dataset.i];
+    row.classList.toggle('is-playing', !!(it && pads[it.padId]?.playing));
+  });
 }
 
 // Move a cue; the selection follows the cue it was on (tracked by identity, not index).
@@ -3009,6 +3315,7 @@ function removeScene(idx) {
   else if (currentSceneIdx >= scenes.length) currentSceneIdx = scenes.length - 1;
   renderSceneTabs();
   renderStack();
+  setStatus(`Scene "${sc.name}" deleted`, { undo: true });
   scheduleAutosave();
 }
 
@@ -3037,11 +3344,11 @@ function renderSceneTabs() {
     <div class="scene-tab${i === currentSceneIdx ? ' active' : ''}"
          data-scene-idx="${i}"
          onclick="switchScene(${i})"
-         ondblclick="renameScene(${i})">
+         ondblclick="renameScene(${i})" title="Click to switch to this scene. Double-click to rename it.">
       <span class="scene-name" data-notr>${escHtml(s.name)}</span>
-      ${scenes.length > 1 ? `<span class="scene-tab-rm" onclick="event.stopPropagation();removeScene(${i})">×</span>` : ''}
+      ${scenes.length > 1 ? `<span class="scene-tab-rm" role="button" aria-label="Delete this scene" title="Delete this scene" onclick="event.stopPropagation();removeScene(${i})">×</span>` : ''}
     </div>`).join('') +
-    `<button class="scene-add-btn" onclick="addScene()" title="Add scene">+</button>`;
+    `<button class="scene-add-btn" onclick="addScene()" title="Add a scene: a separate cue list, e.g. one per act" aria-label="Add a scene: a separate cue list, e.g. one per act">+</button>`;
 }
 
 // ── Pad DOM ───────────────────────────────────────────────
@@ -3092,6 +3399,7 @@ function refreshPadEl(el, pad) {
   const volPct    = Math.round(pad.vol * 100);
   const inSet     = pad.inPoint  !== null;
   const outSet    = pad.outPoint !== null;
+  const playTitle = pad.key ? `Play / pause (key ${escHtml(pad.key.toUpperCase())}). Starting a pad fades out any other pad that is playing.` : 'Play / pause. Starting a pad fades out any other pad that is playing.';
 
   el.innerHTML = `
     <div class="pad-tint"></div>
@@ -3099,11 +3407,11 @@ function refreshPadEl(el, pad) {
     <div class="pad-inner">
       <div class="pad-left-col">
         <div class="color-dot" data-action="color" style="background:${pad.color}" title="Change colour"></div>
-        <div class="shortcut-key${capClass}" data-action="capture">${keyLabel}</div>
+        <div class="shortcut-key${capClass}" data-action="capture" title="Shortcut key — click to change it">${keyLabel}</div>
       </div>
       <div class="pad-right-col">
         <div class="pad-name${nameClass}" id="pname${pad.id}"${pad.name ? ' data-notr' : ''}>${nameLabel}</div>
-        <div class="pad-progress" id="pbar${pad.id}">
+        <div class="pad-progress" id="pbar${pad.id}"${pad.file ? ' title="Click or drag to jump to any point in the sound"' : ''}>
           ${wave ? `<canvas class="pad-wave" id="pwave${pad.id}" width="${WAVE_BUCKETS}" height="${WAVE_H}"></canvas>` : ''}
           <div class="pad-prog-fill" id="prog${pad.id}"></div>
           <div class="prog-active-zone" id="pzone${pad.id}"></div>
@@ -3113,29 +3421,29 @@ function refreshPadEl(el, pad) {
         ${pad.file ? `
         <div class="inout-row">
           <button class="inout-btn${inSet ? ' set' : ''}" data-action="set-in"
-                  title="${inSet ? 'Click to reset IN point' : 'Set IN point at current position'}">
+                  title="${inSet ? `IN point at ${fmt(pad.inPoint)} — click to clear it` : 'Set the IN point: the sound will start from here. Drag the bar (or let it play) to the right spot, then click IN.'}">
             ▶ ${inSet ? fmt(pad.inPoint) : 'IN'}
           </button>
           <div class="inout-spacer"></div>
           <span class="pad-time" id="ptime${pad.id}">--:-- / --:--</span>
           <div class="inout-spacer"></div>
           <button class="inout-btn${outSet ? ' set' : ''}" data-action="set-out"
-                  title="${outSet ? 'Click to reset OUT point' : 'Set OUT point at current position'}">
+                  title="${outSet ? `OUT point at ${fmt(pad.outPoint)} — click to clear it` : 'Set the OUT point: the sound will end (or loop back) here. Drag the bar (or let it play) to the right spot, then click OUT.'}">
             ${outSet ? fmt(pad.outPoint) : 'OUT'} ◼
           </button>
         </div>
         <div class="pad-transport">
-          <button class="transport-pp${pad.playing ? ' is-playing' : pad.paused ? ' is-paused' : ''}" data-action="playpause">
+          <button class="transport-pp${pad.playing ? ' is-playing' : pad.paused ? ' is-paused' : ''}" data-action="playpause" title="${playTitle}">
             <span class="t-icon">${pad.playing ? '⏸' : '▶'}</span>
             <span>${pad.playing ? 'PAUSE' : pad.paused ? 'RESUME' : 'PLAY'}</span>
           </button>
-          <button class="transport-stop" data-action="stop" title="Stop & rewind">■</button>
+          <button class="transport-stop" data-action="stop" title="Stop & rewind" aria-label="Stop & rewind">■</button>
         </div>
         <div class="pad-footer">
-          <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
-          <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle">↓ FADE</button>
-          <button class="btn-sm stack-btn" data-action="stack">+ Stack</button>
-          <button class="btn-sm clear-pad" data-action="clear" title="Remove audio">✕</button>
+          <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop" aria-pressed="${pad.loop}" title="Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it">⟳ LOOP</button>
+          <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle" aria-pressed="${pad.fadeEnabled}" title="FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and fades out and back in each time it loops. Off: hard start, hard loop point, hard end.">↓ FADE</button>
+          <button class="btn-sm stack-btn" data-action="stack" title="Add this sound to the end of the cue list. SPACE then plays the cues in order.">+ Stack</button>
+          <button class="btn-sm clear-pad" data-action="clear" title="Remove this sound from the pad (Undo brings it back)" aria-label="Remove this sound from the pad (Undo brings it back)">✕</button>
         </div>
         <div class="pad-vol-row">
           <span class="vol-label">VOL</span>
@@ -3143,15 +3451,14 @@ function refreshPadEl(el, pad) {
                  id="pvol-${pad.id}" title="Pad volume: ${volPct}%">
           <span class="vol-pct" id="pvol-pct-${pad.id}">${volPct}%</span>
         </div>` : `
-        <div class="pad-footer">
-          <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop">⟳ LOOP</button>
-        </div>
-        <div class="pad-hint">${IS_TOUCH ? 'Tap to load audio' : '+ drop audio'}</div>`}
+        <div class="pad-hint"><span class="ph-plus">${pad.name ? '⚠' : '+'}</span>${pad.name ? `<span>${IS_TOUCH ? 'Missing — tap to choose the file again' : 'Missing — click to choose the file again'}</span>` : ''}</div>`}
       </div>
     </div>
   `;
 
   if (wave) drawWave(pad);
+  updateOnboarding();
+  syncStackPlaying();
 
   // Button delegation
   el.querySelectorAll('[data-action]').forEach(btn => {
@@ -3223,7 +3530,7 @@ function refreshPadEl(el, pad) {
     pnameEl.addEventListener('dblclick', (e) => { e.stopPropagation(); startRename(pad.id); });
     if (pad.file && !IS_TOUCH) {
       pnameEl.draggable = true;
-      pnameEl.title = 'Drag onto the cue stack to add it';
+      pnameEl.title = 'Double-click to rename it. Drag it onto the cue list to add it.';
       pnameEl.addEventListener('dragstart', e => { e.dataTransfer.setData(DND_PAD, String(pad.id)); e.dataTransfer.effectAllowed = 'copy'; });
     }
     // Touch: long-press (500ms) to rename
@@ -3243,6 +3550,8 @@ function refreshPadEl(el, pad) {
     const id = pad.id;
     el.addEventListener('click', e => {
       if (e.target.closest('[data-action],input')) return;
+      // locked: a click on a dimmed (inert) control lands on the pad underneath — it must not start / pause the sound
+      if (showLocked && e.target.closest('.pad-left-col, .inout-row, .pad-footer')) { lockedOut(); return; }
       pads[id].file ? togglePad(id) : browseFile(id);
     });
     el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('drag-over'); });
@@ -3436,6 +3745,7 @@ function onKey(e) {
   const hk = /^[a-z]$/i.test(e.key) ? e.key.toLowerCase() : /^Key[A-Z]$/.test(e.code || '') ? e.code.slice(3).toLowerCase() : '';
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && hk === 'z') { e.preventDefault(); undo(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && e.shiftKey && hk === 'l')   { e.preventDefault(); toggleShowLock(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && hk === 's')  { e.preventDefault(); handleSave(); return; }
 
   if (e.key === ' ') { e.preventDefault(); nextCue(); return; }
 
@@ -3735,6 +4045,9 @@ function openModal(title, bodyHTML, ftrHTML) {
   document.getElementById('modalBody').innerHTML    = bodyHTML;
   document.getElementById('modalFtr').innerHTML     = ftrHTML;
   document.getElementById('modalOverlay').classList.remove('hidden');
+  const inp = document.querySelector('#modalBody .modal-input:not([readonly])');
+  const ok  = document.querySelector('#modalFtr .save-ok, #modalFtr .modal-btn.primary');
+  if (inp && ok) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } });   // Enter in the name box saves
 }
 function closeModal() {
   modalSerial++;
@@ -4064,13 +4377,23 @@ async function showPreShowCheck() {
   if (mine !== modalSerial) return;              // closed, or another dialog opened, while it was checking: don't write into it
   const cls = r.fails ? 'bad' : r.warns ? 'warn' : 'good';
   const icon = { fail: '✗', warn: '⚠', info: 'ℹ' };
+  document.getElementById('checkBtn')?.setAttribute('data-state', cls);      // the ✔ in the header stays green / amber / red until something is edited
+  const rank = { fail: 0, warn: 1, info: 2 };                                   // worst first (the sort is stable: pad order is kept inside a group)
+  const groupName = { fail: 'Fix before the show', warn: 'Check these', info: 'Good to know' };
+  const sorted = [...r.items].sort((a, b) => rank[a.level] - rank[b.level]);
+  const help = r.fails ? 'Fix the red items before doors open.' : r.warns ? 'The show will run. Read the yellow items and make sure each one is what you want.' : 'Every sound opens and every cue has audio. Still do a quick listen-through.';
+  let lastLevel = '';
+  const rows = sorted.map(i => {
+    const head = i.level !== lastLevel ? `<div class="chk-group">${groupName[i.level]}</div>` : '';
+    lastLevel = i.level;
+    return `${head}<div class="chk-item ${i.level}"><span class="chk-ic">${icon[i.level]}</span><span class="chk-tx">${escHtml(i.text)}</span>
+        ${i.padId !== null ? `<button class="modal-btn chk-go" onclick="focusPad(${i.padId})">Go to pad</button>` : ''}</div>`;
+  }).join('');
   document.getElementById('modalBody').innerHTML = `
     <div class="chk-verdict ${cls}" id="chkVerdict">${r.fails ? '✗' : r.warns ? '⚠' : '✔'} ${r.verdict}</div>
+    <div class="chk-help">${help}</div>
     <div class="chk-sum"><span>${r.sounds} sound(s) loaded · ${r.cues} cue(s) in ${r.scenes} scene(s)</span>${r.fails ? ` · <b>${r.fails} problem(s)</b>` : ''}${r.warns ? ` · <span>${r.warns} warning(s)</span>` : ''}</div>
-    ${r.items.length ? `<div class="chk-list">${r.items.map(i => `
-      <div class="chk-item ${i.level}"><span class="chk-ic">${icon[i.level]}</span><span class="chk-tx">${escHtml(i.text)}</span>
-        ${i.padId !== null ? `<button class="modal-btn chk-go" onclick="focusPad(${i.padId})">Go to pad</button>` : ''}</div>`).join('')}</div>`
-      : '<div class="chk-sum">Nothing to report — every sound opens, every cue has audio and the settings look right.</div>'}`;
+    ${r.items.length ? `<div class="chk-list">${rows}</div>` : ''}`;
 }
 
 // ── Settings ──────────────────────────────────────────────
@@ -4083,6 +4406,7 @@ function showSettingsModal() {
   renderSettings();
 }
 function renderSettings() {
+  orderSettings();
   document.getElementById('modalBody').innerHTML = SETTINGS_SECTIONS.map(sec =>
     `<div class="set-sec" id="set-${sec.id}"><div class="set-hdr">${sec.title}</div>${sec.html()}</div>`).join('');
   SETTINGS_SECTIONS.forEach(sec => sec.after?.());
@@ -4127,6 +4451,17 @@ SETTINGS_SECTIONS.push({
     sel.value = prefs.outputId;
   },
 });
+
+SETTINGS_SECTIONS.push({
+  id: 'help', title: 'Help',
+  html: () => `<div class="set-row"><span>Quick tips<br><small>The short list of things every operator should know. It sits above the pads until you hide it.</small></span>
+      <button class="modal-btn" onclick="showTipsAgain()">Show quick tips</button></div>
+    <div class="set-row"><span>Keys<br><small>Esc, SPACE, Ctrl+Z, the pad keys and how to change them.</small></span>
+      <button class="modal-btn" onclick="showShortcutsModal()">⌨ Shortcuts</button></div>`,
+});
+// Audio output is the setting an operator opens this dialog for on the night: it goes first
+const SETTINGS_ORDER = ['output', 'appearance', 'remote', 'midi', 'help'];
+function orderSettings() { SETTINGS_SECTIONS.sort((a, b) => SETTINGS_ORDER.indexOf(a.id) - SETTINGS_ORDER.indexOf(b.id)); }
 
 function setWaveformPref(on) {
   prefs.waveform = !!on;
@@ -4410,7 +4745,16 @@ function renderShortcutsModal() {
   const padOptions = pads.map(p => `<option value="${p.id}"${p.file ? ' data-notr' : ''}>${p.file ? escHtml(p.name) : `Pad ${p.id + 1} (empty)`}</option>`).join('');
 
   document.getElementById('modalBody').innerHTML = `
-    <div class="sh-sec-hdr">Pad Shortcuts <span class="sh-hint">— click a key badge to remap</span></div>
+    <div class="sh-sec-hdr">Essentials <span class="sh-hint">— these keys are fixed</span></div>
+    <div class="ess-list">
+      <div class="sh-key combo">ESC</div><div>Stops everything instantly. Always works.</div>
+      <div class="sh-key combo">SPACE</div><div>Fades out the current cue and starts the next one.</div>
+      <div class="sh-key combo">KEY</div><div>Each pad has its own key (below): it plays or stops that pad and fades out whatever else is playing.</div>
+      <div class="sh-key combo" data-notr>Ctrl+Z</div><div>Undoes the last change.</div>
+      <div class="sh-key combo" data-notr>Ctrl+S</div><div>Saves the project.</div>
+      <div class="sh-key combo" data-notr>Ctrl+Shift+L</div><div>Locks or unlocks the show.</div>
+    </div>
+    <div class="sh-sec-hdr" style="margin-top:16px">Pad Shortcuts <span class="sh-hint">— click a key badge to remap</span></div>
     <div class="sh-pad-grid">${padRows}</div>
     <div class="sh-sec-hdr" style="margin-top:16px">Custom Hotkeys
       <span class="sh-hint">— Ctrl / Alt / Shift + key, F1–F12, etc.</span>
@@ -4496,7 +4840,44 @@ function escAttr(s) {
     .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function stripExt(name) { return name.replace(/\.[^/.]+$/, ''); }
-function setStatus(msg) { const el = document.getElementById('statusTxt'); if (el) el.textContent = msg; }
+// Messages that mean "that did not work / was refused" are shown in amber and as a toast, so they are not missed in a
+// small footer line (and on iPad, which has no footer, they would not be seen at all).
+const WARN_STATUS = /^(?:⚠|🔒 The show is locked|Cannot |Could not |Save failed|Save cancelled|Import failed|Update error|None of those|No files selected|Project not found|Folder save requires|Browser storage unavailable|MIDI access was denied|The cue list is empty)|not an audio file|has no audio|blocked by the browser/;
+function setStatus(msg, opts) {
+  const el = document.getElementById('statusTxt');
+  const warn = WARN_STATUS.test(msg);
+  if (el) { el.textContent = msg; if (warn) el.dataset.tone = 'warn'; else delete el.dataset.tone; }
+  if (warn || opts?.undo) showToast(msg, { warn, undo: !!opts?.undo && undoStack.length > 0 });
+}
+let toastTimer = null, toastEntry = null;
+function showToast(msg, { warn = false, undo = false } = {}) {
+  const t = document.getElementById('toast'), m = document.getElementById('toastMsg'), u = document.getElementById('toastUndo');
+  if (!t || !m) return;
+  m.textContent = msg;
+  t.dataset.tone = warn ? 'warn' : '';
+  toastEntry = undo ? undoStack[undoStack.length - 1] : null;   // the button undoes THIS action, and only while it is still the newest
+  if (u) u.hidden = !undo;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, undo ? 9000 : 5000);
+}
+function hideToast() { clearTimeout(toastTimer); toastEntry = null; const t = document.getElementById('toast'); if (t) t.hidden = true; }
+function toastUndo() { const top = undoStack[undoStack.length - 1]; const ok = top && top === toastEntry; hideToast(); if (ok) undo(); }
+
+// The FADE box in the header: show the value that is really used (typing 50 means 20) and remember it in the project
+function commitFadeInput(el) { el.value = fadeDuration; scheduleAutosave(); }
+
+// ── First-run help: a welcome card while the show is empty, and a "Quick tips" strip until it is dismissed
+let tipsForced = false;
+function isShowEmpty() { return !pads.some(p => p.file || p.name || p.missingPath); }
+function updateOnboarding() {
+  const empty = isShowEmpty();
+  const w = document.getElementById('welcome'), t = document.getElementById('tipsStrip');
+  if (w) w.hidden = !empty;
+  if (t) t.hidden = prefs.tipsDismissed || (empty && !tipsForced);
+}
+function dismissTips() { prefs.tipsDismissed = true; tipsForced = false; savePrefs(); updateOnboarding(); }
+function showTipsAgain() { prefs.tipsDismissed = false; tipsForced = true; savePrefs(); closeModal(); updateOnboarding(); document.getElementById('tipsStrip')?.scrollIntoView({ block: 'nearest' }); }
 
 // ── UI Scale ──────────────────────────────────────────────
 function adjustPadsScale(delta) {
@@ -4533,6 +4914,7 @@ function updateGridWidth() {
 
 // ── Autosave ──────────────────────────────────────────────
 function scheduleAutosave() {
+  document.getElementById('checkBtn')?.removeAttribute('data-state');   // edited since the last pre-show check: the green / amber / red mark is stale
   clearTimeout(asTimer);
   asTimer = setTimeout(saveAutosave, 1500);
 }
@@ -4640,7 +5022,7 @@ function applyTheme(theme) {
 }
 
 // ── Touch / iPad ──────────────────────────────────────────
-const STACK_H_EXPANDED  = 310;
+const STACK_H_EXPANDED  = 330;
 const STACK_H_COLLAPSED = 100;   // handle + side-by-side Play/Next buttons
 let   stackSheetOpen    = true;
 
