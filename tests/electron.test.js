@@ -118,6 +118,23 @@ const httpReq = (port, method, p, { headers = {}, body } = {}) => new Promise((r
     return out;
   });
   ck('a loaded pad really plays (the clock advances) and STOP ALL really stops it', played.playing && played.time > 0.3 && !played.paused && played.stopped, JSON.stringify(played));
+  const xfade = await win.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const p = pads[0]; p.loop = true; p.fadeEnabled = true; p.inPoint = null; p.outPoint = null; fadeDuration = 0.5; syncLoopFlag(p);
+    const first = p.audio; p.audio.currentTime = 2.2; p.audio.volume = 1; p.audio.play(); p.playing = true; p.paused = false; p.stopping = false;
+    let minComp = 9, sawXf = false; const t0 = performance.now();
+    while (performance.now() - t0 < 1600) {
+      const els = [p.audio, p.spare].filter(e => e && !e.paused);
+      minComp = Math.min(minComp, Math.sqrt(els.reduce((n, e) => n + e.volume ** 2, 0)));
+      sawXf = sawXf || !!p.xf;
+      await wait(30);
+    }
+    const out = { minComp, sawXf, swapped: p.audio !== first, playing: p.playing };
+    stopAll('cut'); p.loop = false; p.fadeEnabled = false; syncLoopFlag(p);
+    return out;
+  });
+  ck('a looping pad with ↓ FADE crossfades in the real app: a second element takes over and the combined level never dips (min > 0.85)',
+    xfade.sawXf && xfade.swapped && xfade.minComp > 0.85 && xfade.playing, JSON.stringify(xfade));
   const dev = await win.evaluate(async () => ({ list: Array.isArray(await navigator.mediaDevices.enumerateDevices()), sink: CAN_SET_SINK }));
   ck('audio output selection is available (setSinkId) and device enumeration works', dev.list && dev.sink === true, JSON.stringify(dev));
 

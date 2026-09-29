@@ -216,7 +216,7 @@ async function scenario(fn) {
       return { fade: tt('#pad0 [data-action="fade-toggle"]'), loop: tt('#pad0 [data-action="loop"]'), inn: tt('#pad0 [data-action="set-in"]'), out: tt('#pad0 [data-action="set-out"]'), stack: tt('#pad0 [data-action="stack"]'),
         clear: tt('#pad0 [data-action="clear"]'), play: tt('#pad0 [data-action="playpause"]'), hdrFade: document.querySelector('.fade-dur-wrap').title, stopFade: tt('#stopFadeBtn'), stopAll: tt('.stop-all'), pressedLoop: document.querySelector('#pad0 [data-action="loop"]').getAttribute('aria-pressed') };
     });
-    check('pad FADE tooltip explains fade in / OUT / loop and points to the header FADE time', /FADE time in the header/.test(r.fade) && /fades in/.test(r.fade) && /OUT point/.test(r.fade) && /loops/.test(r.fade), r.fade);
+    check('pad FADE tooltip explains fade in / OUT / loop crossfade and points to the header FADE time', /FADE time in the header/.test(r.fade) && /fades in/.test(r.fade) && /OUT point/.test(r.fade) && /loop crossfades/.test(r.fade), r.fade);
     check('header FADE control explains where the time is used (crossfades, STOP FADE, ↓ FADE pads)', /crossfades/.test(r.hdrFade) && /STOP FADE/.test(r.hdrFade) && /↓ FADE/.test(r.hdrFade), r.hdrFade);
     check('LOOP / IN / OUT / + Stack / ✕ / PLAY tooltips say what they do', /repeating/.test(r.loop) && /IN point/.test(r.inn) && /drag the bar/i.test(r.inn) && /OUT point/.test(r.out) && /cue list/.test(r.stack) && /Undo/.test(r.clear) && /fades out any other pad/.test(r.play), JSON.stringify(r));
     check('STOP ALL / STOP FADE tooltips separate the fading button from the always-instant Esc', /Esc always cuts/.test(r.stopAll) && /Esc always cuts/.test(r.stopFade));

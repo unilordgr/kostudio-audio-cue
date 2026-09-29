@@ -2166,7 +2166,7 @@ const I18N_TABLE = [
   ['OUT point at {0} — click to clear it', 'Σημείο OUT στο {0} — κάντε κλικ για διαγραφή', 'OUT-Punkt bei {0} — klicken zum Löschen'],
   ['Set the OUT point: the sound will end (or loop back) here. Drag the bar (or let it play) to the right spot, then click OUT.', 'Ορισμός σημείου OUT: ο ήχος θα τελειώνει (ή θα επιστρέφει στην αρχή) εδώ. Σύρετε τη μπάρα (ή αφήστε τον να παίξει) στο σωστό σημείο και πατήστε OUT.', 'OUT-Punkt setzen: Der Sound endet (oder springt zurück) hier. Ziehe die Leiste (oder lass ihn spielen) an die richtige Stelle und klicke auf OUT.'],
   ['Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it', 'Loop: επαναλαμβάνει συνεχώς αυτόν τον ήχο (ανάμεσα στα σημεία IN και OUT, αν έχουν οριστεί) μέχρι να τον σταματήσετε', 'Loop: wiederholt diesen Sound ständig (zwischen IN- und OUT-Punkt, falls gesetzt), bis du ihn stoppst'],
-  ['FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and fades out and back in each time it loops. Off: hard start, hard loop point, hard end.', 'FADE: απαλές άκρες, με τη διάρκεια FADE της κεφαλίδας. Ενεργό: κάνει fade in στην εκκίνηση, fade out στο σημείο OUT και fade out και ξανά fade in σε κάθε επανάληψη. Ανενεργό: απότομη εκκίνηση, απότομο σημείο επανάληψης, απότομο τέλος.', 'FADE: weiche Übergänge mit der FADE-Zeit aus der Kopfzeile. An: blendet beim Start ein, am OUT-Punkt aus und bei jedem Loop aus und wieder ein. Aus: harter Start, harter Loop-Punkt, hartes Ende.'],
+  ['FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end.', 'FADE: απαλές άκρες, με τη διάρκεια FADE της κεφαλίδας. Ενεργό: κάνει fade in στην εκκίνηση, fade out στο σημείο OUT και σε κάθε επανάληψη κάνει crossfade με τον εαυτό του, ώστε να μην ακούγεται η επανεκκίνηση. Ανενεργό: απότομη εκκίνηση, απότομο σημείο επανάληψης, απότομο τέλος.', 'FADE: weiche Übergänge mit der FADE-Zeit aus der Kopfzeile. An: blendet beim Start ein, am OUT-Punkt aus, und ein Loop wird in sich selbst überblendet, sodass man den Neustart nicht hört. Aus: harter Start, harter Loop-Punkt, hartes Ende.'],
   ['Add this sound to the end of the cue list. SPACE then plays the cues in order.', 'Προσθήκη αυτού του ήχου στο τέλος της λίστας cue. Το SPACE παίζει έπειτα τα cue με τη σειρά.', 'Diesen Sound ans Ende der Cue-Liste setzen. SPACE spielt die Cues dann der Reihe nach ab.'],
   ['Remove this sound from the pad (Undo brings it back)', 'Αφαίρεση αυτού του ήχου από το pad (η Αναίρεση τον επαναφέρει)', 'Diesen Sound vom Pad entfernen (mit Rückgängig kommt er zurück)'],
   ['Remove every cue from this scene (Undo brings them back)', 'Αφαίρεση όλων των cue από αυτή τη σκηνή (η Αναίρεση τα επαναφέρει)', 'Alle Cues aus dieser Szene entfernen (mit Rückgängig kommen sie zurück)'],
@@ -2426,11 +2426,13 @@ function clamp01(v) {
 
 // Stop and fully release a pad's audio element and its blob URL.
 function releaseAudio(pad) {
-  const audio = pad.audio;
+  const audio = pad.audio, spare = pad.spare;
   pad.audio = null;
+  pad.spare = null;
+  pad.xf = null;
   pad.edge = null;
-  if (audio) {
-    try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch {}
+  for (const el of [audio, spare]) {
+    if (el) { try { el.pause(); el.removeAttribute('src'); el.load(); } catch {} }
   }
   if (pad.audioUrl) { URL.revokeObjectURL(pad.audioUrl); pad.audioUrl = null; }
 }
@@ -2516,7 +2518,7 @@ async function setOutputDevice(id) {
   prefs.outputId = id || '';
   savePrefs();
   outputProblem = '';
-  await Promise.all(pads.map(p => applyOutputTo(p.audio)));
+  await Promise.all(pads.flatMap(p => [applyOutputTo(p.audio), applyOutputTo(p.spare)]));
   setStatus(outputProblem ? '⚠ ' + outputProblem : (prefs.outputId ? 'Audio output changed' : 'Audio output: system default'));
 }
 async function listOutputDevices() {
@@ -2581,23 +2583,80 @@ function clearFadeTimer(id) {
 
 // Edge fades — for a pad whose ↓ FADE is on, the moments where the sound would otherwise jump or cut:
 //   • plays to its OUT point (no loop)  → fades out over the FADE time, reaching silence exactly at OUT, then stops
-//   • loops (end of the file or OUT → back to IN / 0:00) → fades out into the seam, and back in after the jump
+//   • loops (end of the file or OUT → back to IN / 0:00) → a real CROSSFADE: the head of the loop (from IN / 0:00) starts
+//     underneath the fading tail on a second <audio> element and fades in as the tail fades out (equal power, so the level
+//     stays constant); then the second element takes over. The seam never goes quiet and never clicks.
 // The fade never gets longer than a third of the region it sits in (a 1 s region can't hold a 2 s fade out AND in, and
-// still leave some steady sound in the middle), a plain
-// non-looping sound keeps its own natural ending, and a stop / pause / crossfade always takes over (they clear pad.edge).
+// still leave some steady sound in the middle), a plain non-looping sound keeps its own natural ending, and a stop / pause /
+// seek / crossfade of another pad always takes over cleanly (abortCrossfade / pad.edge).
 // Called every animation frame for every pad from tickPad(); cheap when nothing is happening.
+
+// The second element: same file, same output device, parked at the loop start until it is needed.
+function ensureSpare(pad) {
+  if (!pad.spare && pad.audioUrl) pad.spare = makeAudioEl(pad, pad.audioUrl);
+  return pad.spare;
+}
+// Stop a crossfade in progress and keep whichever element is the louder one, so pause / stop / seek act on what is heard.
+function abortCrossfade(pad) {
+  const xf = pad.xf;
+  if (!xf) return;
+  pad.xf = null;
+  const keepNext = (performance.now() - xf.t0) / (xf.dur * 1000) >= 0.5;
+  const drop = keepNext ? pad.audio : xf.next;
+  if (keepNext) pad.audio = xf.next;
+  try { drop.pause(); } catch {}
+  drop.volume = 0;
+  pad.spare = drop;
+}
+function crossfadeTick(pad, cur, start, end, f) {
+  const xf = pad.xf;
+  const level = clamp01(pad.vol * masterVol);
+  if (!xf) {
+    const next = ensureSpare(pad);
+    if (!next) return false;
+    if (cur >= end - f - 0.6 && cur < end - f && !pad.spareReady) {           // get the head of the loop ready a little early
+      pad.spareReady = true;
+      next.loop = false; next.volume = 0; next.currentTime = start;
+    }
+    if (cur >= end - f && cur < end) {
+      clearFadeTimer(pad.id);                                                  // a long fade-in still running must not fight the crossfade
+      pad.spareReady = false;
+      if (Math.abs(next.currentTime - start) > 0.05) next.currentTime = start;
+      next.loop = false; next.volume = 0;
+      next.play().catch(() => {});
+      pad.xf = { next, t0: performance.now(), dur: Math.max(0.05, end - cur) };
+    }
+    return true;
+  }
+  const p = Math.min(1, (performance.now() - xf.t0) / (xf.dur * 1000));
+  pad.audio.volume = level * Math.cos(p * Math.PI / 2);                        // equal power: constant loudness through the overlap
+  xf.next.volume   = level * Math.sin(p * Math.PI / 2);
+  if (p >= 1) {                                                                // hand over: the head is now THE pad audio
+    const old = pad.audio;
+    pad.xf = null;
+    pad.audio = xf.next;
+    pad.audio.volume = level;
+    syncLoopFlag(pad);
+    try { old.pause(); } catch {}
+    old.volume = 0;
+    pad.spare = old;
+  }
+  return true;
+}
 function edgeFadeTick(pad, cur, dur) {
   const active = pad.playing && !pad.stopping;
   const start = pad.inPoint ?? 0, end = pad.outPoint ?? dur;
   const f = Math.min(Number(fadeDuration) || 0, (end - start) / 3);
   const on = active && pad.fadeEnabled && (pad.loop || pad.outPoint !== null) && end - start > 0.2 && f > 0.05;
   if (!on) {
+    if (pad.xf) { abortCrossfade(pad); if (active) pad.audio.volume = clamp01(pad.vol * masterVol); }
     if (pad.edge) {                                             // FADE / loop was switched off mid-fade, or the pad stopped
       pad.edge = null;
       if (active) { clearFadeTimer(pad.id); pad.audio.volume = clamp01(pad.vol * masterVol); }
     }
     return;
   }
+  if (pad.loop && crossfadeTick(pad, cur, start, end, f)) return;   // loops crossfade; if there is no second element, fall through to the fade-out / fade-in dip
   if (pad.edge === 'out') {
     if (cur < end - f - 0.02) {                                 // the loop jumped back (or the operator scrubbed back): bring it up again
       pad.edge = null;
@@ -2614,6 +2673,7 @@ function playPad(id, withFade = false) {
   const pad = pads[id];
   if (!pad.audio) return;
   clearFadeTimer(id);
+  abortCrossfade(pad);
   pad.edge = null;
   const resuming   = pad.paused;
   const targetVol  = pad.vol * masterVol;
@@ -2646,6 +2706,7 @@ function pausePad(id) {
   const pad = pads[id];
   if (!pad.audio || !pad.playing) return;
   clearFadeTimer(id);
+  abortCrossfade(pad);
   pad.edge = null;
   pad.audio.pause();
   pad.playing  = false;
@@ -2658,6 +2719,7 @@ function pausePad(id) {
 function stopPad(id, withFade = false) {
   const pad = pads[id];
   if (!pad.audio) return;
+  abortCrossfade(pad);
   pad.edge = null;
   if (withFade) {
     // Already fading out: let that fade finish — restarting it would stretch the fade and delay silence
@@ -2931,9 +2993,9 @@ function loadFile(padId, file, quiet = false) {
   return true;
 }
 
-function attachAudio(pad, file) {
-  releaseAudio(pad);                       // free the previous element and its blob URL
-  const url     = URL.createObjectURL(file);
+// One <audio> element wired to a pad: output device, level, and the handlers that keep the pad's state honest. The
+// handlers ignore an element that is not the pad's current one, so a spare (loop crossfade) is silent until it takes over.
+function makeAudioEl(pad, url) {
   const audio   = new Audio(url);
   applyOutputTo(audio);                    // route to the chosen output device (no-op on the system default / unsupported browsers)
   audio.loop    = pad.loop && pad.inPoint === null;
@@ -2969,6 +3031,13 @@ function attachAudio(pad, file) {
     }
     setStatus(`Cannot play "${pad.name}" — the audio file is unsupported or unreadable`);
   });
+  return audio;
+}
+
+function attachAudio(pad, file) {
+  releaseAudio(pad);                       // free the previous element and its blob URL
+  const url   = URL.createObjectURL(file);
+  const audio = makeAudioEl(pad, url);
   pad.file        = file;
   pad.audio       = audio;
   pad.audioUrl    = url;
@@ -3418,7 +3487,7 @@ function refreshPadEl(el, pad) {
         </div>
         <div class="pad-footer">
           <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop" aria-pressed="${pad.loop}" title="Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it">⟳ LOOP</button>
-          <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle" aria-pressed="${pad.fadeEnabled}" title="FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and fades out and back in each time it loops. Off: hard start, hard loop point, hard end.">↓ FADE</button>
+          <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle" aria-pressed="${pad.fadeEnabled}" title="FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end.">↓ FADE</button>
           <button class="btn-sm stack-btn" data-action="stack" title="Add this sound to the end of the cue list. SPACE then plays the cues in order.">+ Stack</button>
           <button class="btn-sm clear-pad" data-action="clear" title="Remove this sound from the pad (Undo brings it back)" aria-label="Remove this sound from the pad (Undo brings it back)">✕</button>
         </div>
@@ -3472,6 +3541,7 @@ function refreshPadEl(el, pad) {
       const dur = pad.audio?.duration;
       if (!dur || !Number.isFinite(dur)) return;         // streams / headerless files report Infinity
       const frac = Math.max(0, Math.min(1, offsetXInBar / pbar.offsetWidth));
+      abortCrossfade(pad);                                 // seeking during a loop crossfade: keep the louder element, then move it
       pad.audio.currentTime = Math.min(frac * dur, Math.max(0, dur - 0.1));   // never seek onto the end — it fires 'ended'
     };
     // Convert event offsetX to pbar-relative coords even when e.target is a child element
@@ -3606,7 +3676,7 @@ function startRaf() {
         }
         edgeFadeTick(pad, cur, dur);
         // Out-point enforcement
-        if (pad.outPoint !== null && pad.playing && cur >= pad.outPoint - 0.05) {
+        if (pad.outPoint !== null && pad.playing && !pad.xf && cur >= pad.outPoint - 0.05) {
           if (pad.loop) {
             pad.audio.currentTime = pad.inPoint ?? 0;
           } else {

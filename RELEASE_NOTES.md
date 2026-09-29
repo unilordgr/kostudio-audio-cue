@@ -1,3 +1,12 @@
+### Loops crossfade into themselves (v1.4.1)
+
+- **A looping pad with ↓ FADE on now crossfades at the loop point instead of dipping to silence.** The start of the loop (from 0:00, or from the IN point) begins underneath the fading tail, on a second audio element, and fades in while the tail fades out — equal power, so the level stays constant and you never hear the loop stop or restart. It works for a whole file and for an IN–OUT loop, uses the header **FADE** time (shortened automatically for a very short region), and follows the pad's level. Because the head starts as the tail begins to fade, each pass through the loop is one FADE time shorter than the region
+- A pad that plays to its **OUT point** (no loop) still fades out and lands on silence exactly at OUT; pads with FADE off are unchanged
+- Stop, STOP FADE, pause, switching FADE off, scrubbing and clearing the pad all take over cleanly in the middle of a crossfade (no second sound left playing)
+- 315 automated checks (the fade tests now measure the combined level of both audio elements, and the real Electron app is checked too)
+
+---
+
 ### A new look, easier to use, and fades at loop and OUT points (v1.4.0)
 
 **Fades at loop points and OUT points**
