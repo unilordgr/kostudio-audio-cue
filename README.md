@@ -43,16 +43,18 @@ Click **More info** → **Run anyway**.
 - **Any number of pads** — each with its own audio file, colour, and keyboard shortcut
 - **Colour + shortcut** displayed in a left column on each pad for quick identification
 - **Rename** any pad by double-clicking its name
+- **Move pads** — drag a pad's ⠿ grip (top right of the card; with a mouse you can also drag the card itself) onto another pad and the two swap places. A key, cues, shortcuts and MIDI / remote buttons go with the sound; the order is saved with the show, works while a pad is playing, can be undone, and the arrow keys on a focused grip move it too
 - **Drag & drop** audio files directly onto pads — drop several at once (or use **Fill Pads…**) to fill the next empty pads, sorted naturally (Cue 2 before Cue 10); non-audio files are skipped
 
 ### Playback & Transport
 - **Play / Pause / Resume / Stop** — dedicated transport controls per pad
 - **Crossfade engine** — playing a new pad automatically fades out the previous one
-- **Configurable fade duration** — set the crossfade time in seconds (header control)
+- **Configurable fade duration** — set the default fade time in seconds (header control)
+- **A fade time per pad** — the small box next to a pad's **↓ FADE** button: type its own time (0.1 – 20 s; ↑ ↓ nudge it) and that pad fades in, fades out, stops, crossfades, loops and ends over *that* time. Leave it empty and the pad follows the header. Crossfading a 0.3 s sting out and a 6 s pad in works, and STOP ALL fades every pad over its own time
 - **Per-pad fade toggle** — enable or disable fade-in per pad independently
 - **Per-pad volume** — individual sliders plus a master volume control
 - **Loop toggle** — loop any cue indefinitely
-- **Loops crossfade into themselves; OUT points fade out** — with a pad's **↓ FADE** on, a looping pad crossfades at the loop point (the start of the loop comes in under the fading tail, equal power, so you never hear it stop or restart), and a pad that plays to its OUT point fades out and lands on silence exactly at OUT. It uses the header **FADE** time, shortened automatically for a very short region. Pads with FADE off behave exactly as before
+- **Loops crossfade into themselves; OUT points fade out** — with a pad's **↓ FADE** on, a looping pad crossfades at the loop point (the start of the loop comes in under the fading tail, equal power, so you never hear it stop or restart), and a pad that plays to its OUT point fades out and lands on silence exactly at OUT. It uses the pad's own FADE time (or the header's), shortened automatically for a very short region. Pads with FADE off behave exactly as before
 - **Countdown** — while a pad plays it shows the time *remaining* (to the end, or the OUT point); the cue stack shows each cue's length and the running cue's countdown
 - **Bring it back** — press the key of a pad that is fading out and it fades back up instead of stopping
 - **STOP FADE** — a header toggle: when on, STOP ALL and the ■ buttons fade out over the FADE time; pressing STOP ALL again cuts instantly
@@ -228,6 +230,8 @@ Without the Electron binary or a display, `tests/electron.test.js` says SKIP and
 | Test file | What it covers |
 |---|---|
 | `tests/electron.test.js` | **The real desktop app**, headless: preload bridge, IPC allow-list, open / save through the real dialog IPC, a picked file keeping its disk path, playback, the remote server, permission handler, navigation guard, donate URL — also against the packaged build |
+| `tests/pads-move.test.js` | Moving pads: drag the grip or the card, swap on screen and in the saved order, keys / cues stay with the sound, playing pads keep playing, undo, lock, keyboard, saved / restored / repaired order, Fill Pads and "Pad N" follow the screen, touch |
+| `tests/padfade.test.js` | A fade time per pad: the box, clamping, fade in / out / crossfade / STOP ALL / loop crossfade measured on the real audio elements, saved with the show |
 | `tests/fades.test.js` | Loop crossfades and OUT-point fades, measured on the real audio elements (combined level through the seam, hand-over, stop / pause / FADE-off / clear mid-crossfade) |
 | `tests/ux.test.js` | Usability fixes: welcome card and tips, NEXT marker, toasts and Undo, labelled header buttons and the compaction ladder, pad layout at every width, touch targets, locked-show clicks |
 | `tests/hardening.test.js` | Fixes from the v1.3.0 security and correctness reviews: hostile project files, translator limits, undo / STOP FADE / MIDI / pre-show-check edge cases |
