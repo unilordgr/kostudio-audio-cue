@@ -387,7 +387,7 @@ main { flex: 1; min-height: 0; display: flex; }
   container: pad / inline-size;
   isolation: isolate;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   row-gap: 6px;
   padding: 9px 11px 9px 16px;
@@ -491,6 +491,33 @@ main { flex: 1; min-height: 0; display: flex; }
 .pad .shortcut-key { grid-area: 1 / 1; }
 .pad .pad-name     { grid-area: 1 / 2; margin-left: 9px; min-width: 0; }
 .pad .color-dot    { grid-area: 1 / 4; margin-left: 5px; }
+.pad .pad-grip     { grid-area: 1 / 5; }
+/* move handle: drag it onto another pad to swap places (a mouse can also drag the card itself) */
+.pad-grip {
+  position: relative; z-index: 1;
+  width: 22px; height: 24px; margin-left: 2px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm); color: var(--muted);
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  transition: color var(--t-fast), background-color var(--t-fast);
+}
+.pad-grip::before {                                  /* 2 × 3 dots */
+  content: ""; width: 10px; height: 15px;
+  background: radial-gradient(circle, currentColor 1.3px, transparent 1.7px) 0 0 / 5px 5px;
+}
+.pad-grip:hover, .pad-grip:focus-visible { color: var(--text); background: var(--surface3); }
+body.show-locked .pad-grip { opacity: .25; cursor: not-allowed; }
+@media (pointer: coarse) { .pad-grip { width: 38px; height: 38px; } }
+.pad.pad-lifted { opacity: .5; outline: 2px dashed var(--border-strong); outline-offset: -3px; }
+.pad.swap-target { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent-line), 0 8px 24px -10px var(--accent) !important; }
+body.pad-dragging, body.pad-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+.pad-ghost {
+  position: fixed; z-index: 9000; pointer-events: none; transform: translate(14px, 10px);
+  max-width: 240px; padding: 5px 11px; border-radius: var(--r-md, 8px);
+  background: var(--surface3); color: var(--text); border: 1px solid var(--accent);
+  box-shadow: 0 10px 28px rgba(0,0,0,.45); font-size: var(--fs-sm); font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .pad-name {
   font-size: var(--fs-lg); font-weight: 650; line-height: 1.3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -659,6 +686,29 @@ html[data-theme="light"] .shortcut-key { box-shadow: inset 0 -2px 0 rgba(16,24,4
 .btn-sm.clear-pad       { --mi: var(--i-x); --isz: 12px; width: 24px; padding: 0; }
 .btn-sm.clear-pad:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
 .btn-sm.is-playing      { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+
+/* ↓ FADE + this pad's own FADE time, joined into one control */
+.fade-grp { display: inline-flex; align-items: stretch; }
+.fade-grp .btn-sm { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.pad-fade {
+  width: 40px; height: 22px; padding: 0 2px; margin: 0;
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border-strong); border-left: 0; border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font: 700 var(--fs-2xs) var(--font); font-variant-numeric: tabular-nums; text-align: center; letter-spacing: 0;
+  cursor: text; user-select: text; -webkit-user-select: text;
+  transition: background-color var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.pad-fade::placeholder { color: var(--muted); opacity: .6; }
+.pad-fade.custom { color: var(--fade-col); opacity: 1; }
+.fade-grp.on .pad-fade { border-color: var(--fade-col); background: var(--fade-soft); }
+.pad-fade:hover { background: var(--surface3); color: var(--text); }
+.pad-fade:focus { outline: none; border-color: var(--fade-col); color: var(--text); background: var(--surface3); }
+@media (pointer: coarse) {                              /* as tall as the ↓ FADE button beside it; chips a little tighter so the row still fits on one line (iPad, 3 pads across) */
+  .pad-fade { height: auto; min-height: 44px; font-size: var(--fs-xs); width: 42px; padding: 0 1px; }
+  .pad .pad-footer { gap: 4px; }
+  .pad .pad-footer .btn-sm { letter-spacing: 0; }
+  .pad .pad-footer .btn-sm.clear-pad { width: 34px; padding: 0; }
+}
 
 /* row 6 — per-pad volume */
 .pad-vol-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
@@ -1457,10 +1507,10 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
   <a class="hdr-btn donate" id="donateBtn" href="https://ko-fi.com/dkostoudis"
      target="_blank" rel="noopener noreferrer" aria-label="Donate" title="Kostudio Audio Cue is free — support development on Ko-fi"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg><span class="lbl">Donate</span></a>
   <div class="header-right">
-    <label class="fade-dur-wrap" title="Fade time in seconds. It is used for crossfades between cues and pad keys, for STOP FADE, and for any pad whose ↓ FADE is on.">
+    <label class="fade-dur-wrap" title="Fade time in seconds. It is used for crossfades between cues and pad keys, for STOP FADE, and for any pad whose ↓ FADE is on. A pad can have its own FADE time (the box next to its ↓ FADE button); this one is for the pads that don't.">
       <span>FADE</span>
       <input class="fade-dur-input" type="number" id="fadeDurInput" min="0.1" max="20" step="0.1" value="2"
-             oninput="fadeDuration = Math.min(20, Math.max(0.1, parseFloat(this.value) || 2))" onchange="commitFadeInput(this)" aria-label="Fade duration (seconds)">
+             oninput="fadeDuration = Math.min(20, Math.max(0.1, parseFloat(this.value) || 2)); syncFadeHints()" onchange="commitFadeInput(this)" aria-label="Fade duration (seconds)">
       <span>s</span>
     </label>
     <div class="hdr-sep"></div>
@@ -1527,7 +1577,7 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
       <span>Auto-advance</span>
     </div>
     <button class="play-cue-btn" id="playCueBtn" onclick="playCue()" disabled title="Play (or stop) the highlighted cue, cutting whatever else is playing">▶ PLAY CUE</button>
-    <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled title="Fade out the current cue and start the next one — same as SPACE">NEXT CUE ▶</button>
+    <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled title="Fade out everything that is playing and start the next cue — same as SPACE">NEXT CUE ▶</button>
   </div>
 </div>
 
@@ -1596,9 +1646,23 @@ let pads = DEFAULT_KEYS.map((key, i) => ({
   paused:      false,
   vol:         1.0,
   fadeEnabled: false,
+  fade:        null,          // this pad's own FADE time in seconds, or null = use the header's
   inPoint:     null,
   outPoint:    null,
 }));
+
+// Where each pad sits in the grid: pad ids in display order. Moving a tile only changes this list — a pad keeps its id, key,
+// colour and sound, so cues, shortcuts, MIDI mappings and remote buttons keep pointing at the same sound.
+let padOrder = pads.map(p => p.id);
+// A valid order for n pads: keeps the entries that are real, unique ids, then appends any pad the list left out.
+function fixOrder(order, n) {
+  const seen = new Set(), out = [];
+  (Array.isArray(order) ? order : []).forEach(id => { if (Number.isInteger(id) && id >= 0 && id < n && !seen.has(id)) { seen.add(id); out.push(id); } });
+  for (let id = 0; id < n; id++) if (!seen.has(id)) out.push(id);
+  return out;
+}
+const orderedPads = () => padOrder.map(id => pads[id]);
+const padNo = id => { const k = padOrder.indexOf(id); return (k < 0 ? id : k) + 1; };   // the number a pad has on screen (its place in the grid), for messages
 
 let scenes          = [{ id: 0, name: 'Scene 1', stack: [], stackIdx: -1 }];
 let sceneIdSeq      = 1;
@@ -1607,6 +1671,9 @@ let currentSceneIdx = 0;
 let autoAdv         = false;
 let masterVol       = 1.0;
 let fadeDuration    = 2;
+// How long a pad's fades take: its own FADE time when it has one (the small box on its card), else the header's FADE time.
+const fadeOf = pad => { const v = Number(pad?.fade); return Number.isFinite(v) && v > 0 ? Math.min(20, v) : (Number(fadeDuration) || 0); };
+const fmtSec = n => `${Math.round(n * 10) / 10}s`;
 let padsScale       = 1.0;
 let stackScale      = 1.0;
 let capturing       = null;
@@ -2007,6 +2074,7 @@ const I18N_TABLE = [
   ['This project hasn\'t been saved to a file yet', 'Αυτό το έργο δεν έχει αποθηκευτεί ακόμα σε αρχείο', 'Dieses Projekt wurde noch nicht in einer Datei gespeichert'],
   ['Auto-advance is ON — cues will start each other', 'Η αυτόματη προώθηση είναι ΕΝΕΡΓΗ — τα cue θα ξεκινούν το ένα το άλλο', 'Auto-Weiter ist AN — Cues starten sich gegenseitig'],
   ['STOP FADE is ON — STOP ALL fades out over {0}s (Esc always cuts instantly)', 'Το STOP FADE είναι ΕΝΕΡΓΟ — το STOP ALL κάνει fade out σε {0}δ (το Esc κόβει πάντα αμέσως)', 'STOP FADE ist AN — STOP ALL blendet über {0} s aus (Esc stoppt immer sofort)'],
+  ["STOP FADE is ON — STOP ALL fades out over {0}s, or a pad's own FADE time (Esc always cuts instantly)", 'Το STOP FADE είναι ΕΝΕΡΓΟ — το STOP ALL κάνει fade out σε {0}δ, ή στη δική του διάρκεια FADE κάθε pad (το Esc κόβει πάντα αμέσως)', 'STOP FADE ist AN — STOP ALL blendet über {0} s aus, oder über die eigene FADE-Zeit eines Pads (Esc stoppt immer sofort)'],
   ['The show is locked — editing is disabled', 'Η παράσταση είναι κλειδωμένη — η επεξεργασία είναι απενεργοποιημένη', 'Die Show ist gesperrt — Bearbeiten ist deaktiviert'],
 
   // ── status messages
@@ -2015,6 +2083,15 @@ const I18N_TABLE = [
   ['cleared pad {0}', 'καθαρίστηκε το pad {0}', 'Pad {0} geleert'],
   ['cleared pad {0} "{1}"', 'καθαρίστηκε το pad {0} "{1}"', 'Pad {0} "{1}" geleert'],
   ['replaced the sound on pad {0}', 'αντικαταστάθηκε ο ήχος στο pad {0}', 'Sound auf Pad {0} ersetzt'],
+  ['swapped two pads', 'ανταλλάχθηκαν δύο pad', 'zwei Pads getauscht'],
+  ['Swapped "{0}" and "{1}"', 'Ανταλλάχθηκαν τα "{0}" και "{1}"', '"{0}" und "{1}" getauscht'],
+  ['Moved "{0}" to an empty pad', 'Το "{0}" μετακινήθηκε σε κενό pad', '"{0}" auf ein leeres Pad verschoben'],
+  ['Swapped two empty pads', 'Ανταλλάχθηκαν δύο κενά pad', 'Zwei leere Pads getauscht'],
+  ['Drag this onto another pad to swap places (a mouse can also drag the card itself). Its key, cues and shortcuts go with it. The arrow keys move it too.', 'Σύρτε το πάνω σε άλλο pad για να αλλάξουν θέση (με το ποντίκι μπορείτε να σύρετε και την ίδια την κάρτα). Το πλήκτρο, τα cue και οι συντομεύσεις του πάνε μαζί του. Μπορείτε να το μετακινήσετε και με τα βελάκια.', 'Auf ein anderes Pad ziehen, um die Plätze zu tauschen (mit der Maus lässt sich auch die Karte selbst ziehen). Taste, Cues und Kurzbefehle wandern mit. Die Pfeiltasten verschieben es ebenfalls.'],
+  ['FADE time of this pad (seconds)', 'Διάρκεια FADE αυτού του pad (δευτερόλεπτα)', 'FADE-Zeit dieses Pads (Sekunden)'],
+  ["This pad's own FADE time, in seconds: how long it takes to fade in, fade out or crossfade. Leave it empty to use the FADE time in the header (the grey number).", 'Η δική του διάρκεια FADE για αυτό το pad, σε δευτερόλεπτα: πόσο κρατά το fade in, το fade out ή το crossfade. Αφήστε το κενό για να ισχύει η διάρκεια FADE της κεφαλίδας (ο γκρι αριθμός).', 'Die eigene FADE-Zeit dieses Pads in Sekunden: wie lange Ein-, Aus- und Überblenden dauern. Leer lassen, dann gilt die FADE-Zeit aus der Kopfzeile (die graue Zahl).'],
+  ['"{0}" follows the FADE time in the header ({1})', 'Το "{0}" ακολουθεί τη διάρκεια FADE της κεφαλίδας ({1})', '"{0}" folgt der FADE-Zeit aus der Kopfzeile ({1})'],
+  ['"{0}" fades over {1}', 'Το "{0}" κάνει fade σε {1}', '"{0}" blendet über {1}'],
   ['removed cue {0} from the stack', 'αφαιρέθηκε το cue {0} από τη λίστα', 'Cue {0} aus der Liste entfernt'],
   ['removed cue {0} "{1}" from the stack', 'αφαιρέθηκε το cue {0} "{1}" από τη λίστα', 'Cue {0} "{1}" aus der Liste entfernt'],
   ['cleared the stack ({0} cue(s))', 'καθαρίστηκε η λίστα ({0} cue)', 'Liste geleert ({0} Cue(s))'],
@@ -2037,6 +2114,7 @@ const I18N_TABLE = [
   ['Fading out… press again to cut', 'Fade out… πατήστε ξανά για άμεσο κόψιμο', 'Blendet aus… nochmals drücken zum sofortigen Stopp'],
   ['Nothing is playing', 'Τίποτα δεν παίζει', 'Es läuft nichts'],
   ['STOP FADE on — STOP ALL fades out over {0}s', 'STOP FADE ενεργό — το STOP ALL κάνει fade out σε {0}δ', 'STOP FADE an — STOP ALL blendet über {0} s aus'],
+  ["STOP FADE on — STOP ALL fades out over {0}s (or the pad's own FADE time)", 'STOP FADE ενεργό — το STOP ALL κάνει fade out σε {0}δ (ή στη δική του διάρκεια FADE κάθε pad)', 'STOP FADE an — STOP ALL blendet über {0} s aus (oder über die eigene FADE-Zeit des Pads)'],
   ['STOP FADE off — STOP ALL cuts instantly', 'STOP FADE ανενεργό — το STOP ALL κόβει αμέσως', 'STOP FADE aus — STOP ALL stoppt sofort'],
   ['IN point cleared', 'Το σημείο IN διαγράφηκε', 'IN-Punkt gelöscht'],
   ['IN point set at {0}', 'Το σημείο IN ορίστηκε στο {0}', 'IN-Punkt bei {0} gesetzt'],
@@ -2129,7 +2207,7 @@ const I18N_TABLE = [
   ['Locked', 'Κλειδωμένο', 'Gesperrt'],
   ['Keyboard shortcuts and the keys every operator should know', 'Συντομεύσεις πληκτρολογίου και τα πλήκτρα που πρέπει να γνωρίζει κάθε χειριστής', 'Tastenkürzel und die Tasten, die jede Bedienperson kennen sollte'],
   ['Settings: audio output, theme, language, waveforms, remote control, MIDI', 'Ρυθμίσεις: έξοδος ήχου, θέμα, γλώσσα, κυματομορφές, τηλεχειρισμός, MIDI', 'Einstellungen: Audioausgang, Design, Sprache, Wellenformen, Fernsteuerung, MIDI'],
-  ['Fade time in seconds. It is used for crossfades between cues and pad keys, for STOP FADE, and for any pad whose ↓ FADE is on.', 'Διάρκεια fade σε δευτερόλεπτα. Χρησιμοποιείται στα crossfade μεταξύ cue και πλήκτρων pad, στο STOP FADE και σε κάθε pad με ενεργό ↓ FADE.', 'Fade-Zeit in Sekunden. Sie gilt für Überblendungen zwischen Cues und Pad-Tasten, für STOP FADE und für jedes Pad mit aktivem ↓ FADE.'],
+  ['Fade time in seconds. It is used for crossfades between cues and pad keys, for STOP FADE, and for any pad whose ↓ FADE is on. A pad can have its own FADE time (the box next to its ↓ FADE button); this one is for the pads that don\'t.', 'Διάρκεια fade σε δευτερόλεπτα. Χρησιμοποιείται στα crossfade μεταξύ cue και πλήκτρων pad, στο STOP FADE και σε κάθε pad με ενεργό ↓ FADE. Ένα pad μπορεί να έχει τη δική του διάρκεια FADE (το πλαίσιο δίπλα στο κουμπί ↓ FADE)· αυτή ισχύει για τα pad που δεν έχουν.', 'Fade-Zeit in Sekunden. Sie gilt für Überblendungen zwischen Cues und Pad-Tasten, für STOP FADE und für jedes Pad mit aktivem ↓ FADE. Ein Pad kann eine eigene FADE-Zeit haben (das Feld neben seiner ↓-FADE-Taste); diese hier gilt für Pads ohne eigene.'],
   ['Master volume (all pads)', 'Κύρια ένταση (όλα τα pads)', 'Hauptlautstärke (alle Pads)'],
   ['STOP FADE off: STOP ALL and the ■ buttons cut instantly. On: they fade out over the FADE time instead. Esc always cuts instantly.', 'STOP FADE ανενεργό: το STOP ALL και τα κουμπιά ■ κόβουν αμέσως. Ενεργό: κάνουν fade out στη διάρκεια FADE. Το Esc κόβει πάντα αμέσως.', 'STOP FADE aus: STOP ALL und die ■-Tasten stoppen sofort. An: sie blenden stattdessen über die FADE-Zeit aus. Esc stoppt immer sofort.'],
   ['Stop every sound. With STOP FADE on it fades out over the FADE time (press again to cut). Esc always cuts instantly.', 'Διακοπή όλων των ήχων. Με ενεργό STOP FADE κάνει fade out στη διάρκεια FADE (πατήστε ξανά για άμεσο κόψιμο). Το Esc κόβει πάντα αμέσως.', 'Alle Sounds stoppen. Mit aktivem STOP FADE wird über die FADE-Zeit ausgeblendet (nochmals drücken zum sofortigen Stopp). Esc stoppt immer sofort.'],
@@ -2166,13 +2244,13 @@ const I18N_TABLE = [
   ['OUT point at {0} — click to clear it', 'Σημείο OUT στο {0} — κάντε κλικ για διαγραφή', 'OUT-Punkt bei {0} — klicken zum Löschen'],
   ['Set the OUT point: the sound will end (or loop back) here. Drag the bar (or let it play) to the right spot, then click OUT.', 'Ορισμός σημείου OUT: ο ήχος θα τελειώνει (ή θα επιστρέφει στην αρχή) εδώ. Σύρετε τη μπάρα (ή αφήστε τον να παίξει) στο σωστό σημείο και πατήστε OUT.', 'OUT-Punkt setzen: Der Sound endet (oder springt zurück) hier. Ziehe die Leiste (oder lass ihn spielen) an die richtige Stelle und klicke auf OUT.'],
   ['Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it', 'Loop: επαναλαμβάνει συνεχώς αυτόν τον ήχο (ανάμεσα στα σημεία IN και OUT, αν έχουν οριστεί) μέχρι να τον σταματήσετε', 'Loop: wiederholt diesen Sound ständig (zwischen IN- und OUT-Punkt, falls gesetzt), bis du ihn stoppst'],
-  ['FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end.', 'FADE: απαλές άκρες, με τη διάρκεια FADE της κεφαλίδας. Ενεργό: κάνει fade in στην εκκίνηση, fade out στο σημείο OUT και σε κάθε επανάληψη κάνει crossfade με τον εαυτό του, ώστε να μην ακούγεται η επανεκκίνηση. Ανενεργό: απότομη εκκίνηση, απότομο σημείο επανάληψης, απότομο τέλος.', 'FADE: weiche Übergänge mit der FADE-Zeit aus der Kopfzeile. An: blendet beim Start ein, am OUT-Punkt aus, und ein Loop wird in sich selbst überblendet, sodass man den Neustart nicht hört. Aus: harter Start, harter Loop-Punkt, hartes Ende.'],
+  ["FADE: soft edges, using this pad's own FADE time (the box next to it) or the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end.", 'FADE: απαλές άκρες, με τη δική του διάρκεια FADE (το πλαίσιο δίπλα) ή με τη διάρκεια FADE της κεφαλίδας. Ενεργό: κάνει fade in στην εκκίνηση, fade out στο σημείο OUT και σε κάθε επανάληψη κάνει crossfade με τον εαυτό του, ώστε να μην ακούγεται η επανεκκίνηση. Ανενεργό: απότομη εκκίνηση, απότομο σημείο επανάληψης, απότομο τέλος.', 'FADE: weiche Übergänge mit der eigenen FADE-Zeit des Pads (das Feld daneben) oder der FADE-Zeit aus der Kopfzeile. An: blendet beim Start ein, am OUT-Punkt aus, und ein Loop wird in sich selbst überblendet, sodass man den Neustart nicht hört. Aus: harter Start, harter Loop-Punkt, hartes Ende.'],
   ['Add this sound to the end of the cue list. SPACE then plays the cues in order.', 'Προσθήκη αυτού του ήχου στο τέλος της λίστας cue. Το SPACE παίζει έπειτα τα cue με τη σειρά.', 'Diesen Sound ans Ende der Cue-Liste setzen. SPACE spielt die Cues dann der Reihe nach ab.'],
   ['Remove this sound from the pad (Undo brings it back)', 'Αφαίρεση αυτού του ήχου από το pad (η Αναίρεση τον επαναφέρει)', 'Diesen Sound vom Pad entfernen (mit Rückgängig kommt er zurück)'],
   ['Remove every cue from this scene (Undo brings them back)', 'Αφαίρεση όλων των cue από αυτή τη σκηνή (η Αναίρεση τα επαναφέρει)', 'Alle Cues aus dieser Szene entfernen (mit Rückgängig kommen sie zurück)'],
   ['When a cue finishes, start the next one automatically. Off: you press SPACE for each cue.', 'Όταν τελειώνει ένα cue, ξεκινά αυτόματα το επόμενο. Ανενεργό: πατάτε SPACE για κάθε cue.', 'Wenn eine Cue endet, startet die nächste automatisch. Aus: du drückst für jede Cue SPACE.'],
   ['Play (or stop) the highlighted cue, cutting whatever else is playing', 'Εκτέλεση (ή διακοπή) του επιλεγμένου cue, κόβοντας ό,τι άλλο παίζει', 'Die markierte Cue starten (oder stoppen) und alles andere abbrechen'],
-  ['Fade out the current cue and start the next one — same as SPACE', 'Fade out του τρέχοντος cue και εκκίνηση του επόμενου — όπως το SPACE', 'Aktuelle Cue ausblenden und die nächste starten — wie SPACE'],
+  ['Fade out everything that is playing and start the next cue — same as SPACE', 'Fade out όλων όσων παίζουν και εκκίνηση του επόμενου cue — όπως το SPACE', 'Alles, was gerade spielt, ausblenden und die nächste Cue starten — wie SPACE'],
   ['Your cue list is empty.', 'Η λίστα cue είναι κενή.', 'Deine Cue-Liste ist leer.'],
   ['Press “+ Stack” on a pad (or drag a pad\'s name here) to add it.', 'Πατήστε «+ Λίστα» σε ένα pad (ή σύρετε το όνομα ενός pad εδώ) για να το προσθέσετε.', 'Drücke „+ Liste“ an einem Pad (oder ziehe den Namen eines Pads hierher), um es hinzuzufügen.'],
   ['Then', 'Έπειτα', 'Danach'],
@@ -2206,7 +2284,7 @@ const I18N_TABLE = [
   ['Essentials', 'Βασικά', 'Das Wichtigste'],
   ['— these keys are fixed', '— αυτά τα πλήκτρα είναι σταθερά', '— diese Tasten sind fest'],
   ['Stops everything instantly. Always works.', 'Σταματά τα πάντα αμέσως. Λειτουργεί πάντα.', 'Stoppt sofort alles. Funktioniert immer.'],
-  ['Fades out the current cue and starts the next one.', 'Κάνει fade out στο τρέχον cue και ξεκινά το επόμενο.', 'Blendet die aktuelle Cue aus und startet die nächste.'],
+  ['Fades out everything that is playing and starts the next cue.', 'Κάνει fade out σε όλα όσα παίζουν και ξεκινά το επόμενο cue.', 'Blendet alles, was gerade spielt, aus und startet die nächste Cue.'],
   ['Each pad has its own key (below): it plays or stops that pad and fades out whatever else is playing.', 'Κάθε pad έχει το δικό του πλήκτρο (παρακάτω): παίζει ή σταματά αυτό το pad και κάνει fade out ό,τι άλλο παίζει.', 'Jedes Pad hat seine eigene Taste (unten): Sie startet oder stoppt dieses Pad und blendet alles andere Laufende aus.'],
   ['Undoes the last change.', 'Αναιρεί την τελευταία αλλαγή.', 'Macht die letzte Änderung rückgängig.'],
   ['Saves the project.', 'Αποθηκεύει το έργο.', 'Speichert das Projekt.'],
@@ -2262,11 +2340,11 @@ function refreshUndoBtn() {
 }
 function snapshotPad(pad) {
   return { name: pad.name, file: pad.file, filePath: pad.filePath, missingPath: pad.missingPath, loop: pad.loop, vol: pad.vol,
-           fadeEnabled: pad.fadeEnabled, inPoint: pad.inPoint, outPoint: pad.outPoint };
+           fadeEnabled: pad.fadeEnabled, fade: pad.fade, inPoint: pad.inPoint, outPoint: pad.outPoint };
 }
 function restorePad(pad, snap) {
   clearFadeTimer(pad.id);
-  Object.assign(pad, { name: snap.name, loop: snap.loop, vol: snap.vol, fadeEnabled: snap.fadeEnabled, inPoint: snap.inPoint, outPoint: snap.outPoint,
+  Object.assign(pad, { name: snap.name, loop: snap.loop, vol: snap.vol, fadeEnabled: snap.fadeEnabled, fade: snap.fade ?? null, inPoint: snap.inPoint, outPoint: snap.outPoint,
                        playing: false, paused: false, stopping: false });
   if (snap.file) attachAudio(pad, snap.file); else { releaseAudio(pad); pad.file = null; }
   pad.filePath = snap.filePath;
@@ -2349,6 +2427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (prefs.midiEnabled) enableMidi();
   refreshStopFadeBtn();
   initStackDnD();
+  initPadDrag();
   buildPads();
   renderSceneTabs();
   renderStack();
@@ -2646,7 +2725,7 @@ function crossfadeTick(pad, cur, start, end, f) {
 function edgeFadeTick(pad, cur, dur) {
   const active = pad.playing && !pad.stopping;
   const start = pad.inPoint ?? 0, end = pad.outPoint ?? dur;
-  const f = Math.min(Number(fadeDuration) || 0, (end - start) / 3);
+  const f = Math.min(fadeOf(pad), (end - start) / 3);
   const on = active && pad.fadeEnabled && (pad.loop || pad.outPoint !== null) && end - start > 0.2 && f > 0.05;
   if (!on) {
     if (pad.xf) { abortCrossfade(pad); if (active) pad.audio.volume = clamp01(pad.vol * masterVol); }
@@ -2699,7 +2778,7 @@ function playPad(id, withFade = false) {
   pad.stopping = false;
   refreshPad(id);
   setStatus(resuming ? `Resumed "${pad.name}"` : `Playing "${pad.name}"`);
-  if (useFade) startFade(id, targetVol, fadeDuration);
+  if (useFade) startFade(id, targetVol, fadeOf(pad));
 }
 
 function pausePad(id) {
@@ -2725,7 +2804,7 @@ function stopPad(id, withFade = false) {
     // Already fading out: let that fade finish — restarting it would stretch the fade and delay silence
     if (pad.stopping) return;
     pad.stopping = true;
-    startFade(id, 0, fadeDuration, () => {
+    startFade(id, 0, fadeOf(pad), () => {
       if (pad.audio) {
         pad.audio.pause();
         pad.audio.currentTime = 0;
@@ -2754,7 +2833,7 @@ function stopPad(id, withFade = false) {
 function reviveStopping(id) {
   const pad = pads[id];
   pad.stopping = false;
-  startFade(id, 1, fadeDuration);      // any non-zero target = "up to the live pad × master level"
+  startFade(id, 1, fadeOf(pad));       // any non-zero target = "up to the live pad × master level"
   refreshPad(id);
   setStatus(`"${pad.name}" brought back`);
 }
@@ -2793,16 +2872,17 @@ let stopAllFading = false, stopAllTimer = null;   // while a STOP ALL fade runs,
 function stopAll(mode = 'auto') {
   clearTimeout(advTimer);   // a pending auto-advance must not start a cue after STOP ALL
   const fade = mode === 'auto' && prefs.stopFade && !stopAllFading;
-  let n = 0;
+  let n = 0, longest = 0;
   pads.forEach(p => {
     if (!p.playing) return;
     n++;
+    longest = Math.max(longest, fadeOf(p));  // every pad fades over its own FADE time: the stop lasts as long as the slowest
     if (fade && p.stopping) return;          // already fading out (e.g. the old cue of a crossfade): let that fade finish instead of clicking it off
     stopPad(p.id, fade);
   });
   clearTimeout(stopAllTimer);
   stopAllFading = fade && n > 0;
-  if (stopAllFading) stopAllTimer = setTimeout(() => { stopAllFading = false; }, Math.max(0, Number(fadeDuration) || 0) * 1000 + 150);
+  if (stopAllFading) stopAllTimer = setTimeout(() => { stopAllFading = false; }, longest * 1000 + 150);
   setStatus(n ? (fade ? 'Fading out… press again to cut' : 'All stopped') : 'Nothing is playing');
   updatePlayCueBtn();
 }
@@ -2811,7 +2891,7 @@ function toggleStopFade() {
   prefs.stopFade = !prefs.stopFade;
   savePrefs();
   refreshStopFadeBtn();
-  setStatus(prefs.stopFade ? `STOP FADE on — STOP ALL fades out over ${fadeDuration}s` : 'STOP FADE off — STOP ALL cuts instantly');
+  setStatus(prefs.stopFade ? (pads.some(p => p.fade != null) ? `STOP FADE on — STOP ALL fades out over ${fadeDuration}s (or the pad's own FADE time)` : `STOP FADE on — STOP ALL fades out over ${fadeDuration}s`) : 'STOP FADE off — STOP ALL cuts instantly');
 }
 function refreshStopFadeBtn() {
   const b = document.getElementById('stopFadeBtn');
@@ -2833,6 +2913,22 @@ function setPadVolume(id, v) {
   if (pct) pct.textContent = Math.round(pads[id].vol * 100) + '%';
   scheduleAutosave();
 }
+
+// A pad's own FADE time. Empty = follow the header; a number is clamped to 0.1 – 20 s like the header's. Anything else is ignored.
+function setPadFade(id, raw) {
+  const pad = pads[id], txt = String(raw ?? '').trim().replace(',', '.');
+  let v = pad.fade;
+  if (txt === '') v = null;
+  else { const n = parseFloat(txt); if (Number.isFinite(n)) v = Math.round(Math.min(20, Math.max(0.1, n)) * 10) / 10; }
+  if (v !== pad.fade) {
+    pad.fade = v;
+    scheduleAutosave();
+    setStatus(v === null ? `"${pad.name || 'Unnamed'}" follows the FADE time in the header (${fmtSec(fadeDuration)})` : `"${pad.name || 'Unnamed'}" fades over ${fmtSec(v)}`);
+  }
+  refreshPad(id);                                  // shows the value that is really used (typing 50 means 20)
+}
+// The header's FADE time is what an empty box falls back to: keep the grey hints in step with it
+function syncFadeHints() { document.querySelectorAll('.pad-fade').forEach(i => { i.placeholder = fmtSec(fadeDuration); }); }
 
 function toggleFadeEnabled(id) {
   pads[id].fadeEnabled = !pads[id].fadeEnabled;
@@ -2915,17 +3011,17 @@ function fillPadsFrom(files, startId = null) {
   const all  = [...files];
   const list = sortAudioFiles(all);
   if (!list.length) { setStatus(all.length ? 'None of those files are audio' : 'No files selected'); return 0; }
-  const firstEmpty = () => pads.findIndex(p => !p.file);
-  let id = startId ?? firstEmpty();
+  // "next" means the next one on screen, so the files follow the grid even after tiles have been moved
+  const emptyAfter = pos => { const k = padOrder.findIndex((pid, i) => i > pos && !pads[pid].file); return k < 0 ? -1 : padOrder[k]; };
+  let id = startId ?? emptyAfter(-1);
   let placed = 0, capped = false;
   for (const f of list) {
-    if (placed > 0) {
-      id = pads.findIndex((p, i) => i > id && !p.file);
-    }
+    if (placed > 0) id = emptyAfter(padOrder.indexOf(id));
     if (id === -1 || id === null || id >= pads.length) {
       if (pads.length >= MAX_PADS) { capped = true; break; }
       id = pads.length;
       pads.push(normalizePad({}, id));
+      padOrder.push(id);
     }
     if (loadFile(id, f, true) !== false) placed++;
   }
@@ -2976,7 +3072,7 @@ function loadFile(padId, file, quiet = false) {
   if (!isAudioFile(file)) { setStatus(`"${file?.name ?? 'That file'}" is not an audio file`); return false; }
   const pad = pads[padId];
   const replaced = !!pad.file;
-  if (pad.file) { const snap = snapshotPad(pad); pushUndo(`replaced the sound on pad ${padId + 1}`, () => restorePad(pads[padId], snap), pad.file.size); }
+  if (pad.file) { const snap = snapshotPad(pad); pushUndo(`replaced the sound on pad ${padNo(padId)}`, () => restorePad(pads[padId], snap), pad.file.size); }
   clearFadeTimer(padId);
   attachAudio(pad, file);
   pad.filePath = localPathOf(file);
@@ -3052,7 +3148,7 @@ function clearPad(id) {
   const pad = pads[id];
   if (!pad.file) return;
   const snap = snapshotPad(pad), stacks = snapshotStacks();
-  pushUndo(pad.name ? `cleared pad ${id + 1} "${pad.name}"` : `cleared pad ${id + 1}`, () => { restorePad(pads[id], snap); restoreStacks(stacks); }, pad.file.size);
+  pushUndo(pad.name ? `cleared pad ${padNo(id)} "${pad.name}"` : `cleared pad ${padNo(id)}`, () => { restorePad(pads[id], snap); restoreStacks(stacks); }, pad.file.size);
   clearFadeTimer(id);
   releaseAudio(pad);
   scenes.forEach(s => {
@@ -3065,7 +3161,7 @@ function clearPad(id) {
   pad.inPoint = pad.outPoint = null;
   refreshPad(id);
   renderStack();
-  setStatus(`Pad ${id + 1} cleared`, { undo: true });
+  setStatus(`Pad ${padNo(id)} cleared`, { undo: true });
   scheduleAutosave();
 }
 
@@ -3120,7 +3216,11 @@ function nextCue(auto = false) {
     setStatus(`Cue ${nextIdx + 1} "${pads[item.padId]?.name || 'Unnamed'}" has no audio — relink the file`);
     return;
   }
-  if (s.stackIdx >= 0 && s.stack[s.stackIdx]) stopPad(s.stack[s.stackIdx].padId, true);
+  // Starting a cue takes over the room: everything else that is sounding fades out — the previous cue, a pad started from its key,
+  // a loop bed — each over its own FADE time (a pad that is already fading out just finishes that fade). The previous cue is also
+  // stopped when it is paused, so it starts from the top next time. Paused pads that are not the previous cue are left alone.
+  const prev = s.stack[s.stackIdx]?.padId;
+  pads.forEach(p => { if (p.id !== item.padId && (p.playing || p.id === prev)) stopPad(p.id, true); });
   s.stackIdx = nextIdx;
   playPad(item.padId, true);
   renderStack();
@@ -3401,7 +3501,7 @@ function renderSceneTabs() {
 function buildPads() {
   const grid = document.getElementById('padsGrid');
   grid.innerHTML = '';
-  pads.forEach(p => {
+  orderedPads().forEach(p => {
     const el = document.createElement('div');
     el.id = `pad${p.id}`;
     refreshPadEl(el, p);
@@ -3426,15 +3526,17 @@ function addPad() {
   if (lockedOut()) return;
   const id = pads.length;
   pads.push(normalizePad({}, id));
+  padOrder.push(id);
   buildPads();
   requestAnimationFrame(() => document.getElementById(`pad${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
-  setStatus(`Cue pad ${id + 1} added`);
+  setStatus(`Cue pad ${padNo(id)} added`);
   scheduleAutosave();
 }
 
 function refreshPadEl(el, pad) {
   const wave = !!(prefs.waveform && pad.peaks && pad.file);
-  el.className = ['pad', pad.file ? 'loaded' : '', pad.playing ? 'playing' : '', wave ? 'has-wave' : ''].filter(Boolean).join(' ');
+  el.className = ['pad', pad.file ? 'loaded' : '', pad.playing ? 'playing' : '', wave ? 'has-wave' : '',
+                  el.classList.contains('pad-lifted') ? 'pad-lifted' : '', el.classList.contains('swap-target') ? 'swap-target' : ''].filter(Boolean).join(' ');
   el.style.setProperty('--c', pad.color);
 
   const capClass  = capturing === pad.id ? ' capturing' : '';
@@ -3447,6 +3549,7 @@ function refreshPadEl(el, pad) {
   const outSet    = pad.outPoint !== null;
   const playTitle = pad.key ? `Play / pause (key ${escHtml(pad.key.toUpperCase())}). Starting a pad fades out any other pad that is playing.` : 'Play / pause. Starting a pad fades out any other pad that is playing.';
 
+  const gripHadFocus = document.activeElement?.classList?.contains('pad-grip') && el.contains(document.activeElement);   // a re-render must not drop a keyboard user's place
   el.innerHTML = `
     <div class="pad-tint"></div>
     ${pad.playing ? '<div class="playing-dot"></div>' : ''}
@@ -3454,6 +3557,7 @@ function refreshPadEl(el, pad) {
       <div class="pad-left-col">
         <div class="color-dot" data-action="color" style="background:${pad.color}" title="Change colour"></div>
         <div class="shortcut-key${capClass}" data-action="capture" title="Shortcut key — click to change it">${keyLabel}</div>
+        <div class="pad-grip" role="button" tabindex="0" aria-label="${GRIP_TIP}" title="${GRIP_TIP}"></div>
       </div>
       <div class="pad-right-col">
         <div class="pad-name${nameClass}" id="pname${pad.id}"${pad.name ? ' data-notr' : ''}>${nameLabel}</div>
@@ -3487,7 +3591,12 @@ function refreshPadEl(el, pad) {
         </div>
         <div class="pad-footer">
           <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop" aria-pressed="${pad.loop}" title="Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it">⟳ LOOP</button>
-          <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle" aria-pressed="${pad.fadeEnabled}" title="FADE: soft edges, using the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end.">↓ FADE</button>
+          <span class="fade-grp${pad.fadeEnabled ? ' on' : ''}">
+            <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle" aria-pressed="${pad.fadeEnabled}" title="FADE: soft edges, using this pad's own FADE time (the box next to it) or the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end.">↓ FADE</button>
+            <input class="pad-fade${pad.fade != null ? ' custom' : ''}" type="text" inputmode="decimal" maxlength="6" autocomplete="off" spellcheck="false" id="pfade-${pad.id}"
+                   value="${pad.fade != null ? fmtSec(pad.fade) : ''}" placeholder="${fmtSec(fadeDuration)}"
+                   aria-label="FADE time of this pad (seconds)" title="This pad's own FADE time, in seconds: how long it takes to fade in, fade out or crossfade. Leave it empty to use the FADE time in the header (the grey number).">
+          </span>
           <button class="btn-sm stack-btn" data-action="stack" title="Add this sound to the end of the cue list. SPACE then plays the cues in order.">+ Stack</button>
           <button class="btn-sm clear-pad" data-action="clear" title="Remove this sound from the pad (Undo brings it back)" aria-label="Remove this sound from the pad (Undo brings it back)">✕</button>
         </div>
@@ -3505,6 +3614,7 @@ function refreshPadEl(el, pad) {
   if (wave) drawWave(pad);
   updateOnboarding();
   syncStackPlaying();
+  if (gripHadFocus) el.querySelector('.pad-grip')?.focus();
 
   // Button delegation
   el.querySelectorAll('[data-action]').forEach(btn => {
@@ -3524,6 +3634,22 @@ function refreshPadEl(el, pad) {
       }
     });
   });
+
+  // This pad's own FADE time: type seconds (empty = follow the header), ↑ ↓ nudge it, Enter confirms
+  const fadeIn = document.getElementById(`pfade-${pad.id}`);
+  if (fadeIn) {
+    fadeIn.addEventListener('focus', () => fadeIn.select());
+    fadeIn.addEventListener('change', () => setPadFade(pad.id, fadeIn.value));
+    fadeIn.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); fadeIn.blur(); }
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const step = (e.shiftKey ? 0.1 : 0.5) * (e.key === 'ArrowUp' ? 1 : -1);
+        setPadFade(pad.id, String(Math.round(((parseFloat(fadeIn.value) || fadeOf(pad)) + step) * 10) / 10));
+        document.getElementById(`pfade-${pad.id}`)?.focus();
+      }
+    });
+  }
 
   // Volume slider
   const volSlider = document.getElementById(`pvol-${pad.id}`);
@@ -3596,7 +3722,7 @@ function refreshPadEl(el, pad) {
     el._bound = true;
     const id = pad.id;
     el.addEventListener('click', e => {
-      if (e.target.closest('[data-action],input')) return;
+      if (e.target.closest('[data-action],input,.pad-grip')) return;
       // locked: a click on a dimmed (inert) control lands on the pad underneath — it must not start / pause the sound
       if (showLocked && e.target.closest('.pad-left-col, .inout-row, .pad-footer')) { lockedOut(); return; }
       pads[id].file ? togglePad(id) : browseFile(id);
@@ -3615,6 +3741,122 @@ function refreshPadEl(el, pad) {
 function refreshPad(id) {
   const el = document.getElementById(`pad${id}`);
   if (el) refreshPadEl(el, pads[id]);
+}
+
+// ── Move a pad ────────────────────────────────────────────
+// Drag a pad's grip (a mouse can also drag the card itself) onto another pad and the two swap places. Only the screen order
+// changes (padOrder): each pad keeps its id, key, colour and sound, so cues, shortcuts and MIDI keep working. Pointer events, so a
+// finger or pen works too; the grip also takes the arrow keys. A show that is locked refuses.
+const GRIP_TIP = 'Drag this onto another pad to swap places (a mouse can also drag the card itself). Its key, cues and shortcuts go with it. The arrow keys move it too.';
+
+function swapPadTiles(a, b) {
+  if (lockedOut()) return false;
+  const i = padOrder.indexOf(a), j = padOrder.indexOf(b);
+  if (i < 0 || j < 0 || i === j) return false;
+  [padOrder[i], padOrder[j]] = [padOrder[j], padOrder[i]];
+  const ea = document.getElementById(`pad${a}`), eb = document.getElementById(`pad${b}`);
+  if (ea && eb) {                                  // move just these two cards: the others keep their state, animation and focus
+    const mark = document.createComment('');
+    ea.before(mark); eb.before(ea); mark.replaceWith(eb);
+  }
+  scheduleAutosave();
+  return true;
+}
+function movePad(a, b) {
+  const pa = pads[a], pb = pads[b];
+  if (!swapPadTiles(a, b)) return false;
+  pushUndo('swapped two pads', () => swapPadTiles(a, b));
+  const ca = !!(pa.file || pa.name), cb = !!(pb.file || pb.name);
+  setStatus(ca && cb ? `Swapped "${pa.name}" and "${pb.name}"` : ca ? `Moved "${pa.name}" to an empty pad` : cb ? `Moved "${pb.name}" to an empty pad` : 'Swapped two empty pads', { undo: true });
+  return true;
+}
+function nudgePad(id, dir) {                       // one place back (-1) or forward (+1) in the grid
+  const k = padOrder.indexOf(id) + dir;
+  if (k < 0 || k >= padOrder.length) return;
+  movePad(id, padOrder[k]);
+  document.querySelector(`#pad${id} .pad-grip`)?.focus();
+}
+
+function initPadDrag() {
+  const grid = document.getElementById('padsGrid');
+  const section = grid.closest('.pads-section') || grid.parentElement;
+  const idOf = el => +el.id.slice(3);
+  let d = null, ghost = null, raf = 0;
+  const tileAt = (x, y) => { const t = document.elementFromPoint(x, y)?.closest('.pad'); return t && t.parentNode === grid ? t : null; };
+  const track = () => {
+    const t = tileAt(d.x, d.y), over = t && t !== d.el ? t : null;
+    if (over !== d.over) { d.over?.classList.remove('swap-target'); over?.classList.add('swap-target'); d.over = over; }
+    if (ghost) { ghost.style.left = d.x + 'px'; ghost.style.top = d.y + 'px'; }
+  };
+  const autoScroll = () => {                       // dragging near the top / bottom edge scrolls the pads
+    if (!d?.started) return;
+    const r = section.getBoundingClientRect(), edge = 48;
+    const dy = d.y < r.top + edge ? d.y - (r.top + edge) : d.y > r.bottom - edge ? d.y - (r.bottom - edge) : 0;
+    if (dy) { section.scrollTop += Math.max(-24, Math.min(24, dy / 3)); track(); }
+    raf = requestAnimationFrame(autoScroll);
+  };
+  const finish = drop => {
+    if (!d) return;
+    const { el, over, started, pointerId } = d;
+    d = null;
+    cancelAnimationFrame(raf);
+    el.classList.remove('pad-lifted'); over?.classList.remove('swap-target');
+    document.body.classList.remove('pad-dragging');
+    ghost?.remove(); ghost = null;
+    try { grid.releasePointerCapture(pointerId); } catch {}
+    if (!started) return;
+    const swallow = e => { e.stopPropagation(); e.preventDefault(); };             // the release must not also click the pad underneath
+    window.addEventListener('click', swallow, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+    if (drop && over) movePad(idOf(el), idOf(over));
+  };
+
+  grid.addEventListener('pointerdown', e => {
+    if (d || e.button !== 0 || !e.isPrimary) return;
+    const el = e.target.closest('.pad');
+    if (!el || el.parentNode !== grid) return;
+    const grip = e.target.closest('.pad-grip');
+    // Off the grip only a mouse or pen drags the card, and never from a control, the name (it drags into the cue list) or the scrub bar
+    if (!grip && (e.pointerType === 'touch' || e.target.closest('[data-action], input, button, .pad-name, .pad-progress'))) return;
+    if (showLocked) { if (grip) lockedOut(); return; }
+    d = { el, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, started: false, over: null, min: grip ? 4 : 10 };
+    if (grip) { try { grid.setPointerCapture(e.pointerId); } catch {} }
+  });
+  grid.addEventListener('pointermove', e => {
+    if (!d || e.pointerId !== d.pointerId) return;
+    d.x = e.clientX; d.y = e.clientY;
+    if (!d.started) {
+      if (Math.hypot(d.x - d.x0, d.y - d.y0) < d.min) return;
+      d.started = true;
+      try { grid.setPointerCapture(d.pointerId); } catch {}
+      d.el.classList.add('pad-lifted');
+      document.body.classList.add('pad-dragging');
+      window.getSelection?.()?.removeAllRanges();
+      const pad = pads[idOf(d.el)];
+      ghost = document.createElement('div');
+      ghost.className = 'pad-ghost'; ghost.setAttribute('data-notr', '');
+      ghost.textContent = pad.name || (pad.key ? pad.key.toUpperCase() : '');
+      document.body.appendChild(ghost);
+      raf = requestAnimationFrame(autoScroll);
+    }
+    e.preventDefault();
+    track();
+  });
+  grid.addEventListener('pointerup', e => {
+    if (!d || e.pointerId !== d.pointerId) return;
+    d.x = e.clientX; d.y = e.clientY;
+    if (d.started) track();
+    finish(true);
+  });
+  grid.addEventListener('pointercancel', e => { if (d && e.pointerId === d.pointerId) finish(false); });
+  window.addEventListener('blur', () => finish(false));
+  grid.addEventListener('keydown', e => {
+    const grip = e.target.closest?.('.pad-grip');
+    const dir = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : 0;
+    if (!grip || !dir) return;
+    e.preventDefault();
+    if (!lockedOut()) nudgePad(idOf(grip.closest('.pad')), dir);
+  });
 }
 
 // ── RAF: progress bar + time display ─────────────────────
@@ -3861,6 +4103,7 @@ function normalizePad(pc, i) {
     loop: pc.loop === true, playing: false, paused: false,
     vol:  safeNum(pc.vol, 0, 1, 1),
     fadeEnabled: pc.fadeEnabled === true,
+    fade: safeNum(pc.fade, 0.1, 20, null),
     inPoint, outPoint,
   };
 }
@@ -3903,6 +4146,7 @@ function parseProjectConfig(config) {
   const curScene = Number.isInteger(config.currentSceneIdx) ? config.currentSceneIdx : 0;
   return {
     pads: padList,
+    padOrder: fixOrder(config.padOrder, padList.length),
     scenes: sceneList,
     currentSceneIdx: Math.min(Math.max(curScene, 0), sceneList.length - 1),
     customShortcuts: shortcuts,
@@ -3922,6 +4166,7 @@ function commitProject(parsed) {
   pads.forEach(p => { clearFadeTimer(p.id); releaseAudio(p); });
   undoStack.length = 0; refreshUndoBtn();          // history belongs to the previous show: Ctrl+Z must not write its sounds into this one
   pads            = parsed.pads;
+  padOrder        = parsed.padOrder;
   scenes          = parsed.scenes;
   sceneIdSeq      = scenes.length;
   currentSceneIdx = parsed.currentSceneIdx;
@@ -3957,7 +4202,7 @@ async function saveProject(name) {
   setStatus('Copying audio files…');
   const padConfigs = [];
   for (const p of pads) {
-    const pc = { id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, audioFile: null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null };
+    const pc = { id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color, audioFile: null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null };
     if (p.file) {
       const fname = `pad_${p.id}_${sanitizeFilename(p.file.name)}`;
       try {
@@ -3976,6 +4221,7 @@ async function saveProject(name) {
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
+    padOrder: [...padOrder],
     pads: padConfigs,
   };
   try {
@@ -4189,10 +4435,10 @@ async function doElectronSave(savePath) {
       id: s.id, name: s.name,
       stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
     })),
-    currentSceneIdx, customShortcuts,
+    currentSceneIdx, customShortcuts, padOrder: [...padOrder],
     pads: pads.map(p => ({
       id: p.id, key: p.key, name: p.name,
-      loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color,
+      loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color,
       // p.missingPath: the file wasn't found on load — keep the link so saving doesn't destroy it
       audioPath: p.filePath || p.missingPath || null,
       inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null
@@ -4272,7 +4518,7 @@ function showElectronMissingDialog(missing) {
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="background:${c};width:7px;height:7px;border-radius:50%;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600"${f.padName ? ' data-notr' : ''}>${escHtml(f.padName || 'Pad ' + (f.padId + 1))}</div>
+        <div style="font-size:12px;font-weight:600"${f.padName ? ' data-notr' : ''}>${escHtml(f.padName || 'Pad ' + padNo(f.padId))}</div>
         <div style="font-size:10px;color:var(--muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-notr title="${escHtml(f.audioPath)}">${escHtml(f.audioPath)}</div>
       </div>
       <button class="modal-btn" id="locate-btn-${f.padId}" style="flex-shrink:0" onclick="electronLocateFile(${f.padId})">Locate…</button>
@@ -4345,13 +4591,13 @@ function waitForMetadata(audio, ms = 4000) {
 async function runPreShowCheck() {
   const items = [];
   const add = (level, text, padId = null) => items.push({ level, text, padId });
-  const label = p => `Pad ${p.id + 1}${p.name ? ` "${p.name}"` : ''}`;
+  const label = p => `Pad ${padNo(p.id)}${p.name ? ` "${p.name}"` : ''}`;
   const inAnyStack = id => scenes.some(sc => sc.stack.some(it => it.padId === id));
 
   const loaded = pads.filter(p => p.file && p.audio);
   await Promise.all(loaded.map(p => waitForMetadata(p.audio)));
 
-  for (const p of pads) {
+  for (const p of orderedPads()) {
     if (p.file && p.audio) {
       const a = p.audio, dur = a.duration;
       if (a.error) { add('fail', `${label(p)}: the audio file can't be opened (${a.error.message || 'unsupported or damaged'})`, p.id); continue; }
@@ -4397,7 +4643,7 @@ async function runPreShowCheck() {
   }
   if (IS_ELECTRON && !currentSavePath) add('warn', "This project hasn't been saved to a file yet");
   if (autoAdv)       add('info', 'Auto-advance is ON — cues will start each other');
-  if (prefs.stopFade) add('info', `STOP FADE is ON — STOP ALL fades out over ${fadeDuration}s (Esc always cuts instantly)`);
+  if (prefs.stopFade) add('info', pads.some(p => p.fade != null) ? `STOP FADE is ON — STOP ALL fades out over ${fadeDuration}s, or a pad's own FADE time (Esc always cuts instantly)` : `STOP FADE is ON — STOP ALL fades out over ${fadeDuration}s (Esc always cuts instantly)`);
   if (showLocked)    add('info', 'The show is locked — editing is disabled');
 
   const fails = items.filter(i => i.level === 'fail').length, warns = items.filter(i => i.level === 'warn').length;
@@ -4556,7 +4802,7 @@ function buildRemoteState() {
   const sc = getScene();
   return {
     v: 1,
-    pads: pads.map(p => {
+    pads: orderedPads().map(p => {
       const dur = p.audio?.duration;
       const remain = (p.playing || p.paused) && Number.isFinite(dur) ? Math.ceil(Math.max(0, (p.outPoint ?? dur) - p.audio.currentTime)) : null;
       return { id: p.id, name: p.name, color: p.color, key: p.key, loaded: !!p.audio, playing: p.playing, paused: p.paused, stopping: !!p.stopping, remain };
@@ -4664,7 +4910,7 @@ function sanitizeMidiMap(list) {
   }).filter(Boolean);
 }
 function midiCmdLabel(c) {
-  return c.type === 'pad_toggle' ? (pads[c.id]?.name ? `Pad ${c.id + 1} — ${pads[c.id].name}` : `Pad ${c.id + 1}`) :
+  return c.type === 'pad_toggle' ? (pads[c.id]?.name ? `Pad ${padNo(c.id)} — ${pads[c.id].name}` : `Pad ${padNo(c.id)}`) :
          c.type === 'stop_all' ? 'STOP ALL (instant)' : c.type === 'stop_all_auto' ? 'STOP ALL (follows STOP FADE)' :
          c.type === 'cue_play' ? 'Play / stop selected cue' : c.type === 'cue_next' ? 'Next cue' : c.type;
 }
@@ -4741,7 +4987,7 @@ SETTINGS_SECTIONS.push({
     if (!CAN_MIDI) return '<div class="set-row"><span><small>MIDI isn\'t available in this browser (Safari / iPad have no Web MIDI). Use Chrome, Edge or the desktop app.</small></span></div>';
     const inputs = midiAccess ? [...midiAccess.inputs.values()] : [];
     const actions = [
-      ...pads.filter(p => p.audio).map(p => ({ type: 'pad_toggle', id: p.id })),
+      ...orderedPads().filter(p => p.audio).map(p => ({ type: 'pad_toggle', id: p.id })),
       { type: 'stop_all' }, { type: 'stop_all_auto' }, { type: 'cue_play' }, { type: 'cue_next' },
     ];
     return `<label class="set-row"><span>Use MIDI controllers<br><small>Map any note / pad / button to pads, STOP ALL and the cue stack. Saved for this computer only.</small></span>
@@ -4766,7 +5012,7 @@ function showShortcutsModal() {
 }
 
 function renderShortcutsModal() {
-  const padRows = pads.map(p => `
+  const padRows = orderedPads().map(p => `
     <div class="sh-pad-row">
       <div class="sh-key${capturing === p.id ? ' capturing' : ''}"
            onclick="capturePadKeyFromModal(${p.id})"
@@ -4777,7 +5023,7 @@ function renderShortcutsModal() {
   const customRows = customShortcuts.length
     ? customShortcuts.map(s => {
         const pad = pads[s.padId];
-        const lbl = pad?.file ? escHtml(pad.name) : `Pad ${s.padId + 1}`;
+        const lbl = pad?.file ? escHtml(pad.name) : `Pad ${padNo(s.padId)}`;
         return `<div class="sh-custom-row">
           <div class="sh-key combo">${escHtml(s.combo)}</div>
           <div class="sh-pad-name"${pad?.file ? ' data-notr' : ''}>${lbl}</div>
@@ -4789,13 +5035,13 @@ function renderShortcutsModal() {
       }).join('')
     : '<div class="sh-empty-msg">No custom hotkeys added yet.</div>';
 
-  const padOptions = pads.map(p => `<option value="${p.id}"${p.file ? ' data-notr' : ''}>${p.file ? escHtml(p.name) : `Pad ${p.id + 1} (empty)`}</option>`).join('');
+  const padOptions = orderedPads().map(p => `<option value="${p.id}"${p.file ? ' data-notr' : ''}>${p.file ? escHtml(p.name) : `Pad ${padNo(p.id)} (empty)`}</option>`).join('');
 
   document.getElementById('modalBody').innerHTML = `
     <div class="sh-sec-hdr">Essentials <span class="sh-hint">— these keys are fixed</span></div>
     <div class="ess-list">
       <div class="sh-key combo">ESC</div><div>Stops everything instantly. Always works.</div>
-      <div class="sh-key combo">SPACE</div><div>Fades out the current cue and starts the next one.</div>
+      <div class="sh-key combo">SPACE</div><div>Fades out everything that is playing and starts the next cue.</div>
       <div class="sh-key combo">KEY</div><div>Each pad has its own key (below): it plays or stops that pad and fades out whatever else is playing.</div>
       <div class="sh-key combo" data-notr>Ctrl+Z</div><div>Undoes the last change.</div>
       <div class="sh-key combo" data-notr>Ctrl+S</div><div>Saves the project.</div>
@@ -4912,7 +5158,7 @@ function hideToast() { clearTimeout(toastTimer); toastEntry = null; const t = do
 function toastUndo() { const top = undoStack[undoStack.length - 1]; const ok = top && top === toastEntry; hideToast(); if (ok) undo(); }
 
 // The FADE box in the header: show the value that is really used (typing 50 means 20) and remember it in the project
-function commitFadeInput(el) { el.value = fadeDuration; scheduleAutosave(); }
+function commitFadeInput(el) { el.value = fadeDuration; syncFadeHints(); scheduleAutosave(); }
 
 // ── First-run help: a welcome card while the show is empty, and a "Quick tips" strip until it is dismissed
 let tipsForced = false;
@@ -4972,7 +5218,8 @@ function saveAutosave() {
     scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
-    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, color: p.color, hasAudio: !!p.file, audioPath: p.filePath || p.missingPath || null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null })),
+    padOrder: [...padOrder],
+    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color, hasAudio: !!p.file, audioPath: p.filePath || p.missingPath || null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null })),
   };
   try { localStorage.setItem('cue-autosave', JSON.stringify(data)); } catch {}
 }
@@ -5137,10 +5384,10 @@ async function doSaveProjectIDB(name) {
       id: s.id, name: s.name,
       stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
     })),
-    currentSceneIdx, customShortcuts,
+    currentSceneIdx, customShortcuts, padOrder: [...padOrder],
     pads: pads.map(p => ({
       id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol,
-      fadeEnabled: p.fadeEnabled, color: p.color,
+      fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color,
       inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null
     }))
   };
