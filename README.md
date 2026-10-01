@@ -118,7 +118,7 @@ Click **More info** → **Run anyway**.
 ### Shortcuts
 - **Custom hotkeys** — assign Ctrl / Alt / Shift + key combos to any pad
 - **Default pad keys** — `1`–`8`, `Q`–`R` trigger crossfade play instantly
-- **`SPACE`** — advances to the next cue in the stack
+- **`SPACE`** — advances to the next cue in the stack and **fades out everything else that is playing** (the previous cue, pads started from their keys, loop beds — each over its own FADE time)
 - **`Esc`** — panic: stop everything instantly
 - **`Ctrl+Z`** — undo · **`Ctrl+Shift+L`** — lock / unlock the show
 
@@ -187,7 +187,7 @@ If audio files have moved since last save, a dialog lets you **Locate** each fil
 
 | Key | Action |
 |---|---|
-| `SPACE` | Next cue in stack |
+| `SPACE` | Next cue in stack; fades out everything else that is playing |
 | `Esc` | **Panic** — stop everything instantly (also closes a dialog) |
 | `1` – `8`, `Q` – `R` | Default pad shortcuts (crossfade play; press again while fading out to bring it back) |
 | `Ctrl+Z` | Undo the last destructive action |
@@ -230,6 +230,7 @@ Without the Electron binary or a display, `tests/electron.test.js` says SKIP and
 | Test file | What it covers |
 |---|---|
 | `tests/electron.test.js` | **The real desktop app**, headless: preload bridge, IPC allow-list, open / save through the real dialog IPC, a picked file keeping its disk path, playback, the remote server, permission handler, navigation guard, donate URL — also against the packaged build |
+| `tests/space-cue.test.js` | SPACE / NEXT CUE fades out everything else that is playing (previous cue, key pads, loop beds) over each pad's own FADE time — real SPACE key, remote and auto-advance; what must not change (missing audio, paused pads, PLAY CUE) |
 | `tests/pads-move.test.js` | Moving pads: drag the grip or the card, swap on screen and in the saved order, keys / cues stay with the sound, playing pads keep playing, undo, lock, keyboard, saved / restored / repaired order, Fill Pads and "Pad N" follow the screen, touch |
 | `tests/padfade.test.js` | A fade time per pad: the box, clamping, fade in / out / crossfade / STOP ALL / loop crossfade measured on the real audio elements, saved with the show |
 | `tests/fades.test.js` | Loop crossfades and OUT-point fades, measured on the real audio elements (combined level through the seam, hand-over, stop / pause / FADE-off / clear mid-crossfade) |

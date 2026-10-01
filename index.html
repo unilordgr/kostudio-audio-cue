@@ -1577,7 +1577,7 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
       <span>Auto-advance</span>
     </div>
     <button class="play-cue-btn" id="playCueBtn" onclick="playCue()" disabled title="Play (or stop) the highlighted cue, cutting whatever else is playing">▶ PLAY CUE</button>
-    <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled title="Fade out the current cue and start the next one — same as SPACE">NEXT CUE ▶</button>
+    <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled title="Fade out everything that is playing and start the next cue — same as SPACE">NEXT CUE ▶</button>
   </div>
 </div>
 
@@ -2250,7 +2250,7 @@ const I18N_TABLE = [
   ['Remove every cue from this scene (Undo brings them back)', 'Αφαίρεση όλων των cue από αυτή τη σκηνή (η Αναίρεση τα επαναφέρει)', 'Alle Cues aus dieser Szene entfernen (mit Rückgängig kommen sie zurück)'],
   ['When a cue finishes, start the next one automatically. Off: you press SPACE for each cue.', 'Όταν τελειώνει ένα cue, ξεκινά αυτόματα το επόμενο. Ανενεργό: πατάτε SPACE για κάθε cue.', 'Wenn eine Cue endet, startet die nächste automatisch. Aus: du drückst für jede Cue SPACE.'],
   ['Play (or stop) the highlighted cue, cutting whatever else is playing', 'Εκτέλεση (ή διακοπή) του επιλεγμένου cue, κόβοντας ό,τι άλλο παίζει', 'Die markierte Cue starten (oder stoppen) und alles andere abbrechen'],
-  ['Fade out the current cue and start the next one — same as SPACE', 'Fade out του τρέχοντος cue και εκκίνηση του επόμενου — όπως το SPACE', 'Aktuelle Cue ausblenden und die nächste starten — wie SPACE'],
+  ['Fade out everything that is playing and start the next cue — same as SPACE', 'Fade out όλων όσων παίζουν και εκκίνηση του επόμενου cue — όπως το SPACE', 'Alles, was gerade spielt, ausblenden und die nächste Cue starten — wie SPACE'],
   ['Your cue list is empty.', 'Η λίστα cue είναι κενή.', 'Deine Cue-Liste ist leer.'],
   ['Press “+ Stack” on a pad (or drag a pad\'s name here) to add it.', 'Πατήστε «+ Λίστα» σε ένα pad (ή σύρετε το όνομα ενός pad εδώ) για να το προσθέσετε.', 'Drücke „+ Liste“ an einem Pad (oder ziehe den Namen eines Pads hierher), um es hinzuzufügen.'],
   ['Then', 'Έπειτα', 'Danach'],
@@ -2284,7 +2284,7 @@ const I18N_TABLE = [
   ['Essentials', 'Βασικά', 'Das Wichtigste'],
   ['— these keys are fixed', '— αυτά τα πλήκτρα είναι σταθερά', '— diese Tasten sind fest'],
   ['Stops everything instantly. Always works.', 'Σταματά τα πάντα αμέσως. Λειτουργεί πάντα.', 'Stoppt sofort alles. Funktioniert immer.'],
-  ['Fades out the current cue and starts the next one.', 'Κάνει fade out στο τρέχον cue και ξεκινά το επόμενο.', 'Blendet die aktuelle Cue aus und startet die nächste.'],
+  ['Fades out everything that is playing and starts the next cue.', 'Κάνει fade out σε όλα όσα παίζουν και ξεκινά το επόμενο cue.', 'Blendet alles, was gerade spielt, aus und startet die nächste Cue.'],
   ['Each pad has its own key (below): it plays or stops that pad and fades out whatever else is playing.', 'Κάθε pad έχει το δικό του πλήκτρο (παρακάτω): παίζει ή σταματά αυτό το pad και κάνει fade out ό,τι άλλο παίζει.', 'Jedes Pad hat seine eigene Taste (unten): Sie startet oder stoppt dieses Pad und blendet alles andere Laufende aus.'],
   ['Undoes the last change.', 'Αναιρεί την τελευταία αλλαγή.', 'Macht die letzte Änderung rückgängig.'],
   ['Saves the project.', 'Αποθηκεύει το έργο.', 'Speichert das Projekt.'],
@@ -3216,7 +3216,11 @@ function nextCue(auto = false) {
     setStatus(`Cue ${nextIdx + 1} "${pads[item.padId]?.name || 'Unnamed'}" has no audio — relink the file`);
     return;
   }
-  if (s.stackIdx >= 0 && s.stack[s.stackIdx]) stopPad(s.stack[s.stackIdx].padId, true);
+  // Starting a cue takes over the room: everything else that is sounding fades out — the previous cue, a pad started from its key,
+  // a loop bed — each over its own FADE time (a pad that is already fading out just finishes that fade). The previous cue is also
+  // stopped when it is paused, so it starts from the top next time. Paused pads that are not the previous cue are left alone.
+  const prev = s.stack[s.stackIdx]?.padId;
+  pads.forEach(p => { if (p.id !== item.padId && (p.playing || p.id === prev)) stopPad(p.id, true); });
   s.stackIdx = nextIdx;
   playPad(item.padId, true);
   renderStack();
@@ -3545,6 +3549,7 @@ function refreshPadEl(el, pad) {
   const outSet    = pad.outPoint !== null;
   const playTitle = pad.key ? `Play / pause (key ${escHtml(pad.key.toUpperCase())}). Starting a pad fades out any other pad that is playing.` : 'Play / pause. Starting a pad fades out any other pad that is playing.';
 
+  const gripHadFocus = document.activeElement?.classList?.contains('pad-grip') && el.contains(document.activeElement);   // a re-render must not drop a keyboard user's place
   el.innerHTML = `
     <div class="pad-tint"></div>
     ${pad.playing ? '<div class="playing-dot"></div>' : ''}
@@ -3609,6 +3614,7 @@ function refreshPadEl(el, pad) {
   if (wave) drawWave(pad);
   updateOnboarding();
   syncStackPlaying();
+  if (gripHadFocus) el.querySelector('.pad-grip')?.focus();
 
   // Button delegation
   el.querySelectorAll('[data-action]').forEach(btn => {
@@ -5035,7 +5041,7 @@ function renderShortcutsModal() {
     <div class="sh-sec-hdr">Essentials <span class="sh-hint">— these keys are fixed</span></div>
     <div class="ess-list">
       <div class="sh-key combo">ESC</div><div>Stops everything instantly. Always works.</div>
-      <div class="sh-key combo">SPACE</div><div>Fades out the current cue and starts the next one.</div>
+      <div class="sh-key combo">SPACE</div><div>Fades out everything that is playing and starts the next cue.</div>
       <div class="sh-key combo">KEY</div><div>Each pad has its own key (below): it plays or stops that pad and fades out whatever else is playing.</div>
       <div class="sh-key combo" data-notr>Ctrl+Z</div><div>Undoes the last change.</div>
       <div class="sh-key combo" data-notr>Ctrl+S</div><div>Saves the project.</div>

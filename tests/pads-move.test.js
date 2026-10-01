@@ -126,7 +126,10 @@ async function scenario(fn) {
   await scenario(async () => {
     const { page } = await fresh();
     await build(page);
+    await page.waitForTimeout(500);                                       // let the sounds finish loading (a card re-renders when its waveform is ready)
     await page.focus('#pad1 .pad-grip');
+    await page.evaluate(() => refreshPad(1));                             // …and a re-render while the grip has the focus must not lose it
+    check('a card re-rendering (e.g. its state changed) does not drop the keyboard focus from its grip', await page.evaluate(() => document.activeElement?.className === 'pad-grip' && document.activeElement.closest('.pad').id === 'pad1'));
     await page.keyboard.press('ArrowRight');
     const a = await order(page);
     const focused = await page.evaluate(() => document.activeElement?.className + '|' + document.activeElement?.closest('.pad')?.id);
