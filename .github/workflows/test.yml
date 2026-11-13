@@ -18,10 +18,11 @@ env:
 
 jobs:
   test:
-    # Pinned on purpose. `ubuntu-latest` moved to Ubuntu 26.04, which the pinned Playwright (see package.json) has no
-    # system-dependency list for, so "playwright install --with-deps" failed before a single test ran. Move this to a
-    # newer image together with a Playwright upgrade, not on its own.
-    runs-on: ubuntu-24.04
+    # Pinned on purpose, together with the Playwright version in package.json. "playwright install --with-deps" only
+    # knows the Ubuntu releases that existed when that Playwright was published: when `ubuntu-latest` moved to 26.04,
+    # Playwright 1.56 failed before a single test ran. Playwright 1.63 knows 20.04 – 26.04. Move to a newer image
+    # together with a Playwright upgrade, not on its own.
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
 
     steps:
