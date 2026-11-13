@@ -1399,7 +1399,9 @@ body.show-locked .pad-footer, body.show-locked .inout-row { cursor: not-allowed;
   .fade-dur-wrap .fade-dur-input { width: 52px; font-size: 15px; padding: 7px 4px; }
   input[type=range]::-webkit-slider-thumb { width: 22px; height: 22px; }
   input[type=range] { height: 5px; }
-  .pads-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  /* 320, not 300: a touch card must hold five 44 px chips with their words in one row. Every iPad keeps its column count
+     (3 at 1024, 4 at 1366, 2 in portrait); only an in-between Split View width gets one column fewer. */
+  .pads-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
   .btn-sm { min-height: 44px; padding: 6px 12px; font-size: 12px; }
   .pad-footer { gap: 6px; }
   .inout-btn { min-height: 40px; padding: 4px 12px; font-size: 11px; }
@@ -1491,23 +1493,30 @@ body.stack-resizing, body.stack-resizing * { cursor: col-resize !important; user
 @media (pointer: fine) { .stack-item.active:not(:hover) .stack-mv, .stack-item.active:not(:hover) .stack-rm { display: none; } }
 
 /* The chip row: LOOP · FADE + its time · LAYER · + Stack · ✕ in one line at every card width — a word each,
-   or just the glyph when the card is too narrow for words (pads zoomed out). */
+   or just the glyph when the card is too narrow for words (pads zoomed out).
+   The row must not depend on one font's letter widths: the text is drawn in the system font, and that is a different
+   font on every platform (DejaVu Sans on Linux is about 11 % wider than Inter / San Francisco / Segoe UI). So the chips
+   give up side padding on the narrower cards, and every layout keeps room to spare with the wide font too. */
 .pad-footer .btn-sm .ci { display: none; font-weight: 700; }
 .pad-footer .btn-sm.stack-btn .ci { display: inline; margin-right: 3px; }
 .pad-footer .btn-sm { padding: 0 6px; letter-spacing: .03em; }
 .pad-footer .btn-sm.clear-pad { padding: 0; }
 .pad .pad-footer { gap: 4px; }
 .btn-sm.layer-on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-@container pad (max-width: 262px) {
+@container pad (max-width: 300px) {
+  .pad-footer .btn-sm { padding: 0 4px; }
+  .pad-footer .btn-sm.clear-pad { padding: 0; }
+}
+@container pad (max-width: 270px) {
   .pad-footer .btn-sm .cl { display: none; }
   .pad-footer .btn-sm .ci, .pad-footer .btn-sm.stack-btn .ci { display: inline; margin: 0; font-size: 12px; }
   .pad-footer .btn-sm { padding: 0; width: 25px; letter-spacing: 0; }
 }
 @media (pointer: coarse) {
-  .pad .pad-footer .btn-sm { padding: 6px 10px; }
+  .pad .pad-footer .btn-sm { padding: 6px 8px; }
   .pad .pad-footer .btn-sm.clear-pad { padding: 0; }
-  @container pad (max-width: 335px) {
-    .pad .pad-footer .btn-sm { padding: 6px 7px; font-size: 11px; width: auto; }
+  @container pad (max-width: 345px) {
+    .pad .pad-footer .btn-sm { padding: 6px 5px; font-size: 11px; width: auto; }
     .pad .pad-footer .btn-sm .cl { display: inline; }
     .pad .pad-footer .btn-sm .ci { display: none; }
     .pad .pad-footer .btn-sm.stack-btn .ci { display: inline; margin-right: 2px; }

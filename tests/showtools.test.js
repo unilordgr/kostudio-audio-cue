@@ -344,6 +344,53 @@ async function scenario(fn) {
     check('iPad: NEXT CUE is the big button, STOP / PLAY CUE the small one', r.next > r.play * 1.6, JSON.stringify(r));
     await ctx.close();
   });
+  // The chip row must not depend on one font's letter widths. The UI is drawn in the system font, and that is a different font on every
+  // platform: DejaVu Sans (the Linux default, and what the CI machine uses) is about 11 % wider than Inter / San Francisco / Segoe UI, and
+  // with it the five chips wrapped to two lines on an iPad-sized screen. So: every standard screen in this machine's own font, and — where
+  // DejaVu Sans is installed — the same screens plus the two tightest window widths (the narrowest card that still shows words) in that font.
+  await scenario(async () => {
+    const SIZES = { touch: [[1024, 768], [1366, 1024], [1180, 820], [768, 1024]], mouse: [[960, 720], [1280, 800], [1600, 900], [1920, 1080]] };
+    const TIGHTEST = { touch: [[1012, 800]], mouse: [[1560, 900]] };
+    const measure = () => {
+      const f = document.querySelector('#pad1 .pad-footer'), kids = [...f.children], inp = f.querySelector('.pad-fade');
+      const used = kids.reduce((n, c) => n + c.getBoundingClientRect().width, 0);
+      return { w: innerWidth, card: Math.round(document.getElementById('pad1').getBoundingClientRect().width), chips: kids.length,
+               rows: new Set(kids.map(c => Math.round(c.getBoundingClientRect().top))).size,
+               spare: Math.round(f.getBoundingClientRect().width - used - (kids.length - 1) * parseFloat(getComputedStyle(f).columnGap)),
+               words: getComputedStyle(f.querySelector('[data-action="loop"] .cl')).display !== 'none', fits: inp.scrollWidth <= inp.clientWidth };
+    };
+    // a font is installed if text set in it measures differently from the generic fallbacks
+    const installed = name => {
+      const c = document.createElement('canvas').getContext('2d'), w = f => { c.font = '72px ' + f; return c.measureText('mmmmmmmmmmlliWW@').width; };
+      return w(`"${name}", monospace`) !== w('monospace') || w(`"${name}", serif`) !== w('serif');
+    };
+    const own = [], wide = []; let hasWide = true;
+    for (const kind of ['touch', 'mouse']) {
+      const { page, ctx } = await fresh({ touch: kind === 'touch' });
+      await build(page);
+      await page.evaluate(async () => { pads[1].fade = 10.5; pads[1].fadeEnabled = true; pads[1].overlap = true; buildPads(); await new Promise(r => setTimeout(r, 100)); });
+      const run = async (sizes, into) => {
+        for (const [w, h] of sizes) {
+          await page.setViewportSize({ width: w, height: h });
+          await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+          into.push({ kind, ...await page.evaluate(measure) });
+        }
+      };
+      await run(SIZES[kind], own);
+      if (await page.evaluate(installed, 'DejaVu Sans')) {
+        await page.addStyleTag({ content: '*, *::before, *::after { font-family: "DejaVu Sans" !important; }' });
+        await run([...SIZES[kind], ...TIGHTEST[kind]], wide);
+      } else hasWide = false;
+      await ctx.close();
+    }
+    const oneLine = a => a.length > 0 && a.every(r => r.rows === 1 && r.chips === 5 && r.words && r.fits);
+    const brief = a => JSON.stringify(a.map(r => `${r.kind} ${r.w}: card ${r.card}, rows ${r.rows}, ${r.spare} px spare`));
+    check('the five chips keep their words and sit on one line on every standard screen (iPad 1024 / 1180 / 1366 and portrait, laptop 960 – 1920), in this machine\'s font',
+      oneLine(own), brief(own));
+    check(hasWide ? '…and in a font about 11 % wider (DejaVu Sans, the Linux default), also at the two tightest window widths — with a few pixels still to spare'
+                  : '…(the wide-font run needs DejaVu Sans, which is not installed on this machine — not run here; the CI machine has it)',
+      !hasWide || (oneLine(wide) && Math.min(...wide.map(r => r.spare)) >= 4), brief(wide));
+  });
   await scenario(async () => {
     const { page, ctx } = await fresh({ width: 1440, height: 900 });
     await build(page);

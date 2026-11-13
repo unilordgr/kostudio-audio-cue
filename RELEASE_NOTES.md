@@ -37,7 +37,7 @@
 - Shows from older versions open exactly as before
 - A show saved by 1.6 opens in 1.5 with LAYER pads as normal pads, cue notes / follow settings / stop cues ignored (a stop cue becomes a normal cue — check them), volume above 100 % as 100 %, and audio that lives in the project's own folder asking for **Browse for Folder…** once
 
-- 500 automated checks, including the real desktop app (from source and packaged). New: LAYER pads, the cue follow engine, stop cues, the status bar, the column layout, volume boost (measured in the real app), the close question, export and the settings carry-over — the new behaviour is mutation-checked
+- 502 automated checks, including the real desktop app (from source and packaged). New: LAYER pads, the cue follow engine, stop cues, the status bar, the column layout (also with a wider system font), volume boost (measured in the real app), the close question, export and the settings carry-over — the new behaviour is mutation-checked
 
 ---
 
