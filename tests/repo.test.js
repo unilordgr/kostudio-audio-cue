@@ -14,7 +14,7 @@ const main = read('main.js');
 // ── licence
 const lic = exists('LICENSE') ? read('LICENSE') : '';
 ck('LICENSE is the Free Use License, copyright needitcreative.com',
-  /^Kostudio Audio Cue — Free Use License/.test(lic) && /Copyright \(c\) \d{4} needitcreative\.com/.test(lic));
+  /^Needit Audio Cue — Free Use License/.test(lic) && /Copyright \(c\) \d{4} needitcreative\.com/.test(lic));
 ck('LICENSE allows commercial use but forbids selling the software (and is not MIT, which would allow it)',
   /FREE COMMERCIAL USE/.test(lic) && /including\s+commercial\s+purposes/.test(lic) &&
   /NO SELLING/.test(lic) && /may not sell the Software/.test(lic) && !/sublicense, and\/or sell/.test(lic));
@@ -91,6 +91,22 @@ const css = html.match(/<style>([\s\S]*?)<\/style>/)[1].replace(/\/\*[\s\S]*?\*\
 let depth = 0, negative = false;
 for (const ch of css) { depth += (ch === '{') - (ch === '}'); if (depth < 0) negative = true; }
 ck('index.html CSS braces are balanced', depth === 0 && !negative, `depth=${depth} negative=${negative}`);
+
+// ── the product name is the same everywhere a user or the updater meets it
+{
+  const b = pkg.build, name = b.productName, dashed = name.replace(/ /g, '-');
+  const readme = read('README.md'), buildYml = read('.github/workflows/build.yml'), mainJs = read('main.js');
+  ck('one product name: package.json productName, both artifact names, the DMG title, the web manifest and the page title agree',
+    name === 'Needit Audio Cue' && b.win.artifactName.startsWith(dashed + '-') && b.mac.artifactName.startsWith(dashed + '-') && b.dmg.title.startsWith(name + ' ') &&
+    JSON.parse(read('manifest.json')).name === name && new RegExp(`<title>${name}</title>`).test(read('index.html')), name);
+  ck('the README download links and the release workflow use the artifact names the build really produces',
+    [`${dashed}-x64.exe`, `${dashed}-arm64.dmg`, `${dashed}-x64.dmg`, `${dashed}-iPad-Web.html`].every(f => readme.includes(`/releases/latest/download/${f}`)) &&
+    buildYml.includes(`${dashed}-arm64.dmg`) && buildYml.includes(`${dashed}-x64.dmg`) && buildYml.includes(`${dashed}-iPad-Web.html`) && !/Kostudio/.test(buildYml));
+  ck('the Mac updater looks for the app under the current name, and the old names are kept only to carry settings over',
+    mainJs.includes(`const appName = '${name}.app';`) && /const OLD_APP_NAMES = \['Kostudio Audio Cue', 'kostudio-audio-cue'\];/.test(mainJs) &&
+    mainJs.includes("'https://api.github.com/repos/unilordgr/kostudio-audio-cue/releases/latest'"));
+  ck('the packaged Linux binary named in the test workflow matches the package name', read('.github/workflows/test.yml').includes(`dist/linux-unpacked/${pkg.name}`) && pkg.name === 'needit-audio-cue');
+}
 
 // ── versions, docs
 const lockRoot = JSON.parse(read('package-lock.json')).packages[''];

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0d0d0d">
-<title>Kostudio Remote</title>
+<title>Needit Remote</title>
 <style>
   :root { --bg:#0d0d0d; --surf:#181a1f; --surf2:#22252c; --text:#eef1f6; --muted:#8b93a3; --line:#2f333c; --accent:#00d4ff; --go:#2ecc71; --warn:#f5a623; --stop:#ff3b3b; }
   @media (prefers-color-scheme: light) { :root { --bg:#f2f4f9; --surf:#fff; --surf2:#eef1f7; --text:#161a22; --muted:#667085; --line:#d5dae5; } }
@@ -37,6 +37,8 @@
   .cue.active { border-color: var(--accent); background: rgba(0,212,255,.10); }
   .cue.noaudio { opacity: .55; }
   .cue .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cue { flex-wrap: wrap; }
+  .cue .nt { flex-basis: 100%; padding-left: 32px; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .empty { color: var(--muted); font-size: 13px; padding: 6px 2px; }
   #vol { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
   #vol input { flex: 1; height: 34px; }
@@ -49,7 +51,7 @@
 </style>
 </head>
 <body>
-<header><h1 data-t="KOSTUDIO REMOTE">KOSTUDIO REMOTE</h1><span id="scene"></span><span id="dot" title="connection"></span></header>
+<header><h1 data-t="NEEDIT REMOTE">NEEDIT REMOTE</h1><span id="scene"></span><span id="dot" title="connection"></span></header>
 <div id="msg"></div>
 <main>
   <h2 data-t="Pads">Pads</h2><div id="pads"><div class="empty" data-t="Connecting…">Connecting…</div></div>
@@ -129,7 +131,8 @@ function render(s) {
   if (!(s.stack || []).length) st.appendChild(mk('div', 'empty', tr('The cue stack is empty.')));
   (s.stack || []).forEach((c, i) => {
     const b = mk('button', 'cue' + (i === s.stackIdx ? ' active' : '') + (c.noAudio ? ' noaudio' : ''));
-    b.appendChild(mk('span', 'n', String(i + 1))); b.appendChild(mk('span', 'nm', c.name || tr('Unnamed')));
+    b.appendChild(mk('span', 'n', String(i + 1))); b.appendChild(mk('span', 'nm', (c.stop ? '■ ' : '') + (c.name || tr('Unnamed'))));
+    if (c.note) b.appendChild(mk('span', 'nt', String(c.note).slice(0, 300)));       // the operator's note for this cue
     b.onclick = () => send({ type: 'cue_select', index: i });
     st.appendChild(b);
   });

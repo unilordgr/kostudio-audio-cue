@@ -1,3 +1,46 @@
+### Needit Audio Cue: layers, cue notes, a status bar, a compact view and more (v1.6.0)
+
+**New name**
+- The app is now called **Needit Audio Cue** (it was Kostudio Audio Cue). Same app, same `.cuepro` shows, same web address, new icon. Your settings (output device, MIDI map, language, the remote-control link) are carried over the first time it starts
+- **Windows:** the update replaces the app in place, as always (the file keeps the name it had on your disk)
+- **Mac — one manual step, this time only:** version 1.5.0 and older look for the old app name, so their automatic update cannot finish by itself. It downloads the new disk image and opens it: drag **Needit Audio Cue** to Applications, run `xattr -cr "/Applications/Needit Audio Cue.app"` once in Terminal, and delete the old *Kostudio Audio Cue* app. Later updates are automatic again
+
+**Sounds on top of each other, and smarter cues**
+- **LAYER pads.** Until now, starting a sound always faded out the one that was playing. Switch a pad's new **LAYER** chip on and it plays *on top*: starting it stops nothing, and nothing that starts stops it — not another pad, not SPACE. A rain bed under the scene, a thunder hit over it. Its own key or ■, STOP ALL and Esc stop it
+- **Cue settings** (the pencil on a cue row): a **note for the operator** ("GO on the blackout") shown in the list and on the NEXT CUE button; what happens **after** the cue — wait for SPACE, start the next cue when this one ends, or start it after a delay (0 = together with this one); and **stop cues**, which fade out one sound and touch nothing else (that is how a LAYER bed is ended from the cue list). The Auto-advance switch still sets the default
+- **↑ / ↓** move the NEXT marker up and down the cue list without playing anything
+
+**Seeing what is going on**
+- **A status bar** under the header: the **show's name** (● when it has unsaved changes), the **time of day**, a **show timer** that starts with the first sound, **every sound that is playing** with its countdown and a stop button (even if its pad is scrolled out of view), and a **level meter** that turns red when the mix clips
+- **NEXT CUE is now the GO button** — the biggest thing in the cue panel. STOP / PLAY CUE is the quiet button under it
+- **Compact view** (the button at the right of the status bar): pads shrink to key, name, countdown and waveform, so several times as many fit — about 50 on a laptop. Click a pad to play it
+- **More pads on big screens:** the grid uses as many columns as fit (4 at 1920, 6 at 2560). It was stuck at 3 by a 6-pixel miscalculation
+- **The cue list can be resized** (drag its left edge; double-click for automatic), is a little wider by itself on a wide screen, and the running cue keeps its whole name
+- **Waveforms everywhere:** now on iPad too, in each pad's colour, and for WAV files of any length (they used to stop at 40 MB — about four minutes). Compressed files (mp3, m4a, flac…) are still limited to about 20 minutes, 4 on a tablet
+
+**Sound**
+- **Volume up to 200 %.** 100 % now sits at four fifths of a pad's slider (a notch marks it, and the slider snaps to it); beyond it the pad is boosted, for files recorded too quietly. Only boosted pads take the new audio path — every other pad plays exactly as before. The pre-show check warns when a boosted pad will distort
+- **Headphone preview.** Choose a second output in Settings → Audio output and every pad gets a headphones button that plays it there only, from its IN point, without touching the pad or the main output
+
+**Show files**
+- **The desktop app asks before closing** a show with unsaved changes (Save / Don't Save / Cancel)
+- **Export with audio** (Settings → Show file): one folder with the project and a copy of every audio file — move it to another computer and nothing is missing
+- **Movable show folders:** audio that sits in the project's own folder is now linked relative to it, and a file that is not where it was is looked for next to the project before it is reported missing
+- **Updates on your terms** (Settings → Updates): switch the automatic check off, or press **Check now**. And the update question never appears while a sound is playing or the show is locked — it waits
+
+**Fixed**
+- The per-pad FADE time box was 5 px shorter than its button in wide windows (introduced in 1.5.0)
+- On iPad the pad colour swatch was an empty square (since 1.4.0)
+- Empty pads showed two icons on top of each other
+
+**Opening shows across versions**
+- Shows from older versions open exactly as before
+- A show saved by 1.6 opens in 1.5 with LAYER pads as normal pads, cue notes / follow settings / stop cues ignored (a stop cue becomes a normal cue — check them), volume above 100 % as 100 %, and audio that lives in the project's own folder asking for **Browse for Folder…** once
+
+- 502 automated checks, including the real desktop app (from source and packaged). New: LAYER pads, the cue follow engine, stop cues, the status bar, the column layout (also with a wider system font), volume boost (measured in the real app), the close question, export and the settings carry-over — the new behaviour is mutation-checked
+
+---
+
 ### SPACE stops everything else, move pads, and a fade time for each pad (v1.5.0)
 
 - **SPACE (NEXT CUE) now takes over the room.** Starting a cue fades out *everything else that is playing* — the previous cue, a pad you started from its key, a loop bed — each over its own FADE time, while the new cue fades in. Before, only the previous cue was faded out. The same goes for the NEXT CUE button, a Stream Deck / phone / MIDI "next cue" and auto-advance. A paused pad that isn't the previous cue is left where it is; a cue whose audio is missing still stops nothing; the PLAY CUE button already stopped everything and is unchanged

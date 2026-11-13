@@ -15,6 +15,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOpenFolderDialog: ()              => ipcRenderer.invoke('dialog-open-folder'),
   joinPath:             (...parts)      => ipcRenderer.invoke('path-join', ...parts),
   openDonate:           ()              => ipcRenderer.invoke('open-donate'),
+  exportShow:           (payload)       => ipcRenderer.invoke('export-show', payload),
+
+  // The show's state, so the main process never interrupts it or loses work: unsaved changes → ask before closing;
+  // playing / locked → no update dialog in front of it
+  setDirty:             (dirty)         => ipcRenderer.send('show-dirty', dirty === true),
+  setBusy:              (busy)          => ipcRenderer.send('show-busy', busy === true),
+  onSaveBeforeClose:    (cb)            => ipcRenderer.on('save-before-close', () => cb()),
+  saveBeforeCloseDone:  (ok)            => ipcRenderer.send('save-before-close-done', ok === true),
+
+  // Settings kept by the main process (update check) + "check now"
+  getAppSettings:       ()              => ipcRenderer.invoke('app-get-settings'),
+  setAppSettings:       (s)             => ipcRenderer.invoke('app-set-settings', s),
+  checkForUpdatesNow:   ()              => ipcRenderer.invoke('update-check-now'),
 
   // Opt-in remote control (Stream Deck / phone remote): settings, state for the remote, and commands coming back
   remote: {

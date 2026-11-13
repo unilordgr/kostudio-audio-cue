@@ -88,6 +88,49 @@ async function harvest(lang = '') {
       pads[0].filePath = 'C:\\gone.wav';
     });
   });
+  // 3b. v1.6: LAYER pads, cue settings, status bar, compact view, boost, headphone preview
+  await session({}, async page => {
+    await page.evaluate(async () => {
+      const step = (ms = 200) => new Promise(r => setTimeout(r, ms));
+      for (let i = 0; i < 4; i++) { loadFile(i, mkFile(`s${i}.wav`)); pads[i].name = `Sound ${i}`; addToStack(i); }
+      await step(400);
+      toggleOverlap(1); toggleOverlap(1); toggleOverlap(1);
+      const st = getScene().stack;
+      st[0] = { ...st[0], note: 'One', follow: 'end' }; st[1] = { ...st[1], follow: 'after', wait: 3 }; st[2] = { ...st[2], follow: 'hold' }; st[3] = { ...st[3], stop: true };
+      pads[0].loop = true; syncLoopFlag(pads[0]);
+      renderStack(); await step();
+      for (const f of ['', 'hold', 'end', 'after']) { editCue(1); document.getElementById('cueFollow').value = f; document.getElementById('cueFollow').dispatchEvent(new Event('change')); await step(); }
+      saveCue(1); await step(); undo();
+      moveCueCursor(1); moveCueCursor(-1);
+      playPad(0); playPad(1); pausePad(1); await step(1200);
+      getScene().stackIdx = 2; nextCue(); await step();
+      resetShowTimer(); toggleCompact(); await step(); toggleCompact();
+      setPadVolume(2, 1.6); await step();
+      setPreviewDevice('d1'); await step(); await togglePreview(0); await step(); stopPreview();
+      prefs.previewId = 'gone'; HTMLMediaElement.prototype.setSinkId = async () => { throw new Error('x'); }; await togglePreview(0); await step();
+      HTMLMediaElement.prototype.setSinkId = async () => {};
+      showSettingsModal(); await step(300);
+      pads[2].envTop = 0.9; pads[3].vol = 1.5; pads[3].gain = null;
+      await showPreShowCheck(); await step(); closeModal();
+      stopAll('cut');
+    });
+  });
+  // 3c. v1.6, desktop only: Show file (export) and Updates in Settings
+  await session({ electron: true }, async page => {
+    await page.evaluate(async () => {
+      const step = (ms = 250) => new Promise(r => setTimeout(r, ms));
+      let upd = { status: 'current' }, exp = { dir: '/out/Show', projectPath: '/out/Show/Show.cuepro', copied: 2, failed: [] };
+      Object.assign(window.electronAPI, { getAppSettings: async () => ({ checkUpdates: true, version: '1.6.0', canUpdate: true }), setAppSettings: async s => s, checkForUpdatesNow: async () => upd,
+        exportShow: async () => { if (exp === 'throw') throw new Error('disk full'); return exp; }, setDirty() {}, setBusy() {} });
+      loadFile(0, mkFile('s0.wav')); pads[0].name = 'Sound 0'; pads[0].filePath = 'C:\\x.wav'; await step(400);
+      showSettingsModal(); await step(400);
+      for (const s of ['current', 'available', 'unsupported', 'error']) { upd = { status: s }; await checkUpdatesNow(); await step(); }
+      await setUpdateCheck(false); await setUpdateCheck(true);
+      await exportShowWithAudio(); await step();
+      exp = { dir: '/out/Show', projectPath: '/out/Show/Show.cuepro', copied: 1, failed: ['C:\\y.wav'] }; await exportShowWithAudio(); await step();
+      exp = 'throw'; await exportShowWithAudio(); await step();
+    });
+  });
   // 4. browsers without setSinkId / Web MIDI
   await session({}, async page => {
     await page.evaluate(() => { delete HTMLMediaElement.prototype.setSinkId; });

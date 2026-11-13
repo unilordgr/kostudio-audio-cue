@@ -18,7 +18,10 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned on purpose. `ubuntu-latest` moved to Ubuntu 26.04, which the pinned Playwright (see package.json) has no
+    # system-dependency list for, so "playwright install --with-deps" failed before a single test ran. Move this to a
+    # newer image together with a Playwright upgrade, not on its own.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -47,4 +50,4 @@ jobs:
       - name: Package the app (Linux, unpacked) and smoke-test the packaged build
         run: |
           npx electron-builder --linux --dir --publish never
-          KCUE_APP_BIN=dist/linux-unpacked/kostudio-audio-cue xvfb-run -a node tests/electron.test.js
+          KCUE_APP_BIN=dist/linux-unpacked/needit-audio-cue xvfb-run -a node tests/electron.test.js

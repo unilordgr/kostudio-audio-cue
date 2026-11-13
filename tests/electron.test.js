@@ -9,7 +9,7 @@ const { ROOT, wavBytes, reporter, sleep } = require('./helpers');
 const t = reporter('electron');
 const ck = (n, ok, d = '') => { if (process.env.KCUE_VERBOSE) console.log(ok ? 'ok    ' : 'NOT OK', n.slice(0, 90), ok ? '' : d); t.check(n, ok, d); };
 
-// KCUE_APP_BIN=dist/linux-unpacked/kostudio-audio-cue runs the PACKAGED app instead (proves electron-builder put every file the app needs into it)
+// KCUE_APP_BIN=dist/linux-unpacked/needit-audio-cue runs the PACKAGED app instead (proves electron-builder put every file the app needs into it)
 const packaged = process.env.KCUE_APP_BIN ? path.resolve(process.env.KCUE_APP_BIN) : null;
 let electronPath = packaged;
 if (!electronPath) { try { electronPath = require('electron'); } catch { /* binary not installed */ } }
@@ -50,10 +50,11 @@ const httpReq = (port, method, p, { headers = {}, body } = {}) => new Promise((r
     keys: Object.keys(window.electronAPI).sort().join(),
   }));
   const title = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getTitle());
-  ck('the real app starts: window titled "Kostudio Audio Cue", preload bridge present, no Node globals leaked into the page, CSP in place',
-    title === 'Kostudio Audio Cue' && info.isElectron && info.hasRemote && info.leaked === 'undefined,undefined,undefined,undefined' && info.csp, JSON.stringify({ title, ...info }));
+  ck('the real app starts: window titled "Untitled show — Needit Audio Cue", preload bridge present, no Node globals leaked into the page, CSP in place',
+    title === 'Untitled show — Needit Audio Cue' && info.isElectron && info.hasRemote && info.leaked === 'undefined,undefined,undefined,undefined' && info.csp, JSON.stringify({ title, ...info }));
   ck('the bridge exposes exactly the intended functions (a new IPC surface must be a conscious decision)',
-    info.keys === ['fileExists', 'getPathForFile', 'isElectron', 'joinPath', 'onUpdateError', 'onUpdateProgress', 'onUpdateReady', 'openDonate', 'readFile', 'readTextFile', 'remote',
+    info.keys === ['checkForUpdatesNow', 'exportShow', 'fileExists', 'getAppSettings', 'getPathForFile', 'isElectron', 'joinPath', 'onSaveBeforeClose', 'onUpdateError', 'onUpdateProgress', 'onUpdateReady',
+                   'openDonate', 'readFile', 'readTextFile', 'remote', 'saveBeforeCloseDone', 'setAppSettings', 'setBusy', 'setDirty',
                    'showOpenAudioDialog', 'showOpenFileDialog', 'showOpenFolderDialog', 'showSaveDialog', 'writeTextFile'].join(), info.keys);
 
   // ── real filesystem IPC and its allow-list
@@ -91,8 +92,8 @@ const httpReq = (port, method, p, { headers = {}, body } = {}) => new Promise((r
     return { path: currentSavePath };
   });
   let onDisk = null; try { onDisk = JSON.parse(fs.readFileSync(savedTo, 'utf8')); } catch { /* not written */ }
-  ck('saving through the real Save dialog writes a valid project file (no leftover .tmp) that keeps the audio link and the missing link',
-    saved.path === savedTo && onDisk && onDisk.pads?.[0]?.audioPath === wavPath && /nope\.wav$/.test(onDisk.pads?.[1]?.audioPath || '') && !fs.existsSync(savedTo + '.tmp'), JSON.stringify({ saved, onDisk: onDisk && onDisk.pads?.map(p => p.audioPath) }));
+  ck('saving through the real Save dialog writes a valid project file (no leftover .tmp) that keeps the audio link and the missing link — relative to the project, because the audio sits in its folder',
+    saved.path === savedTo && onDisk && onDisk.pads?.[0]?.audioPath === path.basename(wavPath) && onDisk.pads?.[1]?.audioPath === 'nope.wav' && !fs.existsSync(savedTo + '.tmp'), JSON.stringify({ saved, onDisk: onDisk && onDisk.pads?.map(p => p.audioPath) }));
 
   // ── a file picked in a file chooser / dropped keeps its real disk path (that is what a saved project links to).
   //    Electron 32 removed File.path, so this goes through the preload's webUtils.getPathForFile.
@@ -174,6 +175,43 @@ const httpReq = (port, method, p, { headers = {}, body } = {}) => new Promise((r
   await win.evaluate(() => window.electronAPI.openDonate('https://evil.example/'));
   const opened2 = await app.evaluate(() => global.__opened);
   ck('the donate button opens only the fixed Ko-fi page, whatever the page passes in', opened2.length === 1 && opened2[0] === 'https://ko-fi.com/dkostoudis', JSON.stringify(opened2));
+
+  // ── v1.6 in the real app
+  // Volume above 100 % goes through Web Audio (element → gain). Prove the real file:// page really carries sound on that path:
+  // an analyser hung behind the gain must see the tone (a tainted / blocked media source would give silence).
+  const boost = await win.evaluate(async () => {
+    const rate = 8000, n = rate * 2, b = new Uint8Array(44 + n), v = new DataView(b.buffer), w = (o, t) => [...t].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
+    w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) b[44 + i] = 128 + Math.round(60 * Math.sin(2 * Math.PI * 440 * i / rate));
+    const id = pads.findIndex(p => !p.file);
+    loadFile(id, new File([b], 'boost-tone.wav', { type: 'audio/wav' }), true);
+    await new Promise(r => setTimeout(r, 400));
+    setPadVolume(id, 2);
+    const an = boostCtx.createAnalyser(); pads[id].gain.connect(an);
+    playPad(id);
+    await new Promise(r => setTimeout(r, 500));
+    const buf = new Float32Array(an.fftSize); an.getFloatTimeDomainData(buf);
+    const out = { peak: Math.max(...buf.map(Math.abs)), state: boostCtx.state, gain: pads[id].gain.gain.value, el: pads[id].audio.volume, env: pads[id].envTop, level: mixLevel().level };
+    stopAll('cut');
+    return out;
+  });
+  ck('volume above 100 % in the real app: the boosted pad really sounds through the gain (an analyser behind it sees the tone at about twice the file\'s level)',
+    boost.state === 'running' && boost.gain === 2 && boost.el === 1 && boost.peak > 0.6 && boost.peak < 1.2 && Math.abs(boost.env - 60 / 128) < 0.03 && boost.level > 0.6, JSON.stringify(boost));
+  const st16 = await win.evaluate(async () => ({ settings: await window.electronAPI.getAppSettings(), upd: await window.electronAPI.checkForUpdatesNow(), name: document.getElementById('showName').textContent, title: document.title }));
+  ck('settings / update IPC in the real app: version reported, check on by default, and on Linux "check now" answers without touching the network',
+    st16.settings.checkUpdates === true && /^\d+\.\d+\.\d+/.test(st16.settings.version) && st16.settings.canUpdate === false && st16.upd.status === 'unsupported', JSON.stringify(st16));
+  // Unsaved changes: closing the window asks first (the native question is answered by a stub: first Cancel, then Don't Save)
+  await app.evaluate(({ dialog }) => { global.__asked = []; global.__answer = 2; dialog.showMessageBox = async (_w, o) => { global.__asked.push(o); return { response: global.__answer }; }; });
+  await win.evaluate(() => { setPadVolume(0, 0.7); });
+  await sleep(200);
+  const winTitle = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getTitle());
+  await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].close(); });
+  await sleep(400);
+  const held = await app.evaluate(({ BrowserWindow }) => ({ windows: BrowserWindow.getAllWindows().length, asked: global.__asked.map(o => ({ m: o.message, b: o.buttons })) }));
+  ck('unsaved changes in the real app: the window title carries the show name and a ● mark; closing asks Save / Don\'t Save / Cancel, and Cancel keeps the app open',
+    /^● .+ — Needit Audio Cue$/.test(winTitle) && held.windows === 1 && held.asked.length === 1 && /not saved/.test(held.asked[0].m) && held.asked[0].b.join('|') === "Save|Don't Save|Cancel", JSON.stringify({ winTitle, held }));
+  await app.evaluate(() => { global.__answer = 1; });                    // Don't Save → the close goes through
 
   ck('no page errors during the whole run', errors.length === 0, errors.join(' | '));
   await app.close();

@@ -1,6 +1,6 @@
 # Security policy
 
-Kostudio Audio Cue runs at live shows, so a security problem can also be a show problem. Reports are welcome and taken seriously.
+Needit Audio Cue runs at live shows, so a security problem can also be a show problem. Reports are welcome and taken seriously.
 
 ## Supported versions
 
@@ -21,7 +21,7 @@ You'll get an answer as soon as I can, and a fix is released before the details 
 
 - Opening a malicious `.cuepro` project (path handling, resource exhaustion, script injection through names, colours, ids or paths)
 - The opt-in remote control server (`remote.js`, `remote.html`): authentication, cross-site / DNS-rebinding attacks, denial of service by a device on the same network, anything beyond the playback-only command set
-- The desktop app's IPC surface (`main.js`, `preload.js`): reading or writing files outside the intended allow-list, opening URLs, permissions
+- The desktop app's IPC surface (`main.js`, `preload.js`): reading or writing files outside the intended allow-list, opening URLs, permissions. That includes **Export with audio**, which may only copy audio files (the same rule as playing them) and only into the folder chosen in the system dialog
 - The updater (`main.js`): anything that lets a download be replaced or an unintended file be installed
 
 ## Known limits (not treated as vulnerabilities)

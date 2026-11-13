@@ -61,7 +61,7 @@ jobs:
           npm run dist-mac || {
             # Both architectures must exist: the README links to both, and the in-app updater
             # picks the DMG matching the user's CPU.
-            if [ -f dist/Kostudio-Audio-Cue-arm64.dmg ] && [ -f dist/Kostudio-Audio-Cue-x64.dmg ]; then
+            if [ -f dist/Needit-Audio-Cue-arm64.dmg ] && [ -f dist/Needit-Audio-Cue-x64.dmg ]; then
               echo "Both DMGs created — hdiutil detach error was the only issue, continuing."
             else
               echo "Mac build actually failed — expected arm64 and x64 DMGs, found:"
@@ -108,7 +108,7 @@ jobs:
           path: release-files
 
       - name: Copy iPad web app to release files
-        run: cp index.html "release-files/Kostudio-Audio-Cue-iPad-Web.html"
+        run: cp index.html "release-files/Needit-Audio-Cue-iPad-Web.html"
 
       - name: Write release notes
         run: |
@@ -121,8 +121,8 @@ jobs:
             echo "---"
             echo
             echo "- **Windows:** download the .exe — portable, no install required."
-            echo "- **Mac:** download the .dmg for your chip, drag the app to Applications, then run \`xattr -cr \"/Applications/Kostudio Audio Cue.app\"\` once in Terminal (the app is unsigned)."
-            echo "- **iPad / Browser:** download \`Kostudio-Audio-Cue-iPad-Web.html\`, open it in Safari and Add to Home Screen — or use the GitHub Pages site."
+            echo "- **Mac:** download the .dmg for your chip, drag the app to Applications, then run \`xattr -cr \"/Applications/Needit Audio Cue.app\"\` once in Terminal (the app is unsigned)."
+            echo "- **iPad / Browser:** download \`Needit-Audio-Cue-iPad-Web.html\`, open it in Safari and Add to Home Screen — or use the GitHub Pages site."
           } > /tmp/release-notes.md
 
       - name: Publish versioned release
@@ -134,5 +134,5 @@ jobs:
           gh release create "$TAG" release-files/* \
             --repo ${{ github.repository }} \
             --target ${{ github.sha }} \
-            --title "Kostudio Audio Cue ${TAG}" \
+            --title "Needit Audio Cue ${TAG}" \
             --notes-file /tmp/release-notes.md

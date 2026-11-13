@@ -1,6 +1,6 @@
 # Remote control (Stream Deck, Companion, phone / tablet, scripts)
 
-Kostudio Audio Cue (desktop app) can be started and stopped from other devices. It is **off by default** and only ever
+Needit Audio Cue (desktop app) can be started and stopped from other devices. It is **off by default** and only ever
 **plays** things — a fixed set of playback commands. It cannot edit, delete, load, save or lock a show.
 
 Turn it on in **⚙ Settings → Remote control**.
@@ -34,7 +34,7 @@ Base URL: `http://127.0.0.1:28491` (port configurable, 1024–65535).
 
 | Method & path | Auth | What it does |
 |---|---|---|
-| `GET /ping` | no | `{"ok":true,"service":"Kostudio Audio Cue"}` — is the app there? |
+| `GET /ping` | no | `{"ok":true,"service":"Needit Audio Cue"}` — is the app there? |
 | `GET /remote` | no | The phone / tablet remote page (contains no secrets). |
 | `GET /state` | yes | Current state as JSON (pads, cue stack, scene, master volume…). |
 | `GET /events` | yes | The same state as a server-sent-event stream (heartbeat every 15 s, max 4 streams). |

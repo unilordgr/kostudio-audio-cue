@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for wanting to help! Kostudio Audio Cue is used live, so the bar is "it must not surprise the operator during a show".
+Thanks for wanting to help! Needit Audio Cue is used live, so the bar is "it must not surprise the operator during a show".
 
 ## Before you start
 
