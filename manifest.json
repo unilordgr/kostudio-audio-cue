@@ -1,6 +1,6 @@
 {
-  "name": "Kostudio Audio Cue",
-  "short_name": "Kostudio Cue",
+  "name": "Needit Audio Cue",
+  "short_name": "Needit Cue",
   "description": "Live Performance Sound Manager — Theatre, Events & Live Shows",
   "start_url": "./index.html",
   "display": "standalone",

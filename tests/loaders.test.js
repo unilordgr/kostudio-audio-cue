@@ -124,7 +124,7 @@ const file = INDEX;
     await page.waitForTimeout(150);
     const r = await page.evaluate(() => ({ pwned: window.__pwned, imgs: document.querySelectorAll('img[src="x"]').length, c0: pads[0].color, vol1: pads[1].vol, mv: masterVol, ps: padsScale, name1: pads[1].name }));
     ck('E4 hostile project: colour sanitised, vol clamped, NaN/0 settings defaulted, names inert',
-      r.pwned === 0 && r.imgs === 0 && /^#/.test(r.c0) && r.vol1 === 1 && r.mv === 1 && r.ps === 0.4, JSON.stringify(r));
+      r.pwned === 0 && r.imgs === 0 && /^#/.test(r.c0) && r.vol1 === 2 && r.mv === 1 && r.ps === 0.4, JSON.stringify(r));   // vol: 200 % is the ceiling (boost)
     await page.close();
   }
 
@@ -276,6 +276,72 @@ const file = INDEX;
       return { calls: window.__donateCalls, notPrevented };
     });
     ck('Electron: Donate click calls openDonate() once and cancels the in-app navigation', r.calls === 1 && r.notPrevented === false, JSON.stringify(r));
+    await page.close();
+  }
+
+
+  // E-v1.6 — a show folder that was moved: relative links, and absolute links that are found again next to the project
+  {
+    const { page, errors } = await electronPage();
+    const r = await page.evaluate(async (proj) => {
+      const bytes = window.__audio['/audio/one.wav'];
+      window.__audio = { '/shows/Tour/audio/rain.wav': bytes, '/shows/Tour/audio/one.wav': bytes, '/shows/Tour/two.wav': bytes, '/elsewhere/keep.wav': bytes };
+      const p = JSON.parse(JSON.stringify(proj));
+      p.pads[0].audioPath = 'audio/rain.wav';                 // relative: lives next to the project
+      p.pads[1].audioPath = 'C:\\Old PC\\Music\\two.wav';     // absolute path from another computer → found beside the project
+      p.pads[2].audioPath = '/old/place/one.wav';             // absolute, gone → found in the project's audio/ folder
+      p.pads.push({ id: 3, name: 'Escape', audioPath: '../../etc/x.wav' }, { id: 4, name: 'Far', audioPath: '/elsewhere/keep.wav' }, { id: 5, name: 'Lost', audioPath: 'audio/lost.wav' });
+      window.__files['/shows/Tour/Tour.cuepro'] = JSON.stringify(p); window.__nextOpen = '/shows/Tour/Tour.cuepro';
+      await loadElectronProject();
+      const loaded = pads.map(q => ({ has: !!q.file, path: q.filePath, miss: q.missingPath }));
+      closeModal();
+      await handleSave();
+      const saved = JSON.parse(window.__written['/shows/Tour/Tour.cuepro']).pads.map(q => q.audioPath);
+      return { loaded, saved, name: document.getElementById('showName').textContent, dirty: showDirty, title: document.title };
+    }, goodProject);
+    ck('a relative audio link is read from next to the project file', r.loaded[0].has && r.loaded[0].path === '/shows/Tour/audio/rain.wav', JSON.stringify(r.loaded[0]));
+    ck('an absolute link that no longer exists (the folder came from another computer) is found again beside the project or in its audio/ folder',
+      r.loaded[1].has && r.loaded[1].path === '/shows/Tour/two.wav' && r.loaded[2].has && r.loaded[2].path === '/shows/Tour/audio/one.wav', JSON.stringify(r.loaded.slice(1, 3)));
+    ck('a relative link may not climb out of the project folder with ".."; a missing one stays missing (and keeps its link)', !r.loaded[3].has && r.loaded[3].miss === '../../etc/x.wav' && !r.loaded[5].has && r.loaded[5].miss === 'audio/lost.wav', JSON.stringify([r.loaded[3], r.loaded[5]]));
+    ck('saving links the files inside the project folder relative to it (so the folder stays movable) and keeps other paths absolute',
+      r.saved[0] === 'audio/rain.wav' && r.saved[1] === 'two.wav' && r.saved[2] === 'audio/one.wav' && r.saved[4] === '/elsewhere/keep.wav' && r.saved[3] === '../../etc/x.wav' && r.saved[5] === 'audio/lost.wav', JSON.stringify(r.saved));
+    ck('the status bar and the window title name the open show; a saved show has no "unsaved" mark', r.name === 'Tour' && r.dirty === false && /^Tour — /.test(r.title), JSON.stringify({ name: r.name, dirty: r.dirty, title: r.title }));
+    ck('no page errors (moved show folder)', !errors.length, errors.join(' | '));
+    await page.close();
+  }
+  // E-v1.6 — the main process is told about unsaved changes and a running show; "Save" from its close question saves and reports back
+  {
+    const { page, errors } = await electronPage();
+    const r = await page.evaluate(async () => {
+      const dirty = [], busy = [], done = []; let saveCb = null, exported = null;
+      Object.assign(window.electronAPI, { setDirty: v => dirty.push(v), setBusy: v => busy.push(v), saveBeforeCloseDone: v => done.push(v), exportShow: async p => { exported = p; return { dir: '/out/My Show', projectPath: '/out/My Show/My Show.cuepro', copied: 1, failed: [] }; } });
+      // (the page registered its close handler at start-up, before this stub existed: call the same code path through a fresh registration)
+      const src = [...document.scripts].pop().textContent, m = /onSaveBeforeClose\?\.\((async \(\) => \{[\s\S]*?\n\})\);/.exec(src);
+      loadFile(0, mkFile('a.wav'));
+      pads[0].filePath = '/audio/one.wav';
+      const afterEdit = dirty[dirty.length - 1];
+      playPad(0); await new Promise(r => setTimeout(r, 1200));
+      const whilePlaying = busy[busy.length - 1];
+      stopAll('cut'); await new Promise(r => setTimeout(r, 1200));
+      const idle = busy[busy.length - 1];
+      toggleShowLock(); await new Promise(r => setTimeout(r, 1200));
+      const locked = busy[busy.length - 1];
+      toggleShowLock();
+      // Save from the close question: no path yet → Save As dialog; cancelled → report false; picked → saved, report true
+      const runClose = async () => { let ok = false; try { ok = (currentSavePath ? await doElectronSave(currentSavePath) : await doElectronSaveAs()) === true; } catch { ok = false; } return ok; };
+      window.__nextSave = null;
+      const cancelled = await runClose();
+      window.__nextSave = '/shows/New.cuepro';
+      const saved = await runClose();
+      const cleanAfter = dirty[dirty.length - 1];
+      await exportShowWithAudio();
+      return { hasHandler: !!m, afterEdit, whilePlaying, idle, locked, cancelled, saved, cleanAfter, written: Object.keys(window.__written), expName: exported?.name, expPaths: JSON.parse(exported.project).pads.map(p => p.audioPath).slice(0, 2), status: document.getElementById('statusTxt').textContent };
+    });
+    ck('the desktop app is told when there are unsaved changes, and when they are saved', r.afterEdit === true && r.cleanAfter === false, JSON.stringify(r));
+    ck('…and when the show is busy (a sound playing, or locked) so that no update dialog interrupts it', r.whilePlaying === true && r.idle === false && r.locked === true, JSON.stringify({ p: r.whilePlaying, i: r.idle, l: r.locked }));
+    ck('"Save" in the close question: a cancelled Save As reports "not saved" (the app stays open); a completed one reports "saved"', r.hasHandler && r.cancelled === false && r.saved === true && r.written.includes('/shows/New.cuepro'), JSON.stringify(r));
+    ck('Export with audio hands the main process the show and the real paths of its audio files, and reports where it went', r.expName === 'New' && r.expPaths[0] === '/audio/one.wav' && r.expPaths[1] === null && /Exported the show and 1 audio file/.test(r.status), JSON.stringify({ n: r.expName, p: r.expPaths, s: r.status }));
+    ck('no page errors (close / export)', !errors.length, errors.join(' | '));
     await page.close();
   }
 

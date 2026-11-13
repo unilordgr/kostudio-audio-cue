@@ -11,13 +11,13 @@
 <link rel="apple-touch-icon" href="icons/256x256.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Kostudio Cue">
+<meta name="apple-mobile-web-app-title" content="Needit Cue">
 <meta name="theme-color" content="#0a0c10">
-<title>Kostudio Audio Cue</title>
+<title>Needit Audio Cue</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231c3550'/%3E%3Cstop offset='1' stop-color='%230c1622'/%3E%3C/linearGradient%3E%3ClinearGradient id='r' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%237be7ff'/%3E%3Cstop offset='1' stop-color='%232f8cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='1' y='1' width='30' height='30' rx='8' fill='url(%23b)' stroke='%233cc8f5' stroke-opacity='.45'/%3E%3Cg fill='url(%23r)'%3E%3Crect x='6.2' y='13' width='2.8' height='6' rx='1.4'/%3E%3Crect x='10.6' y='9.5' width='2.8' height='13' rx='1.4'/%3E%3Crect x='15' y='6.5' width='2.8' height='19' rx='1.4'/%3E%3Crect x='19.4' y='10.5' width='2.8' height='11' rx='1.4'/%3E%3Crect x='23.8' y='13.5' width='2.8' height='5' rx='1.4'/%3E%3C/g%3E%3C/svg%3E" type="image/svg+xml">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   KOSTUDIO AUDIO CUE — visual layer
+   NEEDIT AUDIO CUE — visual layer
    Tokens first (both themes), then base, header, pads, cue stack, footer, dialogs, touch, reduced motion.
    Design intent: a broadcast-console feel. Calm graphite surfaces, one signal-cyan accent, state colours that
    mean one thing each (green = live, amber = paused / fading / warning, red = stop / danger, violet = fade).
@@ -87,7 +87,7 @@
   --sel-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.5L6 6l4.5-4.5' fill='none' stroke='%23b9c2d2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   /* ── layout ── */
-  --stack-w: 288px;
+  --stack-w: clamp(288px, 19vw, 380px);   /* the cue list grows a little on a wide screen; dragging its edge sets it by hand */
   --footer-h: 38px;
   --header-h: 54px;
   --pads-scale: 1;
@@ -568,7 +568,7 @@ html[data-theme="light"] .shortcut-key { box-shadow: inset 0 -2px 0 rgba(16,24,4
 }
 .pad-progress.scrubbing { cursor: grabbing; }
 .pad.has-wave .pad-progress { height: 32px; }
-.pad-wave { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; color: var(--wave); opacity: .9; }
+.pad-wave { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; color: var(--wave); color: color-mix(in srgb, var(--c) 58%, var(--wave)); opacity: .9; }
 .pad-prog-fill {
   height: 100%; width: 0%;
   background: var(--c);
@@ -766,6 +766,7 @@ html[data-theme="light"] .shortcut-key { box-shadow: inset 0 -2px 0 rgba(16,24,4
   .transport-pp { height: 44px; font-size: var(--fs-md); }
   .transport-stop { width: 44px; height: 44px; }
   .btn-sm { height: 27px; font-size: var(--fs-xs); }
+  .pad-fade { height: 27px; width: 46px; font-size: var(--fs-xs); }
   .inout-btn { height: 25px; font-size: var(--fs-xs); }
 }
 
@@ -1300,10 +1301,11 @@ header[data-compact="4"] .hdr-btn .lbl, header[data-compact="5"] .hdr-btn .lbl {
 header[data-compact="4"] .hdr-btn.cap::after, header[data-compact="5"] .hdr-btn.cap::after { display: none; }
 header[data-compact="4"] .header-right, header[data-compact="5"] .header-right { gap: 8px; }
 
-/* Pads: as many columns as fit (never more than 4, never narrower than 232 px). The old fixed 4 columns clipped the
-   "+ Stack" and ✕ buttons below ~1280 px wide. The footer row also wraps instead of clipping. */
+/* Pads: as many columns as fit, each at least 300 px wide (2 at the 960 px minimum window, 3 on a laptop, 4 at 1920, 6 at 2560).
+   The rule this replaces was meant to allow 4 columns but its gap arithmetic was 6 px short, so it never went past 3 —
+   on a big screen a dozen huge cards. The chip row also wraps instead of clipping. */
 @media (pointer: fine) {
-  .pads-grid { grid-template-columns: repeat(auto-fill, minmax(max(232px, calc((100% - 30px) / 4)), 1fr)); }
+  .pads-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 }
 .pad-footer { flex-wrap: wrap; gap: 4px; }
 .pad-footer .btn-sm { padding: 3px 6px; }
@@ -1407,7 +1409,7 @@ body.show-locked .pad-footer, body.show-locked .inout-row { cursor: not-allowed;
   .pad-vol-slider { height: 6px; }
   .pad-vol-slider::-webkit-slider-thumb { width: 24px; height: 24px; }
   .pad-vol-row { min-height: 34px; }
-  .color-dot { width: 18px; height: 18px; position: relative; }
+  .color-dot { width: 18px; height: 18px; padding: 3px; position: relative; }
   .color-dot::after { content: ''; position: absolute; inset: -12px; }
   .undo-touch { display: inline-block; min-height: 36px; padding: 6px 12px; }
   .clear-btn, .ts-x { min-height: 36px; padding: 6px 12px; }
@@ -1452,6 +1454,207 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
   .pad.playing::after { opacity: .7; }
   .playing-dot::after { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v1.6 LAYER — kept in one block at the end so it wins the cascade without touching the passes above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* NEXT CUE is the GO button: the biggest thing in the panel, in the accent colour. PLAY / STOP CUE is the quiet second button. */
+.stack-foot .next-btn {
+  height: 68px; gap: 4px; font-size: var(--fs-lg);
+  background: var(--accent); border: 1px solid var(--accent); color: var(--on-accent);
+  box-shadow: 0 10px 24px -12px var(--accent), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.stack-foot .next-btn .nb-sub { color: inherit; opacity: .82; font-size: 11.5px; }
+.stack-foot .next-btn .nb-sub kbd { background: rgba(0,0,0,.18); border-color: rgba(0,0,0,.25); color: inherit; box-shadow: none; }
+.stack-foot .next-btn:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); filter: brightness(1.08); }
+.stack-foot .next-btn:disabled { background: var(--surface3); border-color: var(--border); color: var(--muted); box-shadow: none; opacity: .8; }
+.stack-foot .play-cue-btn {
+  height: 36px; font-size: var(--fs-sm); letter-spacing: .1em;
+  background: transparent; border: 1px solid var(--border-strong); color: var(--text-2); box-shadow: none;
+}
+.stack-foot .play-cue-btn:hover:not(:disabled) { background: var(--surface3); color: var(--text); filter: none; }
+.stack-foot .play-cue-btn:disabled { background: transparent; border-color: var(--border); color: var(--muted); }
+.stack-foot .play-cue-btn.is-playing { background: transparent; border-color: var(--danger); color: var(--danger); box-shadow: none; }
+.stack-foot .play-cue-btn.is-playing:hover { background: var(--danger-soft); }
+@media (pointer: coarse) {
+  .stack-foot .next-btn     { order: 3; flex: 2; height: 60px; }
+  .stack-foot .play-cue-btn { order: 2; flex: 1; height: 60px; }
+}
+
+/* Cue list: drag its left edge to resize; the row buttons appear when you reach for a row, so the running cue keeps its whole name */
+.stack-resize { position: absolute; left: 0; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 3; touch-action: none; }
+.stack-resize::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: transparent; transition: background-color var(--t-fast); }
+.stack-resize:hover::after, body.stack-resizing .stack-resize::after { background: var(--accent); }
+body.stack-resizing, body.stack-resizing * { cursor: col-resize !important; user-select: none !important; -webkit-user-select: none !important; }
+@media (pointer: coarse) { .stack-resize { display: none; } }
+@media (pointer: fine) { .stack-item.active:not(:hover) .stack-mv, .stack-item.active:not(:hover) .stack-rm { display: none; } }
+
+/* The chip row: LOOP · FADE + its time · LAYER · + Stack · ✕ in one line at every card width — a word each,
+   or just the glyph when the card is too narrow for words (pads zoomed out). */
+.pad-footer .btn-sm .ci { display: none; font-weight: 700; }
+.pad-footer .btn-sm.stack-btn .ci { display: inline; margin-right: 3px; }
+.pad-footer .btn-sm { padding: 0 6px; letter-spacing: .03em; }
+.pad-footer .btn-sm.clear-pad { padding: 0; }
+.pad .pad-footer { gap: 4px; }
+.btn-sm.layer-on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+@container pad (max-width: 262px) {
+  .pad-footer .btn-sm .cl { display: none; }
+  .pad-footer .btn-sm .ci, .pad-footer .btn-sm.stack-btn .ci { display: inline; margin: 0; font-size: 12px; }
+  .pad-footer .btn-sm { padding: 0; width: 25px; letter-spacing: 0; }
+}
+@media (pointer: coarse) {
+  .pad .pad-footer .btn-sm { padding: 6px 10px; }
+  .pad .pad-footer .btn-sm.clear-pad { padding: 0; }
+  @container pad (max-width: 335px) {
+    .pad .pad-footer .btn-sm { padding: 6px 7px; font-size: 11px; width: auto; }
+    .pad .pad-footer .btn-sm .cl { display: inline; }
+    .pad .pad-footer .btn-sm .ci { display: none; }
+    .pad .pad-footer .btn-sm.stack-btn .ci { display: inline; margin-right: 2px; }
+    .pad .pad-footer .btn-sm.clear-pad { padding: 0; width: 32px; }
+    .pad-fade { width: 38px; }
+  }
+}
+
+/* Cue rows: name + operator note, follow marker, stop cues, the settings pencil */
+.stack-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.stack-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.stack-note { font-size: var(--fs-xs); font-weight: 500; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stack-item.is-next .stack-note { color: var(--text); white-space: normal; }          /* the note of the cue you are about to fire is shown in full */
+.stack-stop { flex-shrink: 0; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--danger); color: var(--danger); }
+.stack-item.is-stop .stack-dot { opacity: .45; }
+.stack-flw { flex-shrink: 0; font-size: var(--fs-xs); font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stack-flw.hold { color: var(--muted); }
+.stack-ed {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 26px; flex-shrink: 0; margin-left: -4px;
+  color: var(--muted); cursor: pointer; border-radius: var(--r-sm); font-size: 13px;
+  transition: color var(--t-fast), background-color var(--t-fast);
+}
+.stack-ed:hover { color: var(--accent); background: var(--surface4); }
+@media (pointer: fine) { .stack-item:not(:hover) .stack-ed { display: none; } }
+@media (pointer: coarse) { .stack-ed { width: 34px; height: 36px; font-size: 16px; } }
+body.show-locked .stack-ed { opacity: .25; pointer-events: none; }
+.stack-foot .next-btn .nb-note { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.cue-ed { display: flex; flex-direction: column; gap: 12px; }
+.cue-ed-name { display: flex; align-items: center; gap: 10px; font-size: var(--fs-lg); font-weight: 700; }
+.cue-ed-row { display: flex; flex-direction: column; gap: 5px; font-size: var(--fs-sm); color: var(--text-2); }
+.cue-ed-row[hidden] { display: none; }
+.cue-ed-row .sh-select, .cue-ed-row .modal-input { width: 100%; flex: none; }
+.cue-ed-row .sh-select { height: 38px; }
+.cue-ed-hint { font-size: var(--fs-xs); color: var(--muted); line-height: 1.5; margin: 0; }
+
+/* ── Status bar under the header: show, clock, timer, what is playing, level, view ── */
+.now-bar {
+  flex-shrink: 0; height: 34px; min-width: 0;
+  display: flex; align-items: center; gap: 10px; padding: 0 12px 0 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm); user-select: none;
+}
+.nb-show { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 240px; flex-shrink: 1; font-weight: 700; color: var(--text); }
+.nb-show-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-dirty { color: var(--warn); font-size: 9px; line-height: 1; flex-shrink: 0; }
+.nb-dirty[hidden] { display: none; }
+.nb-sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; }
+.nb-clock { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text-2); flex-shrink: 0; white-space: nowrap; }
+.nb-timer {
+  height: 22px; padding: 0 7px; flex-shrink: 0;
+  background: transparent; border: 1px solid var(--border); border-radius: var(--r-sm);
+  color: var(--text); font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: border-color var(--t-fast), background-color var(--t-fast);
+}
+.nb-timer:hover { border-color: var(--accent); background: var(--accent-soft); }
+.nb-playing { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.nb-playing::-webkit-scrollbar { display: none; }
+.nb-idle { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+.np {
+  --c: #5b6577;
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 280px;
+  height: 24px; padding: 0 3px 0 8px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--c); background: var(--surface3);
+  background: color-mix(in srgb, var(--c) 16%, var(--surface));
+}
+.np-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex-shrink: 0; }
+.np.paused { border-style: dashed; border-color: var(--warn-fill); }
+.np.paused .np-dot { background: var(--warn-fill); border-radius: 1px; }
+.np.fading { border-color: var(--warn-fill); }
+.np-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 700; color: var(--text); }
+.np-flag { font-size: 10px; color: var(--accent); flex-shrink: 0; }
+.np-time { font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-2); flex-shrink: 0; }
+.np-stop { width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 8px; color: var(--text-2); }
+.np-stop:hover { background: var(--danger-solid); color: #fff; }
+.nb-meter { position: relative; width: 96px; height: 10px; flex-shrink: 0; border-radius: 3px; background: var(--surface4); overflow: hidden; }
+.nb-meter-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #2bd47d 0 72%, #f5c542 72% 90%, #ff4d5e 90%); background-size: 96px 100%; }
+.nb-meter-peak { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: var(--text); opacity: 0; }
+.nb-meter.clip { box-shadow: 0 0 0 2px var(--danger); }
+.nb-meter.unknown { background: repeating-linear-gradient(135deg, var(--surface4) 0 4px, transparent 4px 8px); }
+.nb-view {
+  width: 28px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text-2); cursor: pointer;
+  transition: border-color var(--t-fast), background-color var(--t-fast), color var(--t-fast);
+}
+.nb-view:hover { border-color: var(--accent); color: var(--accent); }
+.nb-view.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.nb-view-ic { width: 14px; height: 12px; background: linear-gradient(currentColor 0 0) 0 0 / 6px 3px, linear-gradient(currentColor 0 0) 8px 0 / 6px 3px, linear-gradient(currentColor 0 0) 0 4.5px / 6px 3px, linear-gradient(currentColor 0 0) 8px 4.5px / 6px 3px, linear-gradient(currentColor 0 0) 0 9px / 6px 3px, linear-gradient(currentColor 0 0) 8px 9px / 6px 3px; background-repeat: no-repeat; }
+@media (max-width: 1100px) { .nb-show { max-width: 150px; } .nb-meter { width: 64px; } .nb-meter-fill { background-size: 64px 100%; } }
+@media (pointer: coarse) {
+  .now-bar { height: 44px; gap: 8px; padding: 0 10px 0 12px; }
+  .np { height: 34px; padding: 0 4px 0 10px; border-radius: 17px; }
+  .np-stop { width: 28px; height: 28px; font-size: 10px; }
+  .nb-timer { height: 32px; }
+  .nb-view { width: 40px; height: 34px; }
+}
+@media (pointer: coarse) and (max-width: 700px) { .nb-clock, .nb-clock + .nb-timer + .nb-sep, .nb-meter { display: none; } }
+
+/* ── Compact view: key · name · flags · countdown · stop, and the waveform under them ── */
+.pad-flags { display: none; }
+body.compact .pads-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+body.compact .pad { grid-template-columns: auto minmax(0, 1fr) auto auto auto; row-gap: 5px; padding: 7px 8px 8px 14px; min-height: 0; }
+body.compact .pad .color-dot, body.compact .pad .pad-grip, body.compact .pad .playing-dot, body.compact .pad .pad-footer,
+body.compact .pad .pad-vol-row, body.compact .pad .inout-btn, body.compact .pad .inout-spacer, body.compact .pad .transport-pp { display: none; }
+body.compact .pad .inout-row, body.compact .pad .pad-transport { display: contents; }
+body.compact .pad .shortcut-key { grid-area: 1 / 1; min-width: 22px; height: 21px; padding: 0 5px; }
+body.compact .pad .pad-name { grid-area: 1 / 2; margin-left: 8px; font-size: 14px; padding-right: 0; }
+body.compact .pad .pad-flags { display: inline; grid-area: 1 / 3; margin-left: 6px; font-size: 11px; color: var(--muted); letter-spacing: 2px; white-space: nowrap; position: relative; z-index: 1; }
+body.compact .pad .pad-time { grid-area: 1 / 4; margin-left: 6px; font-size: 12px; white-space: nowrap; position: relative; z-index: 1; }
+body.compact .pad.playing .pad-time { font-size: 14px; }
+body.compact .pad .transport-stop { grid-area: 1 / 5; width: 24px; height: 22px; margin-left: 6px; display: none; position: relative; z-index: 1; }
+body.compact .pad.playing .transport-stop, body.compact .pad:has(.transport-pp.is-paused) .transport-stop { display: inline-flex; }
+body.compact .pad:has(.transport-pp.is-paused)::after { display: none; }      /* the pause badge would sit on the countdown: the amber outline says it */
+body.compact .pad .pad-progress { grid-row: 2; height: 8px; }
+body.compact .pad.has-wave .pad-progress { height: 24px; }
+body.compact .pad:not(.loaded) { min-height: 40px; grid-template-rows: auto; }
+body.compact .pad:not(.loaded) .pad-hint { display: none; }
+body.compact .pad-add-tile { min-height: 40px; flex-direction: row; gap: 8px; }
+body.compact .pad-add-tile .add-icon { font-size: 18px; }
+@media (pointer: coarse) {
+  body.compact .pads-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+  body.compact .pad { padding: 10px 10px 11px 15px; row-gap: 7px; }
+  body.compact .pad .pad-name { margin-left: 0; font-size: 15px; }
+  body.compact .pad .transport-stop { width: 40px; height: 34px; }
+  body.compact .pad.has-wave .pad-progress { height: 30px; }
+  body.compact .pad:not(.loaded) { min-height: 52px; }
+}
+
+/* VOL with headroom: 100 % sits at four fifths of the slider (a notch marks it); the rest is boost */
+.pad-vol-slider { background: linear-gradient(90deg, var(--surface4) 0 calc(80% - 3.2px), var(--text-2) calc(80% - 3.2px) calc(80% - 1.2px), var(--surface4) calc(80% - 1.2px)); }
+.vol-pct.boost { color: var(--warn); font-weight: 800; }
+
+/* Headphone preview button (only there when a preview output is chosen) */
+:root { --i-phones: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.85' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 14.5v-2.5a7.5 7.5 0 0 1 15 0v2.5'/%3E%3Crect x='3' y='14' width='4.5' height='6.5' rx='1.6'/%3E%3Crect x='16.5' y='14' width='4.5' height='6.5' rx='1.6'/%3E%3C/svg%3E"); }
+.transport-pre {
+  width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border-strong); border-radius: var(--r-md); color: var(--text-2); cursor: pointer; font-size: 0;
+  transition: background-color var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.transport-pre::before { content: ""; width: 16px; height: 16px; background: currentColor; -webkit-mask: var(--i-phones) center / contain no-repeat; mask: var(--i-phones) center / contain no-repeat; }
+.transport-pre:hover { border-color: var(--accent); color: var(--accent); }
+.transport-pre.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+@container pad (min-width: 320px) { .transport-pre { width: 44px; height: 44px; } }
+@media (pointer: coarse) { .transport-pre { width: 48px; height: 48px; } }
+body.compact .pad .transport-pre { display: none; }
+
+/* Empty / missing pads: one icon, not two */
+.pad-hint .ph-plus { display: none; }
 </style>
 </head>
 <body>
@@ -1492,7 +1695,7 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
 
 
 <header>
-  <div class="logo"><svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lmBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1c3550"/><stop offset="1" stop-color="#0c1622"/></linearGradient><linearGradient id="lmBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7be7ff"/><stop offset="1" stop-color="#2f8cff"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#lmBg)" stroke="#3cc8f5" stroke-opacity=".45"/><g fill="url(#lmBar)"><rect x="6.2" y="13" width="2.8" height="6" rx="1.4"/><rect x="10.6" y="9.5" width="2.8" height="13" rx="1.4"/><rect x="15" y="6.5" width="2.8" height="19" rx="1.4"/><rect x="19.4" y="10.5" width="2.8" height="11" rx="1.4"/><rect x="23.8" y="13.5" width="2.8" height="5" rx="1.4"/></g></svg>KOSTUDIO AUDIO CUE</div>
+  <div class="logo"><svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lmBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1c3550"/><stop offset="1" stop-color="#0c1622"/></linearGradient><linearGradient id="lmBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7be7ff"/><stop offset="1" stop-color="#2f8cff"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#lmBg)" stroke="#3cc8f5" stroke-opacity=".45"/><g fill="url(#lmBar)"><rect x="6.2" y="13" width="2.8" height="6" rx="1.4"/><rect x="10.6" y="9.5" width="2.8" height="13" rx="1.4"/><rect x="15" y="6.5" width="2.8" height="19" rx="1.4"/><rect x="19.4" y="10.5" width="2.8" height="11" rx="1.4"/><rect x="23.8" y="13.5" width="2.8" height="5" rx="1.4"/></g></svg>NEEDIT AUDIO CUE</div>
   <div class="hdr-sep"></div>
   <button class="hdr-btn save" onclick="handleSave()" title="Save the project (Ctrl+S)"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg><span class="lbl">Save</span></button>
   <button class="hdr-btn save" onclick="handleSaveAs()" aria-label="Save As" title="Save As… — save under a new name or in a new place"><svg class="ic" aria-hidden="true"><use href="#i-saveas"/></svg><span class="lbl">Save As</span></button>
@@ -1505,7 +1708,7 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
   <button class="hdr-btn shortcuts" onclick="showShortcutsModal()" aria-label="Shortcuts" title="Keyboard shortcuts and the keys every operator should know"><svg class="ic" aria-hidden="true"><use href="#i-keyboard"/></svg><span class="lbl">Shortcuts</span></button>
   <button class="hdr-btn settings" onclick="showSettingsModal()" id="settingsBtn" aria-label="Settings" title="Settings: audio output, theme, language, waveforms, remote control, MIDI"><svg class="ic gear" aria-hidden="true"><use href="#i-gear"/></svg><span class="lbl">Settings</span></button>
   <a class="hdr-btn donate" id="donateBtn" href="https://ko-fi.com/dkostoudis"
-     target="_blank" rel="noopener noreferrer" aria-label="Donate" title="Kostudio Audio Cue is free — support development on Ko-fi"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg><span class="lbl">Donate</span></a>
+     target="_blank" rel="noopener noreferrer" aria-label="Donate" title="Needit Audio Cue is free — support development on Ko-fi"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg><span class="lbl">Donate</span></a>
   <div class="header-right">
     <label class="fade-dur-wrap" title="Fade time in seconds. It is used for crossfades between cues and pad keys, for STOP FADE, and for any pad whose ↓ FADE is on. A pad can have its own FADE time (the box next to its ↓ FADE button); this one is for the pads that don't.">
       <span>FADE</span>
@@ -1525,6 +1728,16 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
 </header>
 
 <div id="appWrap">
+<div class="now-bar" id="nowBar">
+  <div class="nb-show" id="showChip" title="The show that is open. A dot means it has changes that are not saved yet."><span class="nb-dirty" id="showDirty" hidden>●</span><span class="nb-show-name" id="showName">Untitled show</span></div>
+  <span class="nb-sep"></span>
+  <span class="nb-clock" id="nbClock" title="Time of day">--:--</span>
+  <button class="nb-timer" id="nbTimer" onclick="resetShowTimer()" title="Show timer: it starts with the first sound. Click to set it back to zero.">0:00:00</button>
+  <span class="nb-sep"></span>
+  <div class="nb-playing" id="nbPlaying"><span class="nb-idle">Nothing is playing</span></div>
+  <div class="nb-meter" id="nbMeter" title="Level of what is playing, worked out from the analysed files and the volumes (it does not measure the output device). Red: the mix is clipping."><div class="nb-meter-fill" id="nbMeterFill"></div><div class="nb-meter-peak" id="nbMeterPeak"></div></div>
+  <button class="nb-view" id="viewBtn" onclick="toggleCompact()" aria-pressed="false" aria-label="Compact view" title="Compact view: small pads with just the name, countdown and waveform — many more on screen. Click a pad to play it. Switch back to change its settings."><span class="nb-view-ic"></span></button>
+</div>
 <main>
   <div class="pads-section">
     <div class="welcome" id="welcome" hidden>
@@ -1555,6 +1768,7 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
 </div><!-- #appWrap -->
 
 <div class="stack-panel" id="stackPanel">
+  <div class="stack-resize" id="stackResize" title="Drag to make the cue list wider or narrower (double-click: automatic width)"></div>
   <div class="stack-handle" onclick="toggleStackDrawer()" title="Show / hide cue list">
     <div class="stack-handle-pip"></div>
   </div>
@@ -1576,8 +1790,8 @@ header[data-compact="5"] .hdr-btn.settings { width: 34px; padding: 0; }
       <div class="toggle-sw" id="autoToggle"></div>
       <span>Auto-advance</span>
     </div>
-    <button class="play-cue-btn" id="playCueBtn" onclick="playCue()" disabled title="Play (or stop) the highlighted cue, cutting whatever else is playing">▶ PLAY CUE</button>
     <button class="next-btn" id="nextBtn" onclick="nextCue()" disabled title="Fade out everything that is playing and start the next cue — same as SPACE">NEXT CUE ▶</button>
+    <button class="play-cue-btn" id="playCueBtn" onclick="playCue()" disabled title="Play (or stop) the highlighted cue, cutting whatever else is playing">▶ PLAY CUE</button>
   </div>
 </div>
 
@@ -1646,6 +1860,7 @@ let pads = DEFAULT_KEYS.map((key, i) => ({
   paused:      false,
   vol:         1.0,
   fadeEnabled: false,
+  overlap:     false,         // LAYER: plays on top of the others — stops nothing when it starts, and is not stopped by them
   fade:        null,          // this pad's own FADE time in seconds, or null = use the header's
   inPoint:     null,
   outPoint:    null,
@@ -1694,18 +1909,27 @@ const prefs = {
   midiEnabled: false,  // listen to MIDI controllers (Chromium / Electron only)
   midiMap: [],         // [{ msg:'note'|'cc', ch:-1..15, num:0..127, cmd:{…remote command…} }]
   tipsDismissed: false, // the "Quick tips" strip above the pads; brought back from Settings → Help
+  stackW: 0,           // width of the cue list in px when the operator dragged its edge (0 = automatic)
+  previewId: '',       // second output for the headphone preview ('' = no preview buttons)
+  compact: false,      // compact pads: name, countdown and waveform only — many more on screen
+  wfTouch: false,      // (one-off) waveforms were switched on for this tablet when they became available on touch screens
 };
 function loadPrefs() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch {}
   if (typeof saved !== 'object') saved = {};
   prefs.stopFade = saved.stopFade === true;
-  prefs.waveform = typeof saved.waveform === 'boolean' ? saved.waveform : !IS_TOUCH;
+  prefs.wfTouch  = saved.wfTouch === true;
+  prefs.waveform = typeof saved.waveform === 'boolean' && (!IS_TOUCH || prefs.wfTouch) ? saved.waveform : true;
+  if (IS_TOUCH) prefs.wfTouch = true;
+  prefs.compact  = saved.compact === true;
+  prefs.previewId = typeof saved.previewId === 'string' ? saved.previewId.slice(0, 300) : '';
   prefs.outputId = typeof saved.outputId === 'string' ? saved.outputId.slice(0, 300) : '';
   prefs.lang     = typeof saved.lang === 'string' ? saved.lang.slice(0, 8) : '';
   prefs.midiEnabled = saved.midiEnabled === true;
   prefs.midiMap  = sanitizeMidiMap(saved.midiMap);
   prefs.tipsDismissed = saved.tipsDismissed === true;
+  prefs.stackW = Number.isFinite(saved.stackW) && saved.stackW >= 240 && saved.stackW <= 640 ? Math.round(saved.stackW) : 0;
 }
 function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch {} }
 
@@ -1864,7 +2088,7 @@ const I18N_TABLE = [
   ['Pre-show check: verifies every sound, cue and setting before doors open', 'Έλεγχος πριν την παράσταση: επαληθεύει κάθε ήχο, cue και ρύθμιση πριν ανοίξουν οι πόρτες', 'Vorab-Check: prüft jeden Sound, jede Cue und jede Einstellung, bevor das Publikum kommt'],
   ['Lock the show (Ctrl+Shift+L): disables editing, loading and deleting so nothing can be changed by accident. Playback still works.', 'Κλείδωμα παράστασης (Ctrl+Shift+L): απενεργοποιεί την επεξεργασία, το άνοιγμα και τη διαγραφή ώστε να μην αλλάξει κάτι κατά λάθος. Η αναπαραγωγή συνεχίζει κανονικά.', 'Show sperren (Strg+Umschalt+L): deaktiviert Bearbeiten, Laden und Löschen, damit nichts versehentlich verändert wird. Die Wiedergabe funktioniert weiter.'],
   ['Donate', 'Δωρεά', 'Spenden'],
-  ['Kostudio Audio Cue is free — support development on Ko-fi', 'Το Kostudio Audio Cue είναι δωρεάν — στηρίξτε την ανάπτυξη στο Ko-fi', 'Kostudio Audio Cue ist kostenlos — unterstütze die Entwicklung auf Ko-fi'],
+  ['Needit Audio Cue is free — support development on Ko-fi', 'Το Needit Audio Cue είναι δωρεάν — στηρίξτε την ανάπτυξη στο Ko-fi', 'Needit Audio Cue ist kostenlos — unterstütze die Entwicklung auf Ko-fi'],
   ['Fade duration (seconds)', 'Διάρκεια fade (δευτερόλεπτα)', 'Fade-Dauer (Sekunden)'],
   ['Pad volume: {0}%', 'Ένταση pad: {0}%', 'Pad-Lautstärke: {0}%'],
   ['Downloading update…', 'Λήψη ενημέρωσης…', 'Update wird heruntergeladen…'],
@@ -2057,6 +2281,78 @@ const I18N_TABLE = [
   ['Pad {0}: the OUT point ({1}) is past the end of the sound ({2})', 'Pad {0}: το σημείο OUT ({1}) είναι μετά το τέλος του ήχου ({2})', 'Pad {0}: Der OUT-Punkt ({1}) liegt hinter dem Ende des Sounds ({2})'],
   ['Pad {0} "{1}": its volume slider is at 0', 'Pad {0} "{1}": ο ρυθμιστής έντασης είναι στο 0', 'Pad {0} "{1}": Der Lautstärkeregler steht auf 0'],
   ['Pad {0}: its volume slider is at 0', 'Pad {0}: ο ρυθμιστής έντασης είναι στο 0', 'Pad {0}: Der Lautstärkeregler steht auf 0'],
+  // ── v1.6
+  ["Untitled show", "Παράσταση χωρίς τίτλο", "Unbenannte Show"],
+  ["The show that is open. A dot means it has changes that are not saved yet.", "Η παράσταση που είναι ανοιχτή. Η τελεία σημαίνει ότι έχει αλλαγές που δεν έχουν αποθηκευτεί ακόμα.", "Die geöffnete Show. Ein Punkt bedeutet: Es gibt Änderungen, die noch nicht gespeichert sind."],
+  ["Time of day", "Ώρα", "Uhrzeit"],
+  ["Show timer: it starts with the first sound. Click to set it back to zero.", "Χρονόμετρο παράστασης: ξεκινά με τον πρώτο ήχο. Κάντε κλικ για μηδενισμό.", "Show-Timer: startet mit dem ersten Sound. Ein Klick setzt ihn auf null zurück."],
+  ["Show timer set back to zero", "Το χρονόμετρο παράστασης μηδενίστηκε", "Show-Timer auf null gesetzt"],
+  ["Level of what is playing, worked out from the analysed files and the volumes (it does not measure the output device). Red: the mix is clipping.", "Στάθμη όσων παίζουν, υπολογισμένη από την ανάλυση των αρχείων και τις εντάσεις (δεν μετρά τη συσκευή εξόδου). Κόκκινο: η μίξη ψαλιδίζει.", "Pegel dessen, was gerade läuft, berechnet aus den analysierten Dateien und den Lautstärken (das Ausgabegerät wird nicht gemessen). Rot: Die Mischung übersteuert."],
+  ["Paused — click to go to this pad", "Σε παύση — κλικ για μετάβαση σε αυτό το pad", "Pausiert — klicken, um zu diesem Pad zu springen"],
+  ["Playing — click to go to this pad", "Παίζει — κλικ για μετάβαση σε αυτό το pad", "Läuft — klicken, um zu diesem Pad zu springen"],
+  ["Stop this sound", "Διακοπή αυτού του ήχου", "Diesen Sound stoppen"],
+  ["LAYER: plays on top of the others", "LAYER: παίζει πάνω από τους άλλους", "LAYER: spielt über den anderen"],
+  ["Compact view", "Συμπαγής προβολή", "Kompakte Ansicht"],
+  ["Compact view: small pads with just the name, countdown and waveform — many more on screen. Click a pad to play it. Switch back to change its settings.", "Συμπαγής προβολή: μικρά pad μόνο με όνομα, αντίστροφη μέτρηση και κυματομορφή — χωράνε πολύ περισσότερα στην οθόνη. Κάντε κλικ σε ένα pad για αναπαραγωγή. Επιστρέψτε στην πλήρη προβολή για να αλλάξετε τις ρυθμίσεις του.", "Kompakte Ansicht: kleine Pads nur mit Name, Countdown und Wellenform — viel mehr passen auf den Bildschirm. Ein Klick auf ein Pad spielt es ab. Für die Einstellungen zurück zur vollen Ansicht wechseln."],
+  ["Compact view — click a pad to play it; switch back to change its settings", "Συμπαγής προβολή — κλικ σε ένα pad για αναπαραγωγή· επιστρέψτε για να αλλάξετε τις ρυθμίσεις του", "Kompakte Ansicht — ein Klick auf ein Pad spielt es ab; für die Einstellungen zurückwechseln"],
+  ["Full view", "Πλήρης προβολή", "Volle Ansicht"],
+  ["Stack", "Λίστα", "Liste"],
+  ["LAYER: this sound plays on top of the others. Starting it stops nothing, and starting another sound or cue does not stop it. Stop it with its own key or ■, with STOP ALL or Esc. Off: starting it fades out the other sounds, as usual.", "LAYER: αυτός ο ήχος παίζει πάνω από τους άλλους. Όταν ξεκινά δεν σταματά τίποτα, και η εκκίνηση άλλου ήχου ή cue δεν τον σταματά. Σταματήστε τον με το δικό του πλήκτρο ή το ■, με STOP ALL ή Esc. Ανενεργό: η εκκίνησή του κάνει fade out στους άλλους ήχους, όπως συνήθως.", "LAYER: Dieser Sound spielt über den anderen. Sein Start stoppt nichts, und der Start eines anderen Sounds oder einer Cue stoppt ihn nicht. Gestoppt wird er mit seiner eigenen Taste oder ■, mit STOP ALL oder Esc. Aus: Sein Start blendet die anderen Sounds aus, wie gewohnt."],
+  ["\"{0}\" is a LAYER: it plays on top of the other sounds", "Το \"{0}\" είναι LAYER: παίζει πάνω από τους άλλους ήχους", "\"{0}\" ist ein LAYER: Es spielt über den anderen Sounds"],
+  ["\"{0}\" is a normal pad again: starting it fades out the others", "Το \"{0}\" είναι ξανά κανονικό pad: η εκκίνησή του κάνει fade out στα άλλα", "\"{0}\" ist wieder ein normales Pad: Sein Start blendet die anderen aus"],
+  ["Drag to make the cue list wider or narrower (double-click: automatic width)", "Σύρετε για να φαρδύνετε ή να στενέψετε τη λίστα cue (διπλό κλικ: αυτόματο πλάτος)", "Ziehen, um die Cue-Liste breiter oder schmaler zu machen (Doppelklick: automatische Breite)"],
+  ["Stop", "Στοπ", "Stopp"],
+  ["Cue settings", "Ρυθμίσεις cue", "Cue-Einstellungen"],
+  ["Cue settings: a note for the operator, what happens after this cue, play or stop", "Ρυθμίσεις cue: σημείωση για τον χειριστή, τι γίνεται μετά από αυτό το cue, αναπαραγωγή ή διακοπή", "Cue-Einstellungen: eine Notiz für den Operator, was nach dieser Cue passiert, Abspielen oder Stoppen"],
+  ["When this cue ends, the next one starts by itself", "Όταν τελειώσει αυτό το cue, το επόμενο ξεκινά μόνο του", "Wenn diese Cue endet, startet die nächste von selbst"],
+  ["The next cue starts by itself, this many seconds after this one starts", "Το επόμενο cue ξεκινά μόνο του, τόσα δευτερόλεπτα μετά την εκκίνηση αυτού", "Die nächste Cue startet von selbst, so viele Sekunden nach dem Start dieser"],
+  ["This cue always waits for SPACE, even with Auto-advance on", "Αυτό το cue περιμένει πάντα το SPACE, ακόμη και με ενεργή την Αυτόματη συνέχεια", "Diese Cue wartet immer auf SPACE, auch wenn Auto-Weiter an ist"],
+  ["Note for the operator", "Σημείωση για τον χειριστή", "Notiz für den Operator"],
+  ["e.g. GO on the blackout", "π.χ. GO στο σκοτάδι", "z. B. GO beim Blackout"],
+  ["This cue", "Αυτό το cue", "Diese Cue"],
+  ["Plays the sound", "Παίζει τον ήχο", "Spielt den Sound ab"],
+  ["Stops the sound (fades it out)", "Σταματά τον ήχο (με fade out)", "Stoppt den Sound (blendet ihn aus)"],
+  ["Do what the Auto-advance switch says", "Ό,τι ορίζει ο διακόπτης Αυτόματης συνέχειας", "Wie der Schalter Auto-Weiter es vorgibt"],
+  ["Wait for SPACE", "Αναμονή για SPACE", "Auf SPACE warten"],
+  ["Start the next cue when this one ends", "Εκκίνηση του επόμενου cue όταν τελειώσει αυτό", "Die nächste Cue starten, wenn diese endet"],
+  ["Start the next cue after a delay", "Εκκίνηση του επόμενου cue μετά από καθυστέρηση", "Die nächste Cue nach einer Verzögerung starten"],
+  ["Delay in seconds, counted from the start of this cue", "Καθυστέρηση σε δευτερόλεπτα, από την εκκίνηση αυτού του cue", "Verzögerung in Sekunden, gezählt ab dem Start dieser Cue"],
+  ["A delay of 0 starts the next cue together with this one — make one of them a LAYER pad, or the second will fade out the first. A stop cue is how you end a LAYER sound from the cue list.", "Καθυστέρηση 0 ξεκινά το επόμενο cue μαζί με αυτό — κάντε ένα από τα δύο pad LAYER, αλλιώς το δεύτερο θα κάνει fade out στο πρώτο. Με ένα cue διακοπής τελειώνετε έναν ήχο LAYER από τη λίστα cue.", "Eine Verzögerung von 0 startet die nächste Cue zusammen mit dieser — eines der beiden Pads muss ein LAYER sein, sonst blendet die zweite die erste aus. Mit einer Stopp-Cue beendet man einen LAYER-Sound aus der Cue-Liste."],
+  ["changed the settings of cue {0}", "άλλαξαν οι ρυθμίσεις του cue {0}", "Einstellungen von Cue {0} geändert"],
+  ["Cue {0} updated", "Το cue {0} ενημερώθηκε", "Cue {0} aktualisiert"],
+  ["Cue {0}: stopping \"{1}\"", "Cue {0}: διακοπή του \"{1}\"", "Cue {0}: \"{1}\" wird gestoppt"],
+  ["Next: cue {0} \"{1}\"", "Επόμενο: cue {0} \"{1}\"", "Als Nächstes: Cue {0} \"{1}\""],
+  ["Scene \"{0}\", cue {1} ({2}) is set to start the next cue when it ends, but it loops — it never ends", "Σκηνή \"{0}\", cue {1} ({2}): έχει οριστεί να ξεκινά το επόμενο cue όταν τελειώσει, αλλά είναι σε loop — δεν τελειώνει ποτέ", "Szene \"{0}\", Cue {1} ({2}) soll die nächste Cue starten, wenn sie endet, läuft aber im Loop — sie endet nie"],
+  ["Pad volume: {0}% — above 100% the sound is amplified, and a loud file will distort", "Ένταση pad: {0}% — πάνω από 100% ο ήχος ενισχύεται, και ένα δυνατό αρχείο θα παραμορφωθεί", "Pad-Lautstärke: {0}% — über 100% wird der Sound verstärkt, eine laute Datei verzerrt dann"],
+  ["Pad {0} \"{1}\": its volume is above 100% but this browser cannot boost on the chosen output — it plays at 100%", "Pad {0} \"{1}\": η έντασή του είναι πάνω από 100% αλλά αυτός ο browser δεν μπορεί να ενισχύσει στην επιλεγμένη έξοδο — παίζει στο 100%", "Pad {0} \"{1}\": Die Lautstärke liegt über 100%, aber dieser Browser kann auf dem gewählten Ausgang nicht verstärken — es spielt mit 100%"],
+  ["Pad {0}: its volume is above 100% but this browser cannot boost on the chosen output — it plays at 100%", "Pad {0}: η έντασή του είναι πάνω από 100% αλλά αυτός ο browser δεν μπορεί να ενισχύσει στην επιλεγμένη έξοδο — παίζει στο 100%", "Pad {0}: Die Lautstärke liegt über 100%, aber dieser Browser kann auf dem gewählten Ausgang nicht verstärken — es spielt mit 100%"],
+  ["Pad {0} \"{1}\": boosted to {2}% — its loudest part will distort", "Pad {0} \"{1}\": ενισχυμένο στο {2}% — το πιο δυνατό σημείο του θα παραμορφωθεί", "Pad {0} \"{1}\": auf {2}% verstärkt — die lauteste Stelle wird verzerren"],
+  ["Pad {0}: boosted to {1}% — its loudest part will distort", "Pad {0}: ενισχυμένο στο {1}% — το πιο δυνατό σημείο του θα παραμορφωθεί", "Pad {0}: auf {1}% verstärkt — die lauteste Stelle wird verzerren"],
+  ["Preview on the headphones", "Προακρόαση στα ακουστικά", "Vorhören auf dem Kopfhörer"],
+  ["Preview: plays this sound on the preview output only (the headphones chosen in Settings). The audience hears nothing, and the pad itself is not touched.", "Προακρόαση: παίζει αυτόν τον ήχο μόνο στην έξοδο προακρόασης (τα ακουστικά που ορίσατε στις Ρυθμίσεις). Το κοινό δεν ακούει τίποτα και το ίδιο το pad δεν επηρεάζεται.", "Vorhören: spielt diesen Sound nur auf dem Vorhör-Ausgang (dem in den Einstellungen gewählten Kopfhörer). Das Publikum hört nichts, und das Pad selbst bleibt unberührt."],
+  ["Previewing \"{0}\" on the preview output", "Προακρόαση του \"{0}\" στην έξοδο προακρόασης", "\"{0}\" wird auf dem Vorhör-Ausgang abgespielt"],
+  ["⚠ The preview output is not available — choose it again in Settings", "⚠ Η έξοδος προακρόασης δεν είναι διαθέσιμη — επιλέξτε την ξανά στις Ρυθμίσεις", "⚠ Der Vorhör-Ausgang ist nicht verfügbar — bitte in den Einstellungen neu wählen"],
+  ["Headphone preview through", "Προακρόαση στα ακουστικά μέσω", "Kopfhörer-Vorhören über"],
+  ["Choose a second output (your headphones) and every pad gets a headphones button that plays it there only — to check a sound without the audience hearing it.", "Επιλέξτε μια δεύτερη έξοδο (τα ακουστικά σας) και κάθε pad αποκτά ένα κουμπί ακουστικών που το παίζει μόνο εκεί — για να ελέγξετε έναν ήχο χωρίς να τον ακούσει το κοινό.", "Einen zweiten Ausgang wählen (den Kopfhörer), dann bekommt jedes Pad eine Kopfhörer-Taste, die es nur dort abspielt — um einen Sound zu prüfen, ohne dass das Publikum ihn hört."],
+  ["Off", "Ανενεργό", "Aus"],
+  ["Easier IN / OUT points. Each file is analysed once. WAV files of any length; compressed files (mp3, m4a…) up to about 20 minutes — 4 on a tablet.", "Ευκολότερα σημεία IN / OUT. Κάθε αρχείο αναλύεται μία φορά. Αρχεία WAV οποιουδήποτε μήκους· συμπιεσμένα αρχεία (mp3, m4a…) έως περίπου 20 λεπτά — 4 σε tablet.", "Einfachere IN-/OUT-Punkte. Jede Datei wird einmal analysiert. WAV-Dateien beliebiger Länge; komprimierte Dateien (mp3, m4a…) bis etwa 20 Minuten — 4 auf einem Tablet."],
+  ["Show file", "Αρχείο παράστασης", "Show-Datei"],
+  ["Export the show with its audio", "Εξαγωγή της παράστασης μαζί με τον ήχο της", "Show mit ihren Audiodateien exportieren"],
+  ["Makes one folder with the project and a copy of every audio file. Move or copy that folder to another computer and the show opens there with nothing missing.", "Δημιουργεί έναν φάκελο με το έργο και ένα αντίγραφο κάθε αρχείου ήχου. Μεταφέρετε ή αντιγράψτε αυτόν τον φάκελο σε άλλον υπολογιστή και η παράσταση ανοίγει εκεί χωρίς να λείπει τίποτα.", "Erstellt einen Ordner mit dem Projekt und einer Kopie jeder Audiodatei. Diesen Ordner auf einen anderen Computer verschieben oder kopieren — die Show öffnet sich dort, ohne dass etwas fehlt."],
+  ["Export failed: {0}", "Αποτυχία εξαγωγής: {0}", "Export fehlgeschlagen: {0}"],
+  ["Exported {0} audio file(s) to \"{1}\" — {2} could not be copied", "Εξήχθησαν {0} αρχεία ήχου στο \"{1}\" — {2} δεν μπόρεσαν να αντιγραφούν", "{0} Audiodatei(en) nach \"{1}\" exportiert — {2} konnten nicht kopiert werden"],
+  ["Exported the show and {0} audio file(s) to \"{1}\"", "Η παράσταση και {0} αρχεία ήχου εξήχθησαν στο \"{1}\"", "Show und {0} Audiodatei(en) nach \"{1}\" exportiert"],
+  ["Updates", "Ενημερώσεις", "Aktualisierungen"],
+  ["Look for a new version when the app starts", "Έλεγχος για νέα έκδοση κατά την εκκίνηση της εφαρμογής", "Beim Start der App nach einer neuen Version suchen"],
+  ["It asks before downloading anything, and never while a sound is playing or the show is locked.", "Ρωτά πριν κατεβάσει οτιδήποτε, και ποτέ ενώ παίζει ήχος ή η παράσταση είναι κλειδωμένη.", "Sie fragt, bevor etwas heruntergeladen wird, und nie, während ein Sound läuft oder die Show gesperrt ist."],
+  ["Check now", "Έλεγχος τώρα", "Jetzt prüfen"],
+  ["This is version", "Αυτή είναι η έκδοση", "Dies ist Version"],
+  ["You have the newest version", "Έχετε την πιο πρόσφατη έκδοση", "Sie haben die neueste Version"],
+  ["A new version is available", "Υπάρχει διαθέσιμη νέα έκδοση", "Eine neue Version ist verfügbar"],
+  ["Updates are only published for Windows and macOS", "Ενημερώσεις δημοσιεύονται μόνο για Windows και macOS", "Aktualisierungen gibt es nur für Windows und macOS"],
+  ["Could not check for updates (no internet connection?)", "Δεν ήταν δυνατός ο έλεγχος για ενημερώσεις (δεν υπάρχει σύνδεση στο internet;)", "Aktualisierungen konnten nicht geprüft werden (keine Internetverbindung?)"],
+  ["The app will look for a new version when it starts", "Η εφαρμογή θα ελέγχει για νέα έκδοση όταν ξεκινά", "Die App sucht beim Start nach einer neuen Version"],
+  ["The app will not look for new versions by itself", "Η εφαρμογή δεν θα ελέγχει μόνη της για νέες εκδόσεις", "Die App sucht nicht mehr von selbst nach neuen Versionen"],
   ['Pad {0} "{1}": the original file has moved or been deleted ({2}) — it plays now, but reopening the project won\'t find it', 'Pad {0} "{1}": το αρχικό αρχείο μετακινήθηκε ή διαγράφηκε ({2}) — παίζει τώρα, αλλά το άνοιγμα του έργου δεν θα το βρει', 'Pad {0} "{1}": Die Originaldatei wurde verschoben oder gelöscht ({2}) — sie spielt jetzt noch, wird beim erneuten Öffnen des Projekts aber nicht gefunden'],
   ['Pad {0}: the original file has moved or been deleted ({1}) — it plays now, but reopening the project won\'t find it', 'Pad {0}: το αρχικό αρχείο μετακινήθηκε ή διαγράφηκε ({1}) — παίζει τώρα, αλλά το άνοιγμα του έργου δεν θα το βρει', 'Pad {0}: Die Originaldatei wurde verschoben oder gelöscht ({1}) — sie spielt jetzt noch, wird beim erneuten Öffnen des Projekts aber nicht gefunden'],
   ['Pad {0} "{1}": audio file not found ({2})', 'Pad {0} "{1}": το αρχείο ήχου δεν βρέθηκε ({2})', 'Pad {0} "{1}": Audiodatei nicht gefunden ({2})'],
@@ -2340,11 +2636,11 @@ function refreshUndoBtn() {
 }
 function snapshotPad(pad) {
   return { name: pad.name, file: pad.file, filePath: pad.filePath, missingPath: pad.missingPath, loop: pad.loop, vol: pad.vol,
-           fadeEnabled: pad.fadeEnabled, fade: pad.fade, inPoint: pad.inPoint, outPoint: pad.outPoint };
+           fadeEnabled: pad.fadeEnabled, overlap: pad.overlap, fade: pad.fade, inPoint: pad.inPoint, outPoint: pad.outPoint };
 }
 function restorePad(pad, snap) {
   clearFadeTimer(pad.id);
-  Object.assign(pad, { name: snap.name, loop: snap.loop, vol: snap.vol, fadeEnabled: snap.fadeEnabled, fade: snap.fade ?? null, inPoint: snap.inPoint, outPoint: snap.outPoint,
+  Object.assign(pad, { name: snap.name, loop: snap.loop, vol: snap.vol, fadeEnabled: snap.fadeEnabled, overlap: snap.overlap === true, fade: snap.fade ?? null, inPoint: snap.inPoint, outPoint: snap.outPoint,
                        playing: false, paused: false, stopping: false });
   if (snap.file) attachAudio(pad, snap.file); else { releaseAudio(pad); pad.file = null; }
   pad.filePath = snap.filePath;
@@ -2428,6 +2724,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   refreshStopFadeBtn();
   initStackDnD();
   initPadDrag();
+  applyStackWidth();
+  initStackResize();
+  applyCompact();
+  renderShowChip();
   buildPads();
   renderSceneTabs();
   renderStack();
@@ -2514,6 +2814,8 @@ function releaseAudio(pad) {
     if (el) { try { el.pause(); el.removeAttribute('src'); el.load(); } catch {} }
   }
   if (pad.audioUrl) { URL.revokeObjectURL(pad.audioUrl); pad.audioUrl = null; }
+  if (pad.gain) { try { pad.gain.disconnect(); } catch {} pad.gain = null; }   // the boost path belonged to those elements
+  if (preview?.padId === pad.id) stopPreview();
 }
 
 // Native looping always wraps to 0:00, so hand looping to the 'ended' handler when an IN point is set.
@@ -2521,47 +2823,121 @@ function syncLoopFlag(pad) {
   if (pad.audio) pad.audio.loop = pad.loop && pad.inPoint === null;
 }
 
-// ── Waveform ──────────────────────────────────────────────
-// Peaks are computed once per loaded file, in a single queue (one decode at a time keeps memory flat), by decoding at a
-// very low sample rate (8 kHz is plenty for an overview). Skipped for big files and on touch devices.
-const WAVE_BUCKETS = 300, WAVE_H = 36, WAVE_MAX_BYTES = 40 * 1024 * 1024, WAVE_MAX_SECONDS = 20 * 60;
+// ── File analysis: waveform + level envelope ──────────────
+// Every loaded file is analysed once, in a single queue (one file at a time keeps memory flat). The result is a level
+// envelope (ENV_BUCKETS peaks along the file) — it draws the waveform and feeds the level meter.
+//   • Uncompressed WAV is read straight from the file in small pieces: no decode, no size limit, a 2-hour WAV is fine.
+//   • Everything else (mp3, m4a, flac, ogg…) has to be decoded whole by the browser, which costs memory: those are skipped
+//     above the limits below (tighter on a tablet). A skipped file plays normally, it just has no waveform.
+const WAVE_BUCKETS = 300, WAVE_H = 36, ENV_BUCKETS = 1200;
+const WAVE_MAX_BYTES = (IS_TOUCH ? 10 : 60) * 1024 * 1024, WAVE_MAX_SECONDS = (IS_TOUCH ? 4 : 20) * 60;
 let peaksQueue = Promise.resolve();
 
-async function computePeaks(file) {
-  if (file.size > WAVE_MAX_BYTES) return null;
+async function wavEnvelope(file) {
+  const head = new DataView(await file.slice(0, Math.min(file.size, 1 << 20)).arrayBuffer());
+  const tag = o => String.fromCharCode(head.getUint8(o), head.getUint8(o + 1), head.getUint8(o + 2), head.getUint8(o + 3));
+  if (head.byteLength < 44 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;
+  let fmt = null, dataOff = 0, dataLen = 0;
+  for (let o = 12; o + 8 <= head.byteLength;) {
+    const id = tag(o), len = head.getUint32(o + 4, true);
+    if (id === 'fmt ' && o + 24 <= head.byteLength) {
+      let format = head.getUint16(o + 8, true);
+      if (format === 0xFFFE && len >= 26 && o + 34 <= head.byteLength) format = head.getUint16(o + 32, true);   // WAVE_FORMAT_EXTENSIBLE: the real format is in the sub-format
+      fmt = { format, ch: head.getUint16(o + 10, true), align: head.getUint16(o + 20, true), bytes: head.getUint16(o + 22, true) / 8 };
+    } else if (id === 'data') { dataOff = o + 8; dataLen = Math.min(len, file.size - dataOff); break; }
+    o += 8 + len + (len & 1);
+  }
+  if (!fmt || !dataOff || !fmt.ch || !fmt.align) return null;
+  const { ch, align, bytes } = fmt;
+  const isInt = fmt.format === 1 && [1, 2, 3, 4].includes(bytes), isFloat = fmt.format === 3 && (bytes === 4 || bytes === 8);
+  if ((!isInt && !isFloat) || align !== bytes * ch) return null;
+  const frames = Math.floor(dataLen / align);
+  if (frames < 1) return null;
+  const env = new Float32Array(ENV_BUCKETS);
+  const stride = Math.max(1, Math.floor(frames / ENV_BUCKETS / 1500));        // look at ~1500 frames per bucket at most: plenty for a peak
+  const chunk = Math.max(stride, Math.floor((4 << 20) / align / stride) * stride);   // ~4 MB of file per read
+  for (let f0 = 0; f0 < frames; f0 += chunk) {
+    const n = Math.min(chunk, frames - f0);
+    const dv = new DataView(await file.slice(dataOff + f0 * align, dataOff + (f0 + n) * align).arrayBuffer());
+    for (let f = 0; f < n; f += stride) {
+      let m = 0;
+      for (let c = 0; c < ch; c++) {
+        const o = f * align + c * bytes;
+        let v = isFloat ? (bytes === 4 ? dv.getFloat32(o, true) : dv.getFloat64(o, true))
+              : bytes === 1 ? (dv.getUint8(o) - 128) / 128
+              : bytes === 2 ? dv.getInt16(o, true) / 32768
+              : bytes === 3 ? ((dv.getInt8(o + 2) << 16) | (dv.getUint8(o + 1) << 8) | dv.getUint8(o)) / 8388608
+              : dv.getInt32(o, true) / 2147483648;
+        if (v < 0) v = -v;
+        if (v > m) m = v;
+      }
+      const k = Math.min(ENV_BUCKETS - 1, Math.floor((f0 + f) / frames * ENV_BUCKETS));
+      if (m > env[k]) env[k] = m;
+    }
+  }
+  return env;
+}
+async function decodedEnvelope(file, seconds) {
+  if (file.size > WAVE_MAX_BYTES || (Number.isFinite(seconds) && seconds > WAVE_MAX_SECONDS)) return null;
   const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   if (!AC) return null;
   let ctx;
   try { ctx = new AC(1, 1, 8000); } catch { ctx = new AC(1, 1, 22050); }        // some browsers refuse very low rates
   const buf = await ctx.decodeAudioData(await file.arrayBuffer());
   if (buf.duration > WAVE_MAX_SECONDS) return null;
-  const peaks = new Float32Array(WAVE_BUCKETS), step = Math.max(1, Math.floor(buf.length / WAVE_BUCKETS));
+  const env = new Float32Array(ENV_BUCKETS), step = buf.length / ENV_BUCKETS;
   for (let c = 0; c < buf.numberOfChannels; c++) {
-    const d = buf.getChannelData(c);
-    for (let b = 0; b < WAVE_BUCKETS; b++) {
-      let m = peaks[b];
-      const end = b === WAVE_BUCKETS - 1 ? d.length : Math.min(d.length, (b + 1) * step);
-      for (let i = b * step; i < end; i++) { const v = d[i] < 0 ? -d[i] : d[i]; if (v > m) m = v; }
-      peaks[b] = m;
+    const dch = buf.getChannelData(c);
+    for (let k = 0; k < ENV_BUCKETS; k++) {
+      let m = env[k];
+      const end = k === ENV_BUCKETS - 1 ? dch.length : Math.min(dch.length, Math.floor((k + 1) * step));
+      for (let i = Math.floor(k * step); i < end; i++) { const v = dch[i] < 0 ? -dch[i] : dch[i]; if (v > m) m = v; }
+      env[k] = m;
     }
   }
-  const top = peaks.reduce((m, v) => v > m ? v : m, 0);
-  if (top > 0) for (let b = 0; b < WAVE_BUCKETS; b++) peaks[b] /= top;           // normalise so quiet files are readable too
-  return peaks;
+  return env;
 }
+// → { env: the raw envelope (0…1 of full scale), top: its loudest point, peaks: WAVE_BUCKETS values normalised for drawing }
+async function analyseFile(file, seconds) {
+  let env = null;
+  try { env = await wavEnvelope(file); } catch { /* not a plain WAV: decode it */ }
+  if (!env) env = await decodedEnvelope(file, seconds);
+  if (!env) return null;
+  let top = 0;
+  for (let k = 0; k < ENV_BUCKETS; k++) if (env[k] > top) top = env[k];
+  const peaks = new Float32Array(WAVE_BUCKETS), per = ENV_BUCKETS / WAVE_BUCKETS;
+  for (let k = 0; k < WAVE_BUCKETS; k++) {
+    let m = 0;
+    for (let j = 0; j < per; j++) if (env[k * per + j] > m) m = env[k * per + j];
+    peaks[k] = top > 0 ? m / top : 0;                                            // normalised so quiet files are readable too
+  }
+  return { env, top, peaks };
+}
+// `computePeaks` is the old name: kept for anything that only wants the drawing data
+async function computePeaks(file) { return (await analyseFile(file))?.peaks ?? null; }
 
 function queuePeaks(pad) {
-  if (!prefs.waveform || IS_TOUCH || !pad.file || !pad.audio) return;
+  if (!pad.file || !pad.audio) return;
+  if (IS_TOUCH && !prefs.waveform) return;                                       // on a tablet the analysis is tied to the Waveforms switch
   const file = pad.file;
   pad.peaks = null;
+  if (pad.wave?.file === file) { applyWave(pad); return; }                       // analysed already (the switch was turned back on)
+  pad.wave = null; pad.env = null; pad.envTop = 0;
   peaksQueue = peaksQueue.then(async () => {
-    if (pad.file !== file || !prefs.waveform) return;                            // replaced / switched off while queued
-    let peaks = null;
-    try { peaks = await computePeaks(file); } catch { /* undecodable: the pad simply shows no waveform */ }
-    if (pad.file !== file || !prefs.waveform || !peaks) return;
-    pad.peaks = peaks;
-    if (pads[pad.id] === pad) refreshPad(pad.id);                                // switches the pad to its taller "has-wave" layout
+    if (pad.file !== file) return;                                               // replaced while queued
+    let res = null;
+    try {
+      await waitForMetadata(pad.audio, 2500);
+      res = await analyseFile(file, pad.audio?.duration);
+    } catch { /* undecodable: the pad simply shows no waveform */ }
+    if (pad.file !== file || !res) return;
+    pad.wave = { file, peaks: res.peaks }; pad.env = res.env; pad.envTop = res.top;
+    applyWave(pad);
   }).catch(() => {});
+}
+function applyWave(pad) {
+  pad.peaks = prefs.waveform ? pad.wave.peaks : null;
+  if (pads[pad.id] === pad) refreshPad(pad.id);                                  // switches the pad to its taller "has-wave" layout
 }
 
 function drawWave(pad) {
@@ -2574,6 +2950,92 @@ function drawWave(pad) {
     const h = Math.max(1, Math.round(pad.peaks[i] * (cv.height - 4)));
     g.fillRect(i, Math.round((cv.height - h) / 2), 1, h);
   }
+}
+
+// ── Volume above 100 % (boost) ────────────────────────────
+// An <audio> element cannot be louder than its file. A pad whose VOL is above 100 % is therefore routed through Web Audio
+// (element → gain → output) — and only that pad: every other pad keeps the plain, direct path it has always had.
+// Fades keep working on the element's own volume (0…1); the gain node only adds the boost on top of it.
+const VOL_MAX = 2;
+let boostCtx = null;
+const elVol   = pad => clamp01(Math.min(1, pad.vol) * masterVol);                     // what the <audio> element itself is set to
+const boostOf = pad => (pad && pad.gain && pad.vol > 1 ? Math.min(VOL_MAX, pad.vol) : 1);   // what the gain node really adds
+// The VOL slider keeps 100 % at four fifths of its travel, like a fader: the last fifth is the boost (100 → 200 %)
+const volToPos = v => (v <= 1 ? v : 1 + (v - 1) / 4), posToVol = s => (s <= 1 ? s : 1 + (s - 1) * 4);
+const volTitle = pad => pad.vol > 1 ? `Pad volume: ${Math.round(pad.vol * 100)}% — above 100% the sound is amplified, and a loud file will distort`
+                                    : `Pad volume: ${Math.round(pad.vol * 100)}%`;
+// With an output device chosen, boosting is only possible when the Web Audio path can be sent to that same device
+function canBoost() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  return !!AC && (!prefs.outputId || typeof AC.prototype.setSinkId === 'function');
+}
+async function syncBoostSink() {
+  if (!boostCtx || typeof boostCtx.setSinkId !== 'function') return;
+  const want = prefs.outputId || '';
+  if ((boostCtx.sinkId || '') === want) return;
+  try { await boostCtx.setSinkId(want); }
+  catch (e) { setStatus(`⚠ Output device not available (${e.name}) — playing on the system default`); }
+}
+function routeEl(pad, el) {              // one element of a boosted pad goes behind the pad's gain node — once, and for good
+  if (!el || el._boosted || !pad.gain || !boostCtx) return;
+  try { boostCtx.createMediaElementSource(el).connect(pad.gain); el._boosted = true; }
+  catch (e) { console.warn('boost', e); }
+}
+function applyBoost(pad) {
+  if (pad.vol > 1 && !pad.gain && pad.audio && canBoost()) {
+    if (!boostCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      try { boostCtx = new AC({ latencyHint: 'interactive' }); } catch { boostCtx = null; }
+      if (boostCtx) { boostCtx.addEventListener?.('statechange', () => { if (boostCtx.state !== 'running' && pads.some(p => p.gain && p.playing)) boostCtx.resume().catch(() => {}); }); syncBoostSink(); }
+    }
+    if (boostCtx) { pad.gain = boostCtx.createGain(); pad.gain.connect(boostCtx.destination); }
+  }
+  if (!pad.gain) return;
+  pad.gain.gain.value = Math.max(1, Math.min(VOL_MAX, pad.vol));
+  routeEl(pad, pad.audio);
+  routeEl(pad, pad.spare);
+  wakeBoost(pad);
+}
+// A browser may start (or put) the audio context to sleep: a boosted pad would then play in silence. Wake it whenever one plays.
+function wakeBoost(pad) { if (pad.gain && boostCtx && boostCtx.state !== 'running') boostCtx.resume().catch(() => {}); }
+
+// ── Headphone preview ─────────────────────────────────────
+// With a second output chosen in Settings (the "preview" device — headphones), every loaded pad gets a headphones button: it
+// plays that sound on the preview output only, from its IN point, at the pad's own volume. Nothing reaches the main output,
+// and the pad itself is not touched. One preview at a time; STOP ALL and Esc stop it too.
+let preview = null;                      // { padId, audio }
+function stopPreview() {
+  if (!preview) return;
+  const p = preview;
+  preview = null;
+  try { p.audio.pause(); p.audio.removeAttribute('src'); p.audio.load(); } catch {}
+  if (pads[p.padId]) refreshPad(p.padId);
+}
+async function togglePreview(id) {
+  const pad = pads[id];
+  if (preview?.padId === id) { stopPreview(); return; }
+  stopPreview();
+  if (!pad?.audioUrl || !prefs.previewId || !CAN_SET_SINK) return;
+  const a = new Audio(pad.audioUrl);
+  try { await a.setSinkId(prefs.previewId); }
+  catch { setStatus('⚠ The preview output is not available — choose it again in Settings'); return; }
+  if (preview || !pads[id]?.audioUrl) return;                                 // something else happened while the device was being set
+  const end = () => { if (preview?.audio === a) stopPreview(); };
+  a.volume = clamp01(Math.min(1, pad.vol));
+  a.currentTime = pad.inPoint ?? 0;
+  a.addEventListener('ended', end);
+  a.addEventListener('error', end);
+  a.addEventListener('timeupdate', () => { if (pad.outPoint !== null && a.currentTime >= pad.outPoint) end(); });
+  preview = { padId: id, audio: a };
+  a.play().catch(end);
+  refreshPad(id);
+  setStatus(`Previewing "${pad.name || 'Unnamed'}" on the preview output`);
+}
+function setPreviewDevice(id) {
+  stopPreview();
+  prefs.previewId = id || '';
+  savePrefs();
+  buildPads();                                                                 // the headphones buttons appear / disappear
 }
 
 // ── Audio output device ───────────────────────────────────
@@ -2598,6 +3060,7 @@ async function setOutputDevice(id) {
   savePrefs();
   outputProblem = '';
   await Promise.all(pads.flatMap(p => [applyOutputTo(p.audio), applyOutputTo(p.spare)]));
+  await syncBoostSink();
   setStatus(outputProblem ? '⚠ ' + outputProblem : (prefs.outputId ? 'Audio output changed' : 'Audio output: system default'));
 }
 async function listOutputDevices() {
@@ -2628,7 +3091,7 @@ function startFade(id, targetVol, durationSec, onComplete) {
   if (!pad?.audio) { onComplete?.(); return; }
   durationSec = Number(durationSec);
   // A fade-in tracks the live pad/master volume so dragging a slider mid-fade isn't undone when it ends.
-  const target = () => targetVol === 0 ? 0 : clamp01(pad.vol * masterVol);
+  const target = () => targetVol === 0 ? 0 : elVol(pad);
   if (!(durationSec > 0) || !Number.isFinite(durationSec)) {
     pad.audio.volume = target();
     onComplete?.();
@@ -2689,7 +3152,7 @@ function abortCrossfade(pad) {
 }
 function crossfadeTick(pad, cur, start, end, f) {
   const xf = pad.xf;
-  const level = clamp01(pad.vol * masterVol);
+  const level = elVol(pad);
   if (!xf) {
     const next = ensureSpare(pad);
     if (!next) return false;
@@ -2728,10 +3191,10 @@ function edgeFadeTick(pad, cur, dur) {
   const f = Math.min(fadeOf(pad), (end - start) / 3);
   const on = active && pad.fadeEnabled && (pad.loop || pad.outPoint !== null) && end - start > 0.2 && f > 0.05;
   if (!on) {
-    if (pad.xf) { abortCrossfade(pad); if (active) pad.audio.volume = clamp01(pad.vol * masterVol); }
+    if (pad.xf) { abortCrossfade(pad); if (active) pad.audio.volume = elVol(pad); }
     if (pad.edge) {                                             // FADE / loop was switched off mid-fade, or the pad stopped
       pad.edge = null;
-      if (active) { clearFadeTimer(pad.id); pad.audio.volume = clamp01(pad.vol * masterVol); }
+      if (active) { clearFadeTimer(pad.id); pad.audio.volume = elVol(pad); }
     }
     return;
   }
@@ -2755,7 +3218,9 @@ function playPad(id, withFade = false) {
   abortCrossfade(pad);
   pad.edge = null;
   const resuming   = pad.paused;
-  const targetVol  = pad.vol * masterVol;
+  if (!showT0) showT0 = Date.now();                       // the show timer starts with the first sound
+  const targetVol  = elVol(pad);
+  wakeBoost(pad);
   if (!resuming) pad.audio.currentTime = pad.inPoint ?? 0;
   const useFade = !resuming && (withFade || pad.fadeEnabled);
   pad.audio.volume = useFade ? 0 : clamp01(targetVol);
@@ -2808,7 +3273,7 @@ function stopPad(id, withFade = false) {
       if (pad.audio) {
         pad.audio.pause();
         pad.audio.currentTime = 0;
-        pad.audio.volume = clamp01(pad.vol * masterVol);
+        pad.audio.volume = elVol(pad);
       }
       pad.playing  = false;
       pad.paused   = false;
@@ -2838,6 +3303,13 @@ function reviveStopping(id) {
   setStatus(`"${pad.name}" brought back`);
 }
 
+// The "one sound at a time" rule. A normal pad fades out the other normal pads when it starts. A LAYER pad sits outside the
+// rule in both directions: starting it stops nothing, and nothing that starts stops it (STOP ALL, Esc and its own key / ■ do).
+function stopOthers(id, fade = true) {
+  if (pads[id]?.overlap) return;
+  pads.forEach(p => { if (p.id !== id && p.playing && !p.overlap) stopPad(p.id, fade); });
+}
+
 // Pad click: play/pause this pad, fade out any other playing pad
 function togglePad(id) {
   const pad = pads[id];
@@ -2846,7 +3318,7 @@ function togglePad(id) {
   } else if (pad.playing) {
     pausePad(id);
   } else {
-    pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
+    stopOthers(id);
     playPad(id);
   }
 }
@@ -2856,12 +3328,12 @@ function togglePadCrossfade(id) {
   const pad = pads[id];
   if (!pad.file) return;
   if (pad.playing && pad.stopping) {
-    pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
+    stopOthers(id);
     reviveStopping(id);
   } else if (pad.playing) {
     stopPad(id, true);
   } else {
-    pads.forEach(p => { if (p.id !== id && p.playing) stopPad(p.id, true); });
+    stopOthers(id);
     playPad(id, true);
   }
 }
@@ -2871,6 +3343,7 @@ function togglePadCrossfade(id) {
 let stopAllFading = false, stopAllTimer = null;   // while a STOP ALL fade runs, the next press cuts
 function stopAll(mode = 'auto') {
   clearTimeout(advTimer);   // a pending auto-advance must not start a cue after STOP ALL
+  stopPreview();
   const fade = mode === 'auto' && prefs.stopFade && !stopAllFading;
   let n = 0, longest = 0;
   pads.forEach(p => {
@@ -2902,15 +3375,19 @@ function refreshStopFadeBtn() {
 
 function setMasterVolume(v) {
   masterVol = clamp01(v);
-  pads.forEach(p => { if (p.audio && !fadeTimers[p.id]) p.audio.volume = clamp01(p.vol * masterVol); });
+  pads.forEach(p => { if (p.audio && !fadeTimers[p.id]) p.audio.volume = elVol(p); });
   scheduleAutosave();
 }
 
 function setPadVolume(id, v) {
-  pads[id].vol = clamp01(v);
-  if (pads[id].audio && !fadeTimers[id]) pads[id].audio.volume = clamp01(pads[id].vol * masterVol);
-  const pct = document.getElementById(`pvol-pct-${id}`);
-  if (pct) pct.textContent = Math.round(pads[id].vol * 100) + '%';
+  const pad = pads[id];
+  v = Number(v);
+  pad.vol = Number.isFinite(v) ? Math.min(VOL_MAX, Math.max(0, v)) : 1;
+  applyBoost(pad);
+  if (pad.audio && !fadeTimers[id]) pad.audio.volume = elVol(pad);
+  const pct = document.getElementById(`pvol-pct-${id}`), sl = document.getElementById(`pvol-${id}`);
+  if (pct) { pct.textContent = Math.round(pad.vol * 100) + '%'; pct.classList.toggle('boost', pad.vol > 1); }
+  if (sl) sl.title = volTitle(pad);
   scheduleAutosave();
 }
 
@@ -2967,6 +3444,14 @@ function setOutPoint(id) {
   }
   syncLoopFlag(pad);
   refreshPad(id);
+  scheduleAutosave();
+}
+
+function toggleOverlap(id) {
+  const pad = pads[id];
+  pad.overlap = !pad.overlap;
+  refreshPad(id);
+  setStatus(pad.overlap ? `"${pad.name || 'Unnamed'}" is a LAYER: it plays on top of the other sounds` : `"${pad.name || 'Unnamed'}" is a normal pad again: starting it fades out the others`);
   scheduleAutosave();
 }
 
@@ -3095,7 +3580,8 @@ function makeAudioEl(pad, url) {
   const audio   = new Audio(url);
   applyOutputTo(audio);                    // route to the chosen output device (no-op on the system default / unsupported browsers)
   audio.loop    = pad.loop && pad.inPoint === null;
-  audio.volume  = clamp01(pad.vol * masterVol);
+  audio.volume  = elVol(pad);
+  if (pad.gain) routeEl(pad, audio);                // a boosted pad: its new element (file replaced, or the loop's second element) joins the gain
   audio.preload = 'auto';
   audio.addEventListener('ended', () => {
     if (pad.audio !== audio) return;       // stale element from a replaced file
@@ -3113,7 +3599,7 @@ function makeAudioEl(pad, url) {
     refreshPad(pad.id);
     updatePlayCueBtn();
     setStatus(`"${pad.name}" finished`);
-    if (autoAdv && !wasStopping) checkAutoAdvance(pad.id);
+    if (!wasStopping) checkAutoAdvance(pad.id);
   });
   audio.addEventListener('error', () => {
     if (pad.audio !== audio) return;
@@ -3137,8 +3623,10 @@ function attachAudio(pad, file) {
   pad.file        = file;
   pad.audio       = audio;
   pad.audioUrl    = url;
+  applyBoost(pad);
   pad.missingPath = null;
   pad.peaks       = null;
+  pad.wave = null; pad.env = null; pad.envTop = 0;
   queuePeaks(pad);
 }
 
@@ -3157,7 +3645,7 @@ function clearPad(id) {
     // Re-find the selected cue by identity so removing earlier entries can't shift the selection onto a different cue
     s.stackIdx = current && s.stack.includes(current) ? s.stack.indexOf(current) : -1;
   });
-  pad.file = null; pad.filePath = null; pad.missingPath = null; pad.name = ''; pad.playing = false; pad.paused = false; pad.stopping = false; pad.peaks = null;
+  pad.file = null; pad.filePath = null; pad.missingPath = null; pad.name = ''; pad.playing = false; pad.paused = false; pad.stopping = false; pad.peaks = null; pad.wave = null; pad.env = null; pad.envTop = 0;
   pad.inPoint = pad.outPoint = null;
   refreshPad(id);
   renderStack();
@@ -3170,7 +3658,7 @@ function addToStack(padId) {
   if (lockedOut()) return;
   const pad = pads[padId];
   if (!pad.file) return;
-  getScene().stack.push({ padId });
+  getScene().stack.push(newCue(padId));
   renderStack();
   setStatus(`"${pad.name}" added to stack (#${getScene().stack.length})`);
   scheduleAutosave();
@@ -3209,6 +3697,17 @@ function nextCue(auto = false) {
   if (auto && s.stackIdx >= s.stack.length - 1) return;
   const nextIdx = (s.stackIdx + 1) % s.stack.length;
   const item    = s.stack[nextIdx];
+  if (item.stop) {
+    // A stop cue fades out its own sound and touches nothing else (it is how a LAYER bed is ended from the cue list)
+    const p = pads[item.padId];
+    s.stackIdx = nextIdx;
+    if (p?.playing) stopPad(p.id, true); else if (p?.paused) stopPad(p.id, false);
+    renderStack();
+    updatePlayCueBtn();
+    setStatus(`Cue ${nextIdx + 1}: stopping "${p?.name || 'Unnamed'}"`);
+    armFollow(s, item);
+    return;
+  }
   if (!pads[item.padId]?.audio) {
     // A cue with no audio (file missing after a load / restore) must not cut the sound that is playing.
     s.stackIdx = nextIdx;
@@ -3219,12 +3718,14 @@ function nextCue(auto = false) {
   // Starting a cue takes over the room: everything else that is sounding fades out — the previous cue, a pad started from its key,
   // a loop bed — each over its own FADE time (a pad that is already fading out just finishes that fade). The previous cue is also
   // stopped when it is paused, so it starts from the top next time. Paused pads that are not the previous cue are left alone.
+  // LAYER pads are the exception in both directions: a LAYER cue stops nothing, and no cue stops a LAYER pad.
   const prev = s.stack[s.stackIdx]?.padId;
-  pads.forEach(p => { if (p.id !== item.padId && (p.playing || p.id === prev)) stopPad(p.id, true); });
+  if (!pads[item.padId].overlap) pads.forEach(p => { if (p.id !== item.padId && !p.overlap && (p.playing || p.id === prev)) stopPad(p.id, true); });
   s.stackIdx = nextIdx;
   playPad(item.padId, true);
   renderStack();
   updatePlayCueBtn();
+  armFollow(s, item);
 }
 
 function playStackItem(i) {
@@ -3239,6 +3740,12 @@ function playCue() {
   if (s.stackIdx < 0 || !s.stack[s.stackIdx]) return;
   const item = s.stack[s.stackIdx];
   const pad  = pads[item.padId];
+  clearTimeout(advTimer);
+  if (item.stop) {
+    if (pad?.playing) stopPad(pad.id, true); else if (pad?.paused) stopPad(pad.id, false);
+    updatePlayCueBtn();
+    return;
+  }
   if (!pad.audio) {
     // Check before stopping anything — otherwise the room goes silent and nothing replaces it
     setStatus(`"${pad.name || 'Unnamed'}" has no audio — relink the file`);
@@ -3249,10 +3756,11 @@ function playCue() {
     stopPad(item.padId, true);
     updatePlayCueBtn();
   } else {
-    // Stop everything, then play selected cue
-    pads.forEach(p => { if (p.playing) stopPad(p.id, false); });
+    // Stop everything (LAYER pads excepted, as everywhere), then play the selected cue
+    stopOthers(item.padId, false);
     playPad(item.padId, true);
     updatePlayCueBtn();
+    armFollow(s, item);
   }
 }
 
@@ -3262,26 +3770,50 @@ function updatePlayCueBtn() {
   const s = getScene();
   const hasSelection = s.stackIdx >= 0 && !!s.stack[s.stackIdx];
   btn.disabled = !hasSelection;
-  if (hasSelection && pads[s.stack[s.stackIdx].padId].playing) {
+  const cue = hasSelection ? s.stack[s.stackIdx] : null;
+  if (cue && (cue.stop || pads[cue.padId].playing)) {
     btn.textContent = '■ STOP CUE';
-    btn.classList.add('is-playing');
+    btn.classList.toggle('is-playing', !!pads[cue.padId].playing);
   } else {
     btn.textContent = '▶ PLAY CUE';
     btn.classList.remove('is-playing');
   }
 }
 
-function checkAutoAdvance(finishedPadId) {
-  const s = getScene();
-  if (s.stackIdx < 0 || !s.stack[s.stackIdx]) return;
-  if (s.stackIdx >= s.stack.length - 1) return;          // end of the stack — stop, don't loop
-  if (s.stack[s.stackIdx].padId !== finishedPadId) return;
+// What follows a cue: its own setting, or the Auto-advance switch when it has none
+function cueFollow(cue) { return cue.follow === 'hold' ? '' : cue.follow === 'end' || cue.follow === 'after' ? cue.follow : autoAdv ? 'end' : ''; }
+function scheduleFollow(s, ms) {
   const idx = s.stackIdx;
   clearTimeout(advTimer);
   advTimer = setTimeout(() => {
     // Only advance if the operator hasn't moved the stack (or changed scene) in the meantime
     if (getScene() === s && s.stackIdx === idx) nextCue(true);
-  }, 250);
+  }, ms);
+}
+// A pad ran out (or reached its OUT point): start the next cue if this was the current cue and it is set to follow
+function checkAutoAdvance(finishedPadId) {
+  const s = getScene(), cue = s.stack[s.stackIdx];
+  if (!cue || cue.stop || cue.padId !== finishedPadId || cueFollow(cue) !== 'end') return;
+  if (s.stackIdx >= s.stack.length - 1) return;          // end of the stack — stop, don't loop
+  scheduleFollow(s, 250);
+}
+// A cue just started: "start the next cue N seconds after this one", and what follows a stop cue (the end of its fade)
+function armFollow(s, cue) {
+  if (s.stackIdx >= s.stack.length - 1) return;
+  const mode = cueFollow(cue);
+  if (mode === 'after') scheduleFollow(s, Math.max(0, cue.wait) * 1000);
+  else if (mode === 'end' && cue.stop) scheduleFollow(s, fadeOf(pads[cue.padId]) * 1000 + 150);
+}
+// ↑ / ↓: choose which cue SPACE plays next, without playing anything
+function moveCueCursor(dir) {
+  const s = getScene();
+  if (!s.stack.length) return;
+  clearTimeout(advTimer);                                // the operator took over: a pending auto-follow must not fire from the old place
+  s.stackIdx = Math.max(-1, Math.min(s.stack.length - 1, s.stackIdx + dir));
+  renderStack();
+  document.querySelector('#stackList .stack-item.is-next')?.scrollIntoView({ block: 'nearest' });
+  const idx = (s.stackIdx + 1) % s.stack.length;
+  setStatus(`Next: cue ${idx + 1} "${pads[s.stack[idx].padId]?.name || 'Unnamed'}"`);
 }
 
 function toggleAutoAdvance() {
@@ -3317,14 +3849,19 @@ function renderStack() {
   list.innerHTML = s.stack.map((item, i) => {
     const pad     = pads[item.padId];
     const active  = i === s.stackIdx;
-    const noAudio = !pad.audio;
-    return `<div class="stack-item${active ? ' active' : ''}${i === nextIdx ? ' is-next' : ''}${pad.playing ? ' is-playing' : ''}${noAudio ? ' no-audio' : ''}" data-i="${i}" draggable="${IS_TOUCH ? 'false' : 'true'}" onclick="playStackItem(${i})"
+    const noAudio = !pad.audio && !item.stop;
+    const flw     = item.follow === 'end'   ? '<span class="stack-flw" title="When this cue ends, the next one starts by itself">↪</span>'
+                  : item.follow === 'after' ? `<span class="stack-flw" data-notr title="The next cue starts by itself, this many seconds after this one starts">↪ ${fmtSec(item.wait)}</span>`
+                  : item.follow === 'hold'  ? '<span class="stack-flw hold" title="This cue always waits for SPACE, even with Auto-advance on">‖</span>' : '';
+    return `<div class="stack-item${active ? ' active' : ''}${i === nextIdx ? ' is-next' : ''}${pad.playing && !item.stop ? ' is-playing' : ''}${noAudio ? ' no-audio' : ''}${item.stop ? ' is-stop' : ''}" data-i="${i}" draggable="${IS_TOUCH ? 'false' : 'true'}" onclick="playStackItem(${i})"
          title="${noAudio ? 'No audio loaded for this cue — relink the file' : IS_TOUCH ? 'Tap to select it (PLAY CUE plays it)' : 'Click to select it (PLAY CUE plays it). Drag to reorder.'}">
       <span class="stack-n">${i + 1}</span>
       <div class="stack-dot" style="background:${pad.color}"></div>
-      <span class="stack-lbl"${pad.name ? ' data-notr' : ''}>${escHtml(pad.name || 'Unnamed')}</span>
+      <span class="stack-main"><span class="stack-line">${item.stop ? '<span class="stack-stop">Stop</span>' : ''}<span class="stack-lbl"${pad.name ? ' data-notr' : ''}>${escHtml(pad.name || 'Unnamed')}</span></span>${item.note ? `<span class="stack-note" data-notr>${escHtml(item.note)}</span>` : ''}</span>
+      ${flw}
       ${i === nextIdx ? '<span class="stack-next-pill" title="SPACE plays this cue next">Next</span>' : ''}
-      <span class="stack-time" data-pad="${item.padId}">${stackTimeText(pad)}</span>
+      ${item.stop ? '<span class="stack-time">■</span>' : `<span class="stack-time" data-pad="${item.padId}">${stackTimeText(pad)}</span>`}
+      <span class="stack-ed" role="button" aria-label="Cue settings" title="Cue settings: a note for the operator, what happens after this cue, play or stop" onclick="event.stopPropagation();editCue(${i})">✎</span>
       <span class="stack-mv" onclick="event.stopPropagation();moveStackItem(${i},-1)" title="Move up">▲</span>
       <span class="stack-mv" onclick="event.stopPropagation();moveStackItem(${i},1)" title="Move down">▼</span>
       <span class="stack-rm" role="button" aria-label="Remove from the stack" title="Remove from the stack (Undo brings it back)" onclick="event.stopPropagation();removeFromStack(${i})">×</span>
@@ -3333,22 +3870,71 @@ function renderStack() {
   updatePlayCueBtn();
 }
 
+// Cue settings: the pencil on a cue row
+function editCue(i) {
+  if (lockedOut()) return;
+  const s = getScene(), cue = s.stack[i];
+  if (!cue) return;
+  const pad = pads[cue.padId];
+  openModal(`CUE ${i + 1}`,
+    `<div class="cue-ed">
+      <div class="cue-ed-name"><span class="stack-dot" style="background:${pad.color}"></span><span${pad.name ? ' data-notr' : ''}>${escHtml(pad.name || 'Unnamed')}</span></div>
+      <label class="cue-ed-row"><span>Note for the operator</span>
+        <input class="modal-input" id="cueNote" type="text" maxlength="300" value="${escAttr(cue.note)}" placeholder="e.g. GO on the blackout"></label>
+      <label class="cue-ed-row"><span>This cue</span>
+        <select class="sh-select" id="cueAction">
+          <option value="play">Plays the sound</option>
+          <option value="stop">Stops the sound (fades it out)</option>
+        </select></label>
+      <label class="cue-ed-row"><span>Then</span>
+        <select class="sh-select" id="cueFollow" onchange="document.getElementById('cueWaitRow').hidden = this.value !== 'after'">
+          <option value="">Do what the Auto-advance switch says</option>
+          <option value="hold">Wait for SPACE</option>
+          <option value="end">Start the next cue when this one ends</option>
+          <option value="after">Start the next cue after a delay</option>
+        </select></label>
+      <label class="cue-ed-row" id="cueWaitRow"><span>Delay in seconds, counted from the start of this cue</span>
+        <input class="modal-input" id="cueWait" type="number" min="0" max="3600" step="0.1" value="${cue.wait}"></label>
+      <p class="cue-ed-hint">A delay of 0 starts the next cue together with this one — make one of them a LAYER pad, or the second will fade out the first. A stop cue is how you end a LAYER sound from the cue list.</p>
+    </div>`,
+    `<button class="modal-btn" onclick="closeModal()">Cancel</button>
+     <button class="modal-btn primary" onclick="saveCue(${i})">Save</button>`);
+  document.getElementById('cueAction').value = cue.stop ? 'stop' : 'play';
+  document.getElementById('cueFollow').value = cue.follow;
+  document.getElementById('cueWaitRow').hidden = cue.follow !== 'after';
+  document.getElementById('cueNote').focus();
+}
+function saveCue(i) {
+  if (lockedOut()) return;
+  const s = getScene(), cue = s.stack[i];
+  if (!cue) { closeModal(); return; }
+  const val = id => document.getElementById(id)?.value ?? '';
+  const stacks = snapshotStacks();
+  pushUndo(`changed the settings of cue ${i + 1}`, () => restoreStacks(stacks));
+  // A new object on purpose: the snapshot keeps the old one, so Undo brings the old settings back
+  s.stack[i] = { padId: cue.padId, ...cueMeta({ note: val('cueNote').trim(), follow: val('cueFollow'), wait: val('cueWait'), stop: val('cueAction') === 'stop' }) };
+  closeModal();
+  renderStack();
+  setStatus(`Cue ${i + 1} updated`, { undo: true });
+  scheduleAutosave();
+}
+
 // The NEXT CUE button says exactly what SPACE will do: which cue, and by name
 function updateNextBtn() {
   const btn = document.getElementById('nextBtn'), s = getScene();
   if (!btn) return;
   btn.disabled = !s.stack.length;
   if (!s.stack.length) { btn.textContent = 'NEXT CUE ▶'; return; }
-  const idx = (s.stackIdx + 1) % s.stack.length, pad = pads[s.stack[idx].padId];
+  const idx = (s.stackIdx + 1) % s.stack.length, cue = s.stack[idx], pad = pads[cue.padId];
   const again = s.stackIdx >= 0 && s.stackIdx === s.stack.length - 1;
-  btn.innerHTML = `<span>NEXT CUE ▶</span><span class="nb-sub"><kbd>SPACE</kbd> ${idx + 1} · <span${pad?.name ? ' data-notr' : ''}>${escHtml(pad?.name || 'Unnamed')}</span>${again ? ' <span>(start over)</span>' : ''}</span>`;
+  btn.innerHTML = `<span>NEXT CUE ▶</span><span class="nb-sub"><kbd>SPACE</kbd> ${idx + 1} · ${cue.stop ? '<span>Stop</span> ' : ''}<span${pad?.name ? ' data-notr' : ''}>${escHtml(pad?.name || 'Unnamed')}</span>${again ? ' <span>(start over)</span>' : ''}</span>${cue.note ? `<span class="nb-note" data-notr>${escHtml(cue.note)}</span>` : ''}`;
 }
 // Mark the cue rows whose pad is sounding (called whenever a pad refreshes, i.e. on every play / pause / stop)
 function syncStackPlaying() {
   const s = getScene();
   document.querySelectorAll('#stackList .stack-item').forEach(row => {
     const it = s.stack[+row.dataset.i];
-    row.classList.toggle('is-playing', !!(it && pads[it.padId]?.playing));
+    row.classList.toggle('is-playing', !!(it && !it.stop && pads[it.padId]?.playing));
   });
 }
 
@@ -3376,7 +3962,7 @@ function insertPadIntoStack(padId, at) {
   if (!pad?.file) return;
   const selected = s.stack[s.stackIdx];
   const pos = Math.min(Math.max(at, 0), s.stack.length);
-  s.stack.splice(pos, 0, { padId });
+  s.stack.splice(pos, 0, newCue(padId));
   s.stackIdx = selected ? s.stack.indexOf(selected) : -1;
   renderStack();
   setStatus(`"${pad.name}" added to stack (#${pos + 1})`);
@@ -3558,6 +4144,7 @@ function refreshPadEl(el, pad) {
         <div class="color-dot" data-action="color" style="background:${pad.color}" title="Change colour"></div>
         <div class="shortcut-key${capClass}" data-action="capture" title="Shortcut key — click to change it">${keyLabel}</div>
         <div class="pad-grip" role="button" tabindex="0" aria-label="${GRIP_TIP}" title="${GRIP_TIP}"></div>
+        <span class="pad-flags" aria-hidden="true">${pad.loop ? '⟳' : ''}${pad.overlap ? '⧉' : ''}</span>
       </div>
       <div class="pad-right-col">
         <div class="pad-name${nameClass}" id="pname${pad.id}"${pad.name ? ' data-notr' : ''}>${nameLabel}</div>
@@ -3587,24 +4174,26 @@ function refreshPadEl(el, pad) {
             <span class="t-icon">${pad.playing ? '⏸' : '▶'}</span>
             <span>${pad.playing ? 'PAUSE' : pad.paused ? 'RESUME' : 'PLAY'}</span>
           </button>
+          ${prefs.previewId && CAN_SET_SINK ? `<button class="transport-pre${preview?.padId === pad.id ? ' on' : ''}" data-action="preview" aria-pressed="${preview?.padId === pad.id}" aria-label="Preview on the headphones" title="Preview: plays this sound on the preview output only (the headphones chosen in Settings). The audience hears nothing, and the pad itself is not touched."></button>` : ''}
           <button class="transport-stop" data-action="stop" title="Stop & rewind" aria-label="Stop & rewind">■</button>
         </div>
         <div class="pad-footer">
-          <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop" aria-pressed="${pad.loop}" title="Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it">⟳ LOOP</button>
+          <button class="btn-sm${pad.loop ? ' loop-on' : ''}" data-action="loop" aria-pressed="${pad.loop}" title="Loop: keep repeating this sound (between its IN and OUT points, if set) until you stop it"><span class="ci">⟳</span><span class="cl">LOOP</span></button>
           <span class="fade-grp${pad.fadeEnabled ? ' on' : ''}">
-            <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle" aria-pressed="${pad.fadeEnabled}" title="FADE: soft edges, using this pad's own FADE time (the box next to it) or the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end.">↓ FADE</button>
+            <button class="btn-sm${pad.fadeEnabled ? ' fade-on' : ''}" data-action="fade-toggle" aria-pressed="${pad.fadeEnabled}" title="FADE: soft edges, using this pad's own FADE time (the box next to it) or the FADE time in the header. On: it fades in when it starts, fades out at its OUT point, and a loop crossfades into itself so you never hear it restart. Off: hard start, hard loop point, hard end."><span class="ci">↓</span><span class="cl">FADE</span></button>
             <input class="pad-fade${pad.fade != null ? ' custom' : ''}" type="text" inputmode="decimal" maxlength="6" autocomplete="off" spellcheck="false" id="pfade-${pad.id}"
                    value="${pad.fade != null ? fmtSec(pad.fade) : ''}" placeholder="${fmtSec(fadeDuration)}"
                    aria-label="FADE time of this pad (seconds)" title="This pad's own FADE time, in seconds: how long it takes to fade in, fade out or crossfade. Leave it empty to use the FADE time in the header (the grey number).">
           </span>
-          <button class="btn-sm stack-btn" data-action="stack" title="Add this sound to the end of the cue list. SPACE then plays the cues in order.">+ Stack</button>
+          <button class="btn-sm${pad.overlap ? ' layer-on' : ''}" data-action="overlap" aria-pressed="${pad.overlap}" title="LAYER: this sound plays on top of the others. Starting it stops nothing, and starting another sound or cue does not stop it. Stop it with its own key or ■, with STOP ALL or Esc. Off: starting it fades out the other sounds, as usual."><span class="ci">⧉</span><span class="cl">LAYER</span></button>
+          <button class="btn-sm stack-btn" data-action="stack" title="Add this sound to the end of the cue list. SPACE then plays the cues in order."><span class="ci">+</span><span class="cl">Stack</span></button>
           <button class="btn-sm clear-pad" data-action="clear" title="Remove this sound from the pad (Undo brings it back)" aria-label="Remove this sound from the pad (Undo brings it back)">✕</button>
         </div>
         <div class="pad-vol-row">
           <span class="vol-label">VOL</span>
-          <input class="pad-vol-slider" type="range" min="0" max="1" step="0.01" value="${pad.vol}"
-                 id="pvol-${pad.id}" title="Pad volume: ${volPct}%">
-          <span class="vol-pct" id="pvol-pct-${pad.id}">${volPct}%</span>
+          <input class="pad-vol-slider" type="range" min="0" max="1.25" step="0.005" value="${volToPos(pad.vol)}"
+                 id="pvol-${pad.id}" title="${volTitle(pad)}">
+          <span class="vol-pct${pad.vol > 1 ? ' boost' : ''}" id="pvol-pct-${pad.id}">${volPct}%</span>
         </div>` : `
         <div class="pad-hint"><span class="ph-plus">${pad.name ? '⚠' : '+'}</span>${pad.name ? `<span>${IS_TOUCH ? 'Missing — tap to choose the file again' : 'Missing — click to choose the file again'}</span>` : ''}</div>`}
       </div>
@@ -3614,6 +4203,7 @@ function refreshPadEl(el, pad) {
   if (wave) drawWave(pad);
   updateOnboarding();
   syncStackPlaying();
+  syncNowBar();
   if (gripHadFocus) el.querySelector('.pad-grip')?.focus();
 
   // Button delegation
@@ -3622,6 +4212,8 @@ function refreshPadEl(el, pad) {
       e.stopPropagation();
       switch (btn.dataset.action) {
         case 'loop':         toggleLoop(pad.id);        break;
+        case 'overlap':      toggleOverlap(pad.id);     break;
+        case 'preview':      togglePreview(pad.id);     break;
         case 'fade-toggle':  toggleFadeEnabled(pad.id); break;
         case 'playpause':    togglePad(pad.id);         break;
         case 'stop':         stopPad(pad.id, prefs.stopFade && !pad.stopping); break;
@@ -3654,7 +4246,12 @@ function refreshPadEl(el, pad) {
   // Volume slider
   const volSlider = document.getElementById(`pvol-${pad.id}`);
   if (volSlider) {
-    volSlider.addEventListener('input', e => { e.stopPropagation(); setPadVolume(pad.id, e.target.value); });
+    volSlider.addEventListener('input', e => {
+      e.stopPropagation();
+      let pos = +e.target.value;
+      if (Math.abs(pos - 1) < 0.012) { pos = 1; e.target.value = 1; }         // a small detent at 100 %
+      setPadVolume(pad.id, posToVol(pos));
+    });
     volSlider.addEventListener('click', e => e.stopPropagation());
   }
 
@@ -3881,7 +4478,8 @@ function startRaf() {
         const active = pad.playing || pad.paused;
         let txt = '--:-- / --:--';
         if (Number.isFinite(dur) && dur) {
-          txt = !active ? `${fmt(cur)} / ${fmt(dur)}`
+          txt = prefs.compact ? (!active ? fmt(dur) : (pad.loop && pad.outPoint === null) ? '⟳' : `−${fmtRem((pad.outPoint ?? dur) - cur)}`)
+              : !active ? `${fmt(cur)} / ${fmt(dur)}`
               : (pad.loop && pad.outPoint === null) ? `⟳ / ${fmt(dur)}`
               : `−${fmtRem((pad.outPoint ?? dur) - cur)} / ${fmt(dur)}`;
         }
@@ -3890,6 +4488,8 @@ function startRaf() {
       }
       const stTxt = stackTimeText(pad);
       document.querySelectorAll(`#stackList .stack-time[data-pad="${pad.id}"]`).forEach(el => { if (el.textContent !== stTxt) el.textContent = stTxt; });
+      const npT = document.getElementById(`npt${pad.id}`);
+      if (npT && npT.textContent !== stTxt) npT.textContent = stTxt;
 
       if (dur) {
         // In marker
@@ -3924,9 +4524,9 @@ function startRaf() {
           } else {
             const wasStopping = pad.stopping;      // reached its OUT point while a stop was fading it: not a cue finishing
             stopPad(pad.id, false);
-            if (pad.audio) pad.audio.volume = clamp01(pad.vol * masterVol);   // an edge fade left it at silence: ready for the next play
+            if (pad.audio) pad.audio.volume = elVol(pad);   // an edge fade left it at silence: ready for the next play
             setStatus(`"${pad.name}" finished`);
-            if (autoAdv && !wasStopping) checkAutoAdvance(pad.id);
+            if (!wasStopping) checkAutoAdvance(pad.id);
           }
         }
       }
@@ -3934,6 +4534,7 @@ function startRaf() {
   (function tick() {
     requestAnimationFrame(tick);   // schedule first, and isolate each pad: one bad pad must not stop the loop
     pads.forEach(pad => { try { tickPad(pad); } catch (e) { console.error('tick', e); } });
+    try { tickNowBar(); } catch (e) { console.error('now bar', e); }
     try { pushRemoteState(performance.now()); } catch (e) { console.error('remote state', e); }
   })();
 }
@@ -4037,6 +4638,12 @@ function onKey(e) {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && hk === 's')  { e.preventDefault(); handleSave(); return; }
 
   if (e.key === ' ') { e.preventDefault(); nextCue(); return; }
+  // ↑ / ↓ move the NEXT marker (not inside a slider, a list or a pad's move handle, which use the arrows themselves)
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && !t.closest?.('input, select, .pad-grip')) {
+    e.preventDefault();
+    moveCueCursor(e.key === 'ArrowDown' ? 1 : -1);
+    return;
+  }
 
   const combo  = getCombo(e);
   const custom = customShortcuts.find(s => s.combo === combo);
@@ -4088,6 +4695,23 @@ function safeNum(v, lo, hi, dflt) {
   return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 }
 
+// A cue is a pad plus its own settings: a note for the operator, what happens after it, and whether it plays or stops the sound.
+//   follow: ''      = do what the Auto-advance switch says      'hold'  = always wait for SPACE
+//           'end'   = start the next cue when this one ends      'after' = start the next cue `wait` seconds after this one starts
+const CUE_FOLLOW = ['', 'hold', 'end', 'after'];
+function cueMeta(m) {
+  m = m && typeof m === 'object' ? m : {};
+  return {
+    note:   typeof m.note === 'string' ? m.note.slice(0, 300) : '',
+    follow: CUE_FOLLOW.includes(m.follow) ? m.follow : '',
+    wait:   Math.round(safeNum(m.wait, 0, 3600, 0) * 10) / 10,
+    stop:   m.stop === true,
+  };
+}
+const newCue     = padId => ({ padId, ...cueMeta() });
+const cueIsPlain = c => !c.note && !c.follow && !c.stop;
+const cuesOut    = s => s.stack.some(c => !cueIsPlain(c)) ? s.stack.map(c => cueIsPlain(c) ? null : { note: c.note, follow: c.follow, wait: c.wait, stop: c.stop }) : undefined;
+
 function normalizePad(pc, i) {
   pc = pc && typeof pc === 'object' ? pc : {};
   const inPoint = safeNum(pc.inPoint, 0, 86400, null);
@@ -4101,8 +4725,9 @@ function normalizePad(pc, i) {
     file: null, audio: null, audioUrl: null, filePath: null, peaks: null,
     missingPath: null,                             // saved path whose file wasn't found — kept so Save doesn't drop the link
     loop: pc.loop === true, playing: false, paused: false,
-    vol:  safeNum(pc.vol, 0, 1, 1),
+    vol:  safeNum(pc.vol, 0, VOL_MAX, 1),
     fadeEnabled: pc.fadeEnabled === true,
+    overlap: pc.overlap === true,
     fade: safeNum(pc.fade, 0.1, 20, null),
     inPoint, outPoint,
   };
@@ -4129,7 +4754,10 @@ function parseProjectConfig(config) {
   if (rawScenes.some(sc => Array.isArray(sc?.stack) && sc.stack.length > MAX_STACK)) throw new Error(`a scene has too many cues (max ${MAX_STACK})`);
   if (Array.isArray(config.customShortcuts) && config.customShortcuts.length > MAX_SHORTCUTS) throw new Error(`too many shortcuts (max ${MAX_SHORTCUTS})`);
   const sceneList = rawScenes.map((sc, i) => {
-    const stack = (Array.isArray(sc?.stack) ? sc.stack : []).filter(validId).map(padId => ({ padId }));
+    // `stack` stays a plain list of pad ids (older versions read it); the per-cue settings ride in a parallel `cues` list
+    const rawStack = Array.isArray(sc?.stack) ? sc.stack : [];
+    const rawCues  = Array.isArray(sc?.cues) && sc.cues.length === rawStack.length ? sc.cues : [];
+    const stack = rawStack.map((padId, k) => ({ padId, ...cueMeta(rawCues[k]) })).filter(it => validId(it.padId));
     const idx   = Number.isInteger(sc?.stackIdx) ? sc.stackIdx : -1;
     return {
       id: i,
@@ -4161,7 +4789,7 @@ function parseProjectConfig(config) {
 }
 
 // Swap a parsed project in as the live state: stop + release the old pads, apply, rebuild the UI.
-function commitProject(parsed) {
+function commitProject(parsed, name = '') {
   clearTimeout(advTimer);
   pads.forEach(p => { clearFadeTimer(p.id); releaseAudio(p); });
   undoStack.length = 0; refreshUndoBtn();          // history belongs to the previous show: Ctrl+Z must not write its sounds into this one
@@ -4174,13 +4802,15 @@ function commitProject(parsed) {
   shortcutIdSeq   = customShortcuts.length;
   ({ autoAdv, masterVol, fadeDuration, padsScale, stackScale } = parsed.settings);
   // Audio was attached before these settings were applied, so it still carries the previous master volume
-  pads.forEach(p => { if (p.audio) p.audio.volume = clamp01(p.vol * masterVol); });
+  pads.forEach(p => { if (p.audio) p.audio.volume = elVol(p); });
   capturing = null;
   document.getElementById('volSlider').value      = masterVol;
   document.getElementById('fadeDurInput').value   = fadeDuration;
   document.getElementById('autoToggle').className = `toggle-sw${autoAdv ? ' on' : ''}`;
   applyScales();
   buildPads(); renderSceneTabs(); renderStack();
+  setShowName(name);
+  markClean();
 }
 
 // ── Save / Load ───────────────────────────────────────────
@@ -4202,7 +4832,7 @@ async function saveProject(name) {
   setStatus('Copying audio files…');
   const padConfigs = [];
   for (const p of pads) {
-    const pc = { id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color, audioFile: null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null };
+    const pc = { id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, overlap: p.overlap === true, fade: p.fade ?? null, color: p.color, audioFile: null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null };
     if (p.file) {
       const fname = `pad_${p.id}_${sanitizeFilename(p.file.name)}`;
       try {
@@ -4218,7 +4848,7 @@ async function saveProject(name) {
   const config = {
     name, version: 3, savedAt: Date.now(),
     masterVol, autoAdv, fadeDuration, padsScale, stackScale,
-    scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), cues: cuesOut(s), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
     padOrder: [...padOrder],
@@ -4233,6 +4863,7 @@ async function saveProject(name) {
   await dbPut('projects', { name, savedAt: Date.now(), dirHandle });
   localStorage.removeItem('cue-autosave');
   closeModal();
+  setShowName(name); markClean();
   setStatus(`"${name}" saved — ${padConfigs.filter(p => p.audioFile).length} audio file(s)`);
 }
 
@@ -4422,8 +5053,8 @@ function handleLoad() {
 async function doElectronSaveAs() {
   const defaultPath = currentSavePath || 'My Show.cuepro';
   const savePath = await window.electronAPI.showSaveDialog(defaultPath);
-  if (!savePath) return;
-  await doElectronSave(savePath);
+  if (!savePath) return false;
+  return doElectronSave(savePath);
 }
 
 async function doElectronSave(savePath) {
@@ -4433,14 +5064,15 @@ async function doElectronSave(savePath) {
     masterVol, autoAdv, fadeDuration, padsScale, stackScale,
     scenes: scenes.map(s => ({
       id: s.id, name: s.name,
-      stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
+      stack: s.stack.map(i => i.padId), cues: cuesOut(s), stackIdx: s.stackIdx
     })),
     currentSceneIdx, customShortcuts, padOrder: [...padOrder],
     pads: pads.map(p => ({
       id: p.id, key: p.key, name: p.name,
-      loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color,
-      // p.missingPath: the file wasn't found on load — keep the link so saving doesn't destroy it
-      audioPath: p.filePath || p.missingPath || null,
+      loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, overlap: p.overlap === true, fade: p.fade ?? null, color: p.color,
+      // p.missingPath: the file wasn't found on load — keep the link so saving doesn't destroy it.
+      // A file inside the project's own folder is linked relative to it, so the whole folder can be moved or copied.
+      audioPath: relToProject(savePath, p.filePath || p.missingPath || null),
       inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null
     }))
   };
@@ -4448,15 +5080,57 @@ async function doElectronSave(savePath) {
     await window.electronAPI.writeTextFile(savePath, JSON.stringify(config, null, 2));
     currentSavePath = savePath;
     localStorage.removeItem('cue-autosave');
+    setShowName(projectName); markClean();
     setStatus(`Saved — "${projectName}"`);
+    return true;
   } catch (e) {
     if (/Write not permitted/.test(e.message)) {   // path wasn't picked in this session — ask the user
       currentSavePath = null;
-      doElectronSaveAs();
-      return;
+      return doElectronSaveAs();
     }
     setStatus('Save failed: ' + e.message);
+    return false;
   }
+}
+
+// Where a project's audio link points. A relative link ("audio/rain.wav") is next to the project file. An absolute link that
+// no longer exists is also looked for next to the project (in "audio/" and beside it) — the show folder was moved or copied.
+const projectDir  = projPath => String(projPath).replace(/[\\/][^\\/]*$/, '');
+const isRelPath   = p => !/^([\\/]|[a-z]:)/i.test(p);
+function relToProject(projPath, filePath) {
+  if (!filePath || isRelPath(filePath)) return filePath;
+  const dir = projectDir(projPath), win = /\\/.test(projPath), norm = s => (win ? s.toLowerCase() : s);
+  const rest = norm(filePath).startsWith(norm(dir) + (win ? '\\' : '/')) ? filePath.slice(dir.length + 1) : '';
+  return rest ? rest.replace(/\\/g, '/') : filePath;
+}
+async function audioCandidates(projPath, audioPath) {
+  const dir = projectDir(projPath), join = (...x) => window.electronAPI.joinPath(...x), name = audioPath.replace(/.*[\\/]/, '');
+  if (isRelPath(audioPath)) return /(^|[\\/])\.\.([\\/]|$)/.test(audioPath) ? [] : [await join(dir, audioPath)];
+  return [audioPath, await join(dir, 'audio', name), await join(dir, name)];
+}
+
+// ── Export the show with its audio (desktop) ──────────────
+async function exportShowWithAudio() {
+  if (!IS_ELECTRON) return;
+  const config = {
+    name: showName || 'Show', version: 5, savedAt: Date.now(),
+    masterVol, autoAdv, fadeDuration, padsScale, stackScale,
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), cues: cuesOut(s), stackIdx: s.stackIdx })),
+    currentSceneIdx, customShortcuts, padOrder: [...padOrder],
+    pads: pads.map(p => ({
+      id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, overlap: p.overlap === true, fade: p.fade ?? null, color: p.color,
+      audioPath: p.filePath || null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null,
+    })),
+  };
+  const noPath = pads.filter(p => p.file && !p.filePath).length;
+  let res;
+  try { res = await window.electronAPI.exportShow({ name: config.name, project: JSON.stringify(config) }); }
+  catch (e) { setStatus('Export failed: ' + e.message); return; }
+  if (!res) return;                                                   // cancelled
+  const lost = res.failed.length + noPath;
+  closeModal();
+  setStatus(lost ? `Exported ${res.copied} audio file(s) to "${res.dir}" — ${lost} could not be copied`
+                 : `Exported the show and ${res.copied} audio file(s) to "${res.dir}"`);
 }
 
 // ── Electron Load ─────────────────────────────────────────
@@ -4483,11 +5157,13 @@ async function loadElectronProject() {
       const audioPath = cleanAudioPath(pc?.audioPath);
       if (!audioPath) continue;
       try {
-        if (await window.electronAPI.fileExists(audioPath)) {
-          const buf      = await window.electronAPI.readFile(audioPath);
-          const fileName = audioPath.replace(/.*[\\/]/, '');
+        let found = '';
+        for (const cand of await audioCandidates(loadPath, audioPath)) if (await window.electronAPI.fileExists(cand)) { found = cand; break; }
+        if (found) {
+          const buf      = await window.electronAPI.readFile(found);
+          const fileName = found.replace(/.*[\\/]/, '');
           attachAudio(pad, new File([new Blob([buf])], fileName));
-          pad.filePath = audioPath;
+          pad.filePath = found;
           continue;
         }
       } catch {}
@@ -4495,7 +5171,7 @@ async function loadElectronProject() {
       missing.push({ padId: i, audioPath, padName: pad.name });
     }
 
-    commitProject(parsed);
+    commitProject(parsed, baseName(loadPath));
     currentSavePath = loadPath;
     localStorage.removeItem('cue-autosave');
 
@@ -4610,6 +5286,8 @@ async function runPreShowCheck() {
         else if (p.outPoint !== null && p.outPoint > dur + 0.5)                  add('warn', `${label(p)}: the OUT point (${fmt(p.outPoint)}) is past the end of the sound (${fmt(dur)})`, p.id);
       }
       if (p.vol === 0) add('warn', `${label(p)}: its volume slider is at 0`, p.id);
+      if (p.vol > 1 && !p.gain) add('warn', `${label(p)}: its volume is above 100% but this browser cannot boost on the chosen output — it plays at 100%`, p.id);
+      else if (p.vol > 1 && p.envTop * p.vol > 1.02) add('warn', `${label(p)}: boosted to ${Math.round(p.vol * 100)}% — its loudest part will distort`, p.id);
       // Electron: the sound plays from memory, but the project will only reload if the original file is still where it was
       if (IS_ELECTRON && p.filePath) {
         let exists = true;
@@ -4629,6 +5307,8 @@ async function runPreShowCheck() {
     sc.stack.forEach((it, i) => {
       cues++;
       const p = pads[it.padId];
+      if (it.stop) return;
+      if (it.follow === 'end' && p?.loop && p.outPoint === null) add('warn', `Scene "${sc.name}", cue ${i + 1} (${label(p)}) is set to start the next cue when it ends, but it loops — it never ends`, it.padId);
       if (!p?.audio) add('fail', `Scene "${sc.name}", cue ${i + 1} (${label(p || { id: it.padId, name: '' })}) has no audio — SPACE would skip it`, it.padId);
     });
   });
@@ -4715,7 +5395,7 @@ SETTINGS_SECTIONS.push({
         <option value="auto" ${prefs.lang ? '' : 'selected'}>Automatic</option>
         ${Object.entries(LANGS).map(([c, n]) => `<option value="${c}" data-notr ${prefs.lang === c ? 'selected' : ''}>${n}</option>`).join('')}
       </select></div>
-    <label class="set-row"><span>Waveforms behind the pad progress bar<br><small>Easier IN / OUT points. Analyses each file once; skipped for long files and on touch devices.</small></span>
+    <label class="set-row"><span>Waveforms behind the pad progress bar<br><small>Easier IN / OUT points. Each file is analysed once. WAV files of any length; compressed files (mp3, m4a…) up to about 20 minutes — 4 on a tablet.</small></span>
       <input type="checkbox" ${prefs.waveform ? 'checked' : ''} onchange="setWaveformPref(this.checked)"></label>`,
 });
 
@@ -4725,7 +5405,9 @@ SETTINGS_SECTIONS.push({
     ? `<div class="set-row"><span>Play sound through</span><select class="sh-select" id="outputSelect" onchange="setOutputDevice(this.value).then(renderSettings)"><option value="">System default</option></select></div>
        <div class="set-row"><span><small>Saved for this computer only. If the device is missing at launch the system default is used and you are warned.</small></span>
        <button class="modal-btn" onclick="playTestTone()">🔊 Test tone</button></div>
-       <div class="set-warn" id="outputWarn">${outputProblem ? '⚠ ' + escHtml(outputProblem) : ''}</div>`
+       <div class="set-warn" id="outputWarn">${outputProblem ? '⚠ ' + escHtml(outputProblem) : ''}</div>
+       <div class="set-row"><span>Headphone preview through<br><small>Choose a second output (your headphones) and every pad gets a headphones button that plays it there only — to check a sound without the audience hearing it.</small></span>
+         <select class="sh-select" id="previewSelect" onchange="setPreviewDevice(this.value)"><option value="">Off</option></select></div>`
     : `<div class="set-row"><span><small>Choosing an output device isn't supported by this browser (Safari / iPad always use the system output).</small></span></div>`,
   after: async () => {
     const sel = document.getElementById('outputSelect');
@@ -4742,6 +5424,19 @@ SETTINGS_SECTIONS.push({
       sel.appendChild(o);
     }
     sel.value = prefs.outputId;
+    const pre = document.getElementById('previewSelect');
+    if (!pre) return;
+    devs.filter(d => d.deviceId !== 'default' && d.deviceId !== 'communications').forEach((d, i) => {
+      const o = document.createElement('option');
+      o.value = d.deviceId; o.textContent = d.label || `Output ${i + 1}`;
+      pre.appendChild(o);
+    });
+    if (prefs.previewId && ![...pre.options].some(o => o.value === prefs.previewId)) {
+      const o = document.createElement('option');
+      o.value = prefs.previewId; o.textContent = '⚠ Saved device (not connected)';
+      pre.appendChild(o);
+    }
+    pre.value = prefs.previewId;
   },
 });
 
@@ -4752,15 +5447,49 @@ SETTINGS_SECTIONS.push({
     <div class="set-row"><span>Keys<br><small>Esc, SPACE, Ctrl+Z, the pad keys and how to change them.</small></span>
       <button class="modal-btn" onclick="showShortcutsModal()">⌨ Shortcuts</button></div>`,
 });
+if (IS_ELECTRON) SETTINGS_SECTIONS.push({
+  id: 'showfile', title: 'Show file',
+  html: () => `<div class="set-row"><span>Export the show with its audio<br><small>Makes one folder with the project and a copy of every audio file. Move or copy that folder to another computer and the show opens there with nothing missing.</small></span>
+      <button class="modal-btn" onclick="exportShowWithAudio()">Export…</button></div>`,
+});
+if (IS_ELECTRON) SETTINGS_SECTIONS.push({
+  id: 'updates', title: 'Updates',
+  html: () => `<label class="set-row"><span>Look for a new version when the app starts<br><small>It asks before downloading anything, and never while a sound is playing or the show is locked.</small></span>
+      <input type="checkbox" id="updToggle" checked onchange="setUpdateCheck(this.checked)"></label>
+    <div class="set-row"><span id="updInfo"><small>&nbsp;</small></span>
+      <button class="modal-btn" id="updNow" onclick="checkUpdatesNow()">Check now</button></div>`,
+  after: async () => {
+    let s;
+    try { s = await window.electronAPI.getAppSettings(); } catch { return; }
+    const tg = document.getElementById('updToggle'), info = document.getElementById('updInfo'), btn = document.getElementById('updNow');
+    if (!tg || !info) return;
+    tg.checked = s.checkUpdates !== false;
+    info.innerHTML = `<small>This is version <span data-notr>${escHtml(String(s.version || ''))}</span></small>`;
+    if (!s.canUpdate && btn) { btn.disabled = true; tg.disabled = true; }
+  },
+});
+async function setUpdateCheck(on) {
+  try { await window.electronAPI.setAppSettings({ checkUpdates: !!on }); } catch {}
+  setStatus(on ? 'The app will look for a new version when it starts' : 'The app will not look for new versions by itself');
+}
+async function checkUpdatesNow() {
+  const info = document.getElementById('updInfo');
+  let r = null;
+  try { r = await window.electronAPI.checkForUpdatesNow(); } catch {}
+  const msg = r?.status === 'current' ? 'You have the newest version' : r?.status === 'available' ? 'A new version is available'
+            : r?.status === 'unsupported' ? 'Updates are only published for Windows and macOS' : 'Could not check for updates (no internet connection?)';
+  if (info) info.innerHTML = `<small>${msg}</small>`;
+  setStatus(msg);
+}
 // Audio output is the setting an operator opens this dialog for on the night: it goes first
-const SETTINGS_ORDER = ['output', 'appearance', 'remote', 'midi', 'help'];
+const SETTINGS_ORDER = ['output', 'appearance', 'showfile', 'remote', 'midi', 'updates', 'help'];
 function orderSettings() { SETTINGS_SECTIONS.sort((a, b) => SETTINGS_ORDER.indexOf(a.id) - SETTINGS_ORDER.indexOf(b.id)); }
 
 function setWaveformPref(on) {
   prefs.waveform = !!on;
   savePrefs();
   if (on) pads.forEach(p => queuePeaks(p));
-  else pads.forEach(p => { p.peaks = null; });
+  else pads.forEach(p => { p.peaks = null; });                       // the analysis itself is kept: the level meter still uses it
   pads.forEach(p => refreshPad(p.id));
 }
 // ── Remote commands (shared by the remote API and MIDI) ───
@@ -4809,7 +5538,7 @@ function buildRemoteState() {
     }),
     scene: { index: currentSceneIdx, name: sc.name },
     scenes: scenes.map(x => x.name),
-    stack: sc.stack.map(it => ({ padId: it.padId, name: pads[it.padId]?.name || '', noAudio: !pads[it.padId]?.audio })),
+    stack: sc.stack.map(it => ({ padId: it.padId, name: pads[it.padId]?.name || '', noAudio: !pads[it.padId]?.audio && !it.stop, note: it.note || undefined, stop: it.stop || undefined })),
     stackIdx: sc.stackIdx,
     masterVol, autoAdv, stopFade: prefs.stopFade, locked: showLocked,
   };
@@ -5205,8 +5934,145 @@ function updateGridWidth() {
   grid.style.width = Math.floor(availW / padsScale) + 'px';
 }
 
+// ── Show name + unsaved changes ───────────────────────────
+// The status bar (and the window title) says which show is open and whether it has changes that are not saved. Every edit
+// already goes through scheduleAutosave(), so that is where "changed" is recorded; saving or loading a show clears it.
+// The desktop app asks before closing with unsaved changes; a browser tab shows the browser's own "leave this page?" question.
+const APP_TITLE = 'Needit Audio Cue';
+let showName = '', showDirty = false, lastBusy = null;
+function renderShowChip() {
+  const n = document.getElementById('showName'), dot = document.getElementById('showDirty');
+  if (n) {
+    n.textContent = showName || 'Untitled show';
+    if (showName) n.setAttribute('data-notr', ''); else n.removeAttribute('data-notr');
+  }
+  if (dot) dot.hidden = !showDirty;
+  document.title = `${showDirty ? '● ' : ''}${showName || tr('Untitled show')} — ${APP_TITLE}`;
+  if (IS_ELECTRON) window.electronAPI.setDirty?.(showDirty);
+}
+function setShowName(name) { showName = String(name ?? '').slice(0, 100); renderShowChip(); }
+function markDirty()  { if (!showDirty) { showDirty = true; renderShowChip(); } }
+function markClean()  { showDirty = false; renderShowChip(); }
+const baseName = p => String(p ?? '').replace(/.*[\\/]/, '').replace(/\.cuepro$/i, '');
+if (!IS_ELECTRON) window.addEventListener('beforeunload', e => { if (showDirty) { e.preventDefault(); e.returnValue = ''; } });
+if (IS_ELECTRON) window.electronAPI.onSaveBeforeClose?.(async () => {
+  let ok = false;
+  try { ok = (currentSavePath ? await doElectronSave(currentSavePath) : await doElectronSaveAs()) === true; } catch { ok = false; }
+  window.electronAPI.saveBeforeCloseDone?.(ok);
+});
+
+// ── Status bar: show timer, clock, what is playing, level ──
+// One thin bar under the header that answers "what is sounding right now, how long is left, how loud is it" without
+// hunting for the pad — which may be scrolled out of view, or started from a key.
+let showT0 = 0, nowSig = '', clockSec = -1, timerSec = -1;
+const meter = { shown: 0, peak: 0, peakAt: 0, clipAt: 0, last: 0, w: -1, pk: -1, cls: '' };
+const hms = s => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
+function resetShowTimer() {
+  showT0 = pads.some(p => p.playing) ? Date.now() : 0;    // reset while something plays: count from now
+  timerSec = -1;
+  setStatus('Show timer set back to zero');
+}
+function syncNowBar() {
+  const box = document.getElementById('nbPlaying');
+  if (!box) return;
+  const live = orderedPads().filter(p => p && p.audio && (p.playing || p.paused));
+  const sig = live.map(p => `${p.id}:${p.playing ? (p.stopping ? 'f' : 'p') : 'h'}:${p.overlap ? 1 : 0}:${p.color}:${p.name}`).join('|');
+  if (sig === nowSig) return;
+  nowSig = sig;
+  box.innerHTML = live.length ? live.map(p => `
+    <div class="np${p.paused ? ' paused' : ''}${p.stopping ? ' fading' : ''}" role="button" tabindex="0" style="--c:${p.color}" onclick="focusPad(${p.id})" title="${p.paused ? 'Paused — click to go to this pad' : 'Playing — click to go to this pad'}">
+      <i class="np-dot"></i><span class="np-name" data-notr>${escHtml(p.name || '')}</span>${p.overlap ? '<span class="np-flag" title="LAYER: plays on top of the others">⧉</span>' : ''}
+      <span class="np-time" id="npt${p.id}">${stackTimeText(p)}</span>
+      <span class="np-stop" role="button" aria-label="Stop" title="Stop this sound" onclick="event.stopPropagation();stopPad(${p.id}, prefs.stopFade && !pads[${p.id}].stopping && pads[${p.id}].playing)">■</span>
+    </div>`).join('') : '<span class="nb-idle">Nothing is playing</span>';
+}
+// Level of the mix, from each sounding pad's analysed envelope × the volume its element is really at (fades included).
+function mixLevel() {
+  let pow = 0, known = 0, unknown = 0;
+  for (const p of pads) {
+    if (!p.playing || !p.audio) continue;
+    for (const a of (p.xf ? [p.audio, p.xf.next] : [p.audio])) {
+      const dur = a.duration;
+      if (!p.env || !Number.isFinite(dur) || !dur) { unknown++; continue; }
+      const v = p.env[Math.min(ENV_BUCKETS - 1, Math.max(0, Math.floor(a.currentTime / dur * ENV_BUCKETS)))] * a.volume * boostOf(p);
+      pow += v * v; known++;
+    }
+  }
+  return { level: Math.sqrt(pow), known, unknown };
+}
+function tickNowBar() {
+  const now = performance.now(), sec = Math.floor(Date.now() / 1000);
+  if (sec !== clockSec) {
+    clockSec = sec;
+    const c = document.getElementById('nbClock');
+    if (c) c.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const busy = showLocked || pads.some(p => p.playing);
+    if (busy !== lastBusy) { lastBusy = busy; if (IS_ELECTRON) window.electronAPI.setBusy?.(busy); }
+  }
+  const ran = showT0 ? Math.floor((Date.now() - showT0) / 1000) : 0;          // the timer ticks on its own seconds, not the clock's
+  if (ran !== timerSec) { timerSec = ran; const t = document.getElementById('nbTimer'); if (t) t.textContent = hms(ran); }
+  const el = document.getElementById('nbMeter'), fill = document.getElementById('nbMeterFill'), pk = document.getElementById('nbMeterPeak');
+  if (!el || !fill || !pk) return;
+  const { level, known, unknown } = mixLevel();
+  const dt = Math.min(0.25, (now - meter.last) / 1000); meter.last = now;
+  const pos = level > 0 ? Math.max(0, Math.min(1, (20 * Math.log10(level) + 48) / 48)) : 0;       // −48 dB … 0 dB across the bar
+  meter.shown = pos >= meter.shown ? pos : Math.max(pos, meter.shown - dt * 0.6);                  // instant up, ~29 dB per second down
+  if (meter.shown >= meter.peak || now - meter.peakAt > 1200) { meter.peak = meter.shown; meter.peakAt = now; }
+  if (level > 1.0005) meter.clipAt = now;
+  const w = Math.round(meter.shown * 200) / 2, p = Math.round(meter.peak * 200) / 2;
+  if (w !== meter.w) { meter.w = w; fill.style.width = w + '%'; }
+  if (p !== meter.pk) { meter.pk = p; pk.style.left = `calc(${p}% - 1px)`; pk.style.opacity = p > 1 ? '.75' : '0'; }
+  const cls = (meter.clipAt && now - meter.clipAt < 1500 ? 'clip ' : '') + (!known && unknown ? 'unknown' : '');
+  if (cls !== meter.cls) { meter.cls = cls; el.className = 'nb-meter ' + cls; }
+}
+
+// ── Compact view ──────────────────────────────────────────
+// Small pads with only what a running show needs — key, name, countdown, waveform, a stop button — so several times as
+// many fit on screen. The whole card plays / pauses, as always. Per machine. Editing a pad's settings needs the full view.
+function applyCompact() {
+  document.body.classList.toggle('compact', prefs.compact);
+  const b = document.getElementById('viewBtn');
+  if (b) { b.classList.toggle('on', prefs.compact); b.setAttribute('aria-pressed', prefs.compact ? 'true' : 'false'); }
+  updateGridWidth();
+}
+function toggleCompact() {
+  prefs.compact = !prefs.compact;
+  savePrefs();
+  applyCompact();
+  setStatus(prefs.compact ? 'Compact view — click a pad to play it; switch back to change its settings' : 'Full view');
+}
+
+// ── Cue list width ────────────────────────────────────────
+// Drag the left edge of the cue list to make it wider or narrower (double-click: back to the automatic width). Per machine;
+// a touch screen has the cue list in a bottom sheet instead.
+function applyStackWidth() {
+  const w = IS_TOUCH ? 0 : prefs.stackW;
+  if (w) document.documentElement.style.setProperty('--stack-w', w + 'px');
+  else document.documentElement.style.removeProperty('--stack-w');
+  updateGridWidth();
+}
+function initStackResize() {
+  const h = document.getElementById('stackResize');
+  if (!h || IS_TOUCH) return;
+  const widthAt = x => Math.round(Math.max(240, Math.min(640, window.innerWidth * 0.55, window.innerWidth - x)));
+  let dragging = false;
+  h.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    dragging = true;
+    try { h.setPointerCapture(e.pointerId); } catch {}
+    document.body.classList.add('stack-resizing');
+    e.preventDefault();
+  });
+  h.addEventListener('pointermove', e => { if (dragging) { prefs.stackW = widthAt(e.clientX); applyStackWidth(); } });
+  const end = () => { if (!dragging) return; dragging = false; document.body.classList.remove('stack-resizing'); savePrefs(); };
+  h.addEventListener('pointerup', end);
+  h.addEventListener('pointercancel', end);
+  h.addEventListener('dblclick', () => { prefs.stackW = 0; savePrefs(); applyStackWidth(); });
+}
+
 // ── Autosave ──────────────────────────────────────────────
 function scheduleAutosave() {
+  markDirty();
   document.getElementById('checkBtn')?.removeAttribute('data-state');   // edited since the last pre-show check: the green / amber / red mark is stale
   clearTimeout(asTimer);
   asTimer = setTimeout(saveAutosave, 1500);
@@ -5215,11 +6081,11 @@ function saveAutosave() {
   const data = {
     savedAt: Date.now(),
     masterVol, autoAdv, fadeDuration, padsScale, stackScale,
-    scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx })),
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, stack: s.stack.map(i => i.padId), cues: cuesOut(s), stackIdx: s.stackIdx })),
     currentSceneIdx,
     customShortcuts,
     padOrder: [...padOrder],
-    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color, hasAudio: !!p.file, audioPath: p.filePath || p.missingPath || null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null })),
+    pads: pads.map(p => ({ id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol, fadeEnabled: p.fadeEnabled, overlap: p.overlap === true, fade: p.fade ?? null, color: p.color, hasAudio: !!p.file, audioPath: p.filePath || p.missingPath || null, inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null })),
   };
   try { localStorage.setItem('cue-autosave', JSON.stringify(data)); } catch {}
 }
@@ -5251,6 +6117,7 @@ function restoreSessionData(data) {
     data.pads.forEach((pc, i) => { const ap = cleanAudioPath(pc?.audioPath); if (ap) parsed.pads[i].missingPath = ap; });
   }
   commitProject(parsed);
+  markDirty();                                     // a restored session exists nowhere but here until it is saved
   // Write permission for a project path only lasts for the session it was chosen in, so the first
   // Save after a restore goes through Save As (and can't overwrite the original with missing-audio links).
   currentSavePath = null;
@@ -5382,12 +6249,12 @@ async function doSaveProjectIDB(name) {
     masterVol, autoAdv, fadeDuration, padsScale, stackScale,
     scenes: scenes.map(s => ({
       id: s.id, name: s.name,
-      stack: s.stack.map(i => i.padId), stackIdx: s.stackIdx
+      stack: s.stack.map(i => i.padId), cues: cuesOut(s), stackIdx: s.stackIdx
     })),
     currentSceneIdx, customShortcuts, padOrder: [...padOrder],
     pads: pads.map(p => ({
       id: p.id, key: p.key, name: p.name, loop: p.loop, vol: p.vol,
-      fadeEnabled: p.fadeEnabled, fade: p.fade ?? null, color: p.color,
+      fadeEnabled: p.fadeEnabled, overlap: p.overlap === true, fade: p.fade ?? null, color: p.color,
       inPoint: p.inPoint ?? null, outPoint: p.outPoint ?? null
     }))
   };
@@ -5395,6 +6262,7 @@ async function doSaveProjectIDB(name) {
   try {
     await dbPut('ipad-projects', { name, config, audioData, savedAt: Date.now() });
     localStorage.removeItem('cue-autosave');
+    setShowName(name); markClean();
     setStatus(`"${name}" saved — ${Object.keys(audioData).length} audio file(s)`);
   } catch (e) {
     setStatus('Save failed: ' + e.message);

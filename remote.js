@@ -1,5 +1,5 @@
 'use strict';
-// Opt-in remote control for Kostudio Audio Cue: a small HTTP API (Stream Deck / Bitfocus Companion / scripts)
+// Opt-in remote control for Needit Audio Cue: a small HTTP API (Stream Deck / Bitfocus Companion / scripts)
 // and a phone/tablet remote page. Electron-free on purpose so it can be tested as plain Node — main.js injects
 // `sendCommand` (forward a command to the app window) and the config path.
 //
@@ -104,7 +104,7 @@ function createRemote({ configPath, sendCommand, pageHtml, log = () => {}, timeo
     const p = url.pathname;
 
     // 2. Public, static, secret-free
-    if (req.method === 'GET' && p === '/ping') return send(res, 200, { ok: true, service: 'Kostudio Audio Cue' });
+    if (req.method === 'GET' && p === '/ping') return send(res, 200, { ok: true, service: 'Needit Audio Cue' });
     if (req.method === 'GET' && (p === '/' || p === '/remote')) {
       return send(res, 200, pageHtml(), {
         'Content-Type': 'text/html; charset=utf-8',

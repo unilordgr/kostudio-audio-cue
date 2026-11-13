@@ -10,15 +10,19 @@ const ck = (n, ok, d = '') => t.check(n, ok, d);
 
 // ── mock electron
 const handlers = {}, listeners = {}, sent = [], spawned = [], dialogs = [], opened = [], windowSends = [], permHandlers = {};
-let dialogAnswer = 0, saveResult, openResult, willQuit;
+let dialogAnswer = 0, saveResult, openResult, willQuit, lastWindow = null, winClosed = 0, fetchResult = null;
+const winEvents = {};
 const electron = {
   app: { commandLine: { appendSwitch() {} }, whenReady: () => new Promise(() => {}), on() {},
          once: (ev, fn) => { if (ev === 'will-quit') willQuit = fn; }, isPackaged: true, getVersion: () => '1.3.0', quit() {},
          getPath: () => work },
   BrowserWindow: Object.assign(function () {
-    return { webContents: { send: (ch, d) => windowSends.push([ch, d]), setWindowOpenHandler() {}, on() {} },
-             loadFile() {}, setMenuBarVisibility() {}, isDestroyed: () => false };
-  }, { getAllWindows: () => [] }),
+    const win = { webContents: { send: (ch, d) => windowSends.push([ch, d]), setWindowOpenHandler() {}, on() {} },
+                  loadFile() {}, setMenuBarVisibility() {}, isDestroyed: () => false,
+                  on: (ev, fn) => { winEvents[ev] = fn; }, close: () => { winClosed++; } };
+    lastWindow = win;
+    return win;
+  }, { getAllWindows: () => (lastWindow ? [lastWindow] : []) }),
   session: { defaultSession: {
     setPermissionRequestHandler: fn => { permHandlers.request = fn; },
     setPermissionCheckHandler:   fn => { permHandlers.check = fn; },
@@ -29,7 +33,7 @@ const electron = {
     showSaveDialog: async () => saveResult, showOpenDialog: async () => openResult,
   },
   shell: { openPath() {}, openExternal: async url => { opened.push(url); } },
-  net: {},
+  net: { fetch: async () => fetchResult },
 };
 require('child_process').spawn = (...a) => { spawned.push(a); return { unref() {} }; };
 const realLoad = Module._load;
@@ -43,7 +47,7 @@ Module._load = function (req, ...r) {
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'kcue-main-'));
 const tmpMain = path.join(work, 'main.under-test.js');
 fs.writeFileSync(tmpMain, fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8') +
-  '\nmodule.exports = { downloadFile, isNewerVersion, installWindows, DONATE_URL, createWindow, initRemote, restrictPermissions };');
+  '\nmodule.exports = { downloadFile, isNewerVersion, installWindows, DONATE_URL, createWindow, initRemote, restrictPermissions, migrateUserData, checkForUpdates, loadAppSettings };');
 const m = require(tmpMain);
 
 const rejects = async p => { try { await p; return false; } catch (e) { return e.message; } };
@@ -208,12 +212,12 @@ const rejects = async p => { try { await p; return false; } catch (e) { return e
   // ── Windows updater: paths travel via env, never in the .bat text
   const win = { webContents: { send: (c, d) => sent.push([c, d]) } };
   const nasty = 'C:\\Users\\Κώστας 100%&co\\';
-  process.env.PORTABLE_EXECUTABLE_FILE = nasty + 'Kostudio-Audio-Cue-x64.exe';
+  process.env.PORTABLE_EXECUTABLE_FILE = nasty + 'Needit-Audio-Cue-x64.exe';
   dialogAnswer = 0;                                       // "Restart Now"
   const realSetTimeout = global.setTimeout; global.setTimeout = f => { f(); return 0; };
   await m.installWindows(nasty + 'AppData\\Temp\\new.exe', win);
   global.setTimeout = realSetTimeout;
-  const bat = fs.readFileSync(path.join(os.tmpdir(), 'kostudio-updater.bat'), 'latin1');
+  const bat = fs.readFileSync(path.join(os.tmpdir(), 'needit-updater.bat'), 'latin1');
   const [, , opts] = spawned[spawned.length - 1];
   ck('the .bat is pure ASCII with no username / % / & baked in', !/[^\x00-\x7f]/.test(bat) && !bat.includes('Κώστας') && !bat.includes('100%&'));
   ck('the .bat uses %NEW_EXE% / %CUR_EXE% and relaunches on failure too',
@@ -228,6 +232,116 @@ const rejects = async p => { try { await p; return false; } catch (e) { return e
   ck('"Later": nothing is spawned yet', spawned.length === 0 && typeof willQuit === 'function');
   willQuit();
   ck('"Later": on quit the update is applied WITHOUT relaunching', spawned.length === 1 && spawned[0][2].env.RELAUNCH === '0');
+
+  // ── v1.6: unsaved changes are asked about before the window closes
+  {
+    m.createWindow();
+    const close = () => { let prevented = false; winEvents.close({ preventDefault: () => { prevented = true; } }); return prevented; };
+    const tick = () => new Promise(r => setImmediate(r));
+    dialogs.length = 0; windowSends.length = 0; winClosed = 0;
+    ck('a show with no unsaved changes closes without a question', close() === false && dialogs.length === 0);
+    listeners['show-dirty']({}, true);
+    dialogAnswer = 2;                                       // Cancel
+    const p1 = close(); await tick();
+    ck('unsaved changes: closing is held back and the operator is asked Save / Don\'t Save / Cancel',
+      p1 === true && dialogs.length === 1 && JSON.stringify(dialogs[0].buttons) === JSON.stringify(['Save', "Don't Save", 'Cancel']) && dialogs[0].cancelId === 2);
+    ck('…Cancel keeps the app open', winClosed === 0 && !windowSends.some(x => x[0] === 'save-before-close'));
+    dialogAnswer = 0;                                       // Save
+    close(); await tick();
+    ck('…Save asks the page to save first; nothing closes yet', windowSends.some(x => x[0] === 'save-before-close') && winClosed === 0);
+    listeners['save-before-close-done']({}, false);
+    ck('…a save that failed or was cancelled leaves the app open', winClosed === 0);
+    listeners['save-before-close-done']({}, true);
+    ck('…and when the page reports the save done, the window closes — without asking again', winClosed === 1 && close() === false);
+  }
+
+  // ── v1.6: the Windows updater does not restart into the "save first?" question
+  {
+    listeners['show-dirty']({}, true);
+    spawned.length = 0; sent.length = 0; willQuit = undefined; dialogAnswer = 0;   // "Restart Now" with unsaved changes
+    await m.installWindows('C:\\t\\new.exe', win);
+    ck('"Restart Now" with unsaved changes does not restart: the update waits for the app to be closed, and says so',
+      spawned.length === 0 && typeof willQuit === 'function' && /save your show/.test(sent[sent.length - 1][1].message), JSON.stringify(sent[sent.length - 1]));
+    listeners['show-dirty']({}, false);
+  }
+
+  // ── v1.6: update check — can be switched off, can be asked for, and never interrupts a running show
+  {
+    const tickMs = ms => new Promise(r => realSetTimeout(r, ms));
+    const s0 = await handlers['app-get-settings']();
+    ck('settings: the update check is on by default; the page is told the version', s0.checkUpdates === true && s0.version === '1.3.0');
+    await handlers['app-set-settings']({}, { checkUpdates: 'yes' });
+    ck('settings: a junk value is ignored', (await handlers['app-get-settings']()).checkUpdates === true);
+    await handlers['app-set-settings']({}, { checkUpdates: false });
+    m.loadAppSettings();
+    ck('settings: switching the check off is remembered on disk', (await handlers['app-get-settings']()).checkUpdates === false && JSON.parse(fs.readFileSync(path.join(work, 'settings.json'), 'utf8')).checkUpdates === false);
+    let fetched = 0;
+    electron.net.fetch = async () => { fetched++; return { ok: true, json: async () => ({ tag_name: 'v9.9.9', assets: [] }) }; };
+    dialogs.length = 0; dialogAnswer = 1;                   // "Later"
+    const off = await asWindows(() => m.checkForUpdates());
+    ck('with the check switched off, start-up does not contact GitHub at all', off.status === 'off' && fetched === 0 && dialogs.length === 0);
+    const manual = await asWindows(() => m.checkForUpdates(true));
+    ck('"Check now" still works with the automatic check off, and reports the new version', manual.status === 'available' && manual.version === '9.9.9' && fetched === 1 && dialogs.length === 1);
+    electron.net.fetch = async () => ({ ok: true, json: async () => ({ tag_name: 'v1.3.0', assets: [] }) });
+    ck('"Check now" on the newest version says so', (await asWindows(() => m.checkForUpdates(true))).status === 'current');
+    ck('on Linux (no published build) it says unsupported instead of asking GitHub', (await m.checkForUpdates(true)).status === 'unsupported');
+    // a running show: the automatic check waits
+    await handlers['app-set-settings']({}, { checkUpdates: true });
+    electron.net.fetch = async () => ({ ok: true, json: async () => ({ tag_name: 'v9.9.9', assets: [] }) });
+    listeners['show-busy']({}, true);
+    dialogs.length = 0;
+    global.setTimeout = (f) => realSetTimeout(f, 10);       // the 15 s re-check, sped up
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const pending = m.checkForUpdates();
+    await tickMs(80);
+    const whileBusy = dialogs.length;
+    listeners['show-busy']({}, false);
+    const res = await pending;
+    Object.defineProperty(process, 'platform', realPlatform);
+    global.setTimeout = realSetTimeout;
+    ck('while a sound is playing or the show is locked the update dialog does not appear; it comes once the show is idle', whileBusy === 0 && dialogs.length === 1 && res.status === 'available', JSON.stringify({ whileBusy, after: dialogs.length, res }));
+  }
+
+  // ── v1.6: settings folder of the old app name is carried over once
+  {
+    const oldDir = path.join(work, 'appdata', 'Kostudio Audio Cue'), newDir = path.join(work, 'appdata', 'New Name');
+    fs.mkdirSync(path.join(oldDir, 'Local Storage', 'leveldb'), { recursive: true });
+    fs.mkdirSync(path.join(oldDir, 'Cache'), { recursive: true });
+    fs.writeFileSync(path.join(oldDir, 'Local Storage', 'leveldb', '000003.log'), 'prefs');
+    fs.writeFileSync(path.join(oldDir, 'remote.json'), '{"token":"t"}');
+    fs.writeFileSync(path.join(oldDir, 'Cache', 'big'), 'x'.repeat(1000));
+    fs.writeFileSync(path.join(oldDir, 'SingletonLock'), '');
+    const first = m.migrateUserData(oldDir, newDir);
+    ck('the old settings folder is copied to the new name: preferences and the remote token, not caches or lock files',
+      first === true && fs.readFileSync(path.join(newDir, 'Local Storage', 'leveldb', '000003.log'), 'utf8') === 'prefs' && fs.existsSync(path.join(newDir, 'remote.json')) &&
+      !fs.existsSync(path.join(newDir, 'Cache')) && !fs.existsSync(path.join(newDir, 'SingletonLock')));
+    fs.writeFileSync(path.join(newDir, 'remote.json'), '{"token":"new"}');
+    ck('it happens once: a folder already used under the new name is never overwritten', m.migrateUserData(oldDir, newDir) === false && /new/.test(fs.readFileSync(path.join(newDir, 'remote.json'), 'utf8')));
+    ck('no old folder / same folder: nothing happens', m.migrateUserData(path.join(work, 'nope'), path.join(work, 'x')) === false && m.migrateUserData(oldDir, oldDir) === false && !fs.existsSync(path.join(work, 'x')));
+  }
+
+  // ── v1.6: export a show with its audio
+  {
+    const dest = path.join(work, 'export'); fs.mkdirSync(dest);
+    const other = path.join(work, 'other'); fs.mkdirSync(other);
+    const audio2 = path.join(other, 'a.wav'); fs.writeFileSync(audio2, Buffer.from([9, 9]));
+    const project = { version: 5, pads: [{ id: 0, audioPath: audio }, { id: 1, audioPath: audio }, { id: 2, audioPath: audio2 }, { id: 3, audioPath: secret }, { id: 4, audioPath: null }, { id: 5, audioPath: path.join(work, 'gone.wav') }] };
+    openResult = { canceled: true, filePaths: [] };
+    ck('export: cancelling the folder dialog does nothing', (await handlers['export-show']({}, { name: 'X', project: JSON.stringify(project) })) === null && fs.readdirSync(dest).length === 0);
+    openResult = { canceled: false, filePaths: [dest] };
+    const r = await handlers['export-show']({}, { name: 'My: Show?', project: JSON.stringify(project) });
+    const out = JSON.parse(fs.readFileSync(r.projectPath, 'utf8'));
+    ck('export: one folder (name made safe) with the project and an audio/ folder',
+      path.basename(r.dir) === 'My_ Show_' && r.projectPath === path.join(r.dir, 'My_ Show_.cuepro') && fs.statSync(path.join(r.dir, 'audio')).isDirectory(), JSON.stringify(r));
+    ck('export: each audio file is copied once; two different files with the same name both survive',
+      r.copied === 2 && fs.readFileSync(path.join(r.dir, 'audio', 'a.wav')).length === 4 && fs.readFileSync(path.join(r.dir, 'audio', 'a (2).wav')).length === 2, JSON.stringify(fs.readdirSync(path.join(r.dir, 'audio'))));
+    ck('export: the copy of the project links to the copies with paths relative to itself',
+      out.pads[0].audioPath === 'audio/a.wav' && out.pads[1].audioPath === 'audio/a.wav' && out.pads[2].audioPath === 'audio/a (2).wav' && out.pads[4].audioPath === null && out.name === 'My_ Show_', JSON.stringify(out.pads.map(p => p.audioPath)));
+    ck('export: a non-audio path in the project is never copied (and is reported), a missing file is reported',
+      !fs.existsSync(path.join(r.dir, 'audio', 'secret.txt')) && out.pads[3].audioPath === secret && r.failed.includes(secret) && r.failed.includes(path.join(work, 'gone.wav')) && fs.readdirSync(path.join(r.dir, 'audio')).length === 2, JSON.stringify(r.failed));
+    ck('export: junk instead of a project is refused before any dialog',
+      /Invalid project/.test(await rejects(handlers['export-show']({}, { name: 'X', project: 'not json' }))) && /Invalid project/.test(await rejects(handlers['export-show']({}, { name: 'X', project: '{"pads":5}' }))) && /Invalid project/.test(await rejects(handlers['export-show']({}, null))));
+  }
 
   t.finish();
 })().catch(e => { console.error('HARNESS ERROR', e); process.exit(2); });

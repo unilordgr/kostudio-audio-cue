@@ -70,12 +70,12 @@ for (const m of script.matchAll(/(?<![\w.])(setStatus|confirm)\(/g)) {
   found.push(...lits); spliced.push(...nested);
 }
 // messages built as  'prefix: ' + dynamicValue  →  the key is  "prefix: {0}"
-const concatKeys = ['Save failed: {0}', 'Update error: {0}', 'Import failed: {0!}', 'Loaded {0} sound(s)', 'Loaded {0} sound(s) — {1} non-audio file(s) skipped', 'Loaded {0} sound(s) — stopped at {1} pads', 'Loaded {0} sound(s) — {1} non-audio file(s) skipped — stopped at {2} pads'];
+const concatKeys = ['Save failed: {0}', 'Export failed: {0}', 'Update error: {0}', 'Import failed: {0!}', 'Loaded {0} sound(s)', 'Loaded {0} sound(s) — {1} non-audio file(s) skipped', 'Loaded {0} sound(s) — stopped at {1} pads', 'Loaded {0} sound(s) — {1} non-audio file(s) skipped — stopped at {2} pads'];
 const normalise = s => s.replace(/\n/g, '\n');
 const keySet = new Set(keys.map(k => k.replace(/\{(\d+)!\}/g, '{$1}')));   // ({0!} is the same key as {0} for matching)
 const missing = [...new Set(found.filter(x => x.trim()).map(normalise))].filter(x => {
   if (keySet.has(x)) return false;
-  if (x === 'Save failed: ' || x === 'Update error: ' || x === 'Import failed: ' || x === '⚠ ' || x === 'unknown') return false;
+  if (x === 'Save failed: ' || x === 'Export failed: ' || x === 'Update error: ' || x === 'Import failed: ' || x === '⚠ ' || x === 'unknown') return false;
   if (x === 'NotAllowedError') return false;                                                      // a comparison, not a message
   if (x === ' — {0} non-audio file(s) skipped' || x === ' — stopped at {0} pads') return false;   // pieces of the composed "Loaded …" message (all 4 combinations are keys, checked below)
   if (/^Generate a new access token\?\n\nEvery phone/.test(x)) return false;                     // covered by its two halves (line-by-line)
@@ -97,7 +97,7 @@ ck('no message splices English words into a sentence (they would be untranslatab
   const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 
   // ── 3. runtime coverage: drive every screen and dialog under each language; only deliberate leftovers may remain English
-  const ALLOWED_ENGLISH = new Set(['ESC', 'FADE', 'KOSTUDIO AUDIO CUE', 'My Show', 'OUT ◼', 'PADS', 'PAUSE', 'PLAY', 'RESUME', 'SPACE', 'STOP FADE', 'VOL', 'Wi-Fi', '↓ FADE', '■ STOP ALL', '▶ IN', '⟳ LOOP']);
+  const ALLOWED_ENGLISH = new Set(['ESC', 'FADE', 'NEEDIT AUDIO CUE', 'My Show', 'OUT ◼', 'PADS', 'PAUSE', 'PLAY', 'RESUME', 'SPACE', 'STOP FADE', 'VOL', 'Wi-Fi', '↓ FADE', '■ STOP ALL', '▶ IN', '⟳ LOOP', 'LOOP', 'LAYER', 'CUE 2']);
   const isUserData = x => /^(Sound \d|One|a\.wav|C:\\x\.wav|USB Audio Interface|\d)/.test(x) || /^\d+\/\d+\/\d+/.test(x);
   for (const lang of ['el', 'de']) {
     const left = (await harvest(lang)).filter(x => /[A-Za-z]/.test(x) && x.length > 1 && !ALLOWED_ENGLISH.has(x) && !isUserData(x) && !/^[\d:\s/−⟳-]+$/.test(x));

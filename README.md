@@ -1,6 +1,16 @@
-# Kostudio Audio Cue
+# Needit Audio Cue
 
 A professional live performance audio cue manager. Load sounds onto pads, build cue sequences, and trigger them by keyboard shortcut or button — designed for theatre, events, and live shows.
+
+> **Formerly Kostudio Audio Cue.** Same app, same `.cuepro` shows, new name (since v1.6.0).
+
+![Needit Audio Cue running a show: pads with waveforms, the status bar with what is playing, and the cue list with the NEXT CUE button](docs/screenshot.png)
+
+<details><summary>Compact view — the same show with many more pads on screen</summary>
+
+![Compact view: small pads with key, name, countdown and waveform](docs/screenshot-compact.png)
+
+</details>
 
 [![Version](https://img.shields.io/github/v/release/unilordgr/kostudio-audio-cue?style=flat-square&color=brightgreen)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest)
 
@@ -10,10 +20,10 @@ A professional live performance audio cue manager. Load sounds onto pads, build 
 
 | Platform | | |
 |---|---|---|
-| **Windows** x64 | Portable — no install needed | [![Windows](https://img.shields.io/badge/Download-.exe-0078d4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-x64.exe) |
-| **macOS** Apple Silicon | M1 / M2 / M3 / M4 | [![macOS ARM](https://img.shields.io/badge/Download-arm64%20.dmg-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-arm64.dmg) |
-| **macOS** Intel | x64 | [![macOS Intel](https://img.shields.io/badge/Download-x64%20.dmg-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-x64.dmg) |
-| **iPad / Browser** | Safari · Chrome · Edge | [![iPad](https://img.shields.io/badge/Download-HTML%20file-00d4ff?style=for-the-badge&logo=safari&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Kostudio-Audio-Cue-iPad-Web.html) |
+| **Windows** x64 | Portable — no install needed | [![Windows](https://img.shields.io/badge/Download-.exe-0078d4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Needit-Audio-Cue-x64.exe) |
+| **macOS** Apple Silicon | M1 / M2 / M3 / M4 | [![macOS ARM](https://img.shields.io/badge/Download-arm64%20.dmg-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Needit-Audio-Cue-arm64.dmg) |
+| **macOS** Intel | x64 | [![macOS Intel](https://img.shields.io/badge/Download-x64%20.dmg-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Needit-Audio-Cue-x64.dmg) |
+| **iPad / Browser** | Safari · Chrome · Edge | [![iPad](https://img.shields.io/badge/Download-HTML%20file-00d4ff?style=for-the-badge&logo=safari&logoColor=white)](https://github.com/unilordgr/kostudio-audio-cue/releases/latest/download/Needit-Audio-Cue-iPad-Web.html) |
 
 > All releases: [github.com/unilordgr/kostudio-audio-cue/releases](https://github.com/unilordgr/kostudio-audio-cue/releases)
 
@@ -26,7 +36,7 @@ A professional live performance audio cue manager. Load sounds onto pads, build 
 macOS quarantines apps downloaded from the internet. Run this once in Terminal, then double-click normally:
 
 ```bash
-xattr -cr "/Applications/Kostudio Audio Cue.app"
+xattr -cr "/Applications/Needit Audio Cue.app"
 ```
 
 If you installed it somewhere other than Applications, adjust the path accordingly.
@@ -44,6 +54,9 @@ Click **More info** → **Run anyway**.
 - **Colour + shortcut** displayed in a left column on each pad for quick identification
 - **Rename** any pad by double-clicking its name
 - **Move pads** — drag a pad's ⠿ grip (top right of the card; with a mouse you can also drag the card itself) onto another pad and the two swap places. A key, cues, shortcuts and MIDI / remote buttons go with the sound; the order is saved with the show, works while a pad is playing, can be undone, and the arrow keys on a focused grip move it too
+- **LAYER pads — sounds on top of each other** — normally starting a pad fades out the one that is playing. Switch a pad's **LAYER** chip on and it plays *on top*: starting it stops nothing, and nothing that starts stops it (a rain bed under the scene, a thunder hit over it). Its own key / ■, STOP ALL and Esc stop it
+- **Compact view** — one button in the status bar shrinks every pad to key, name, countdown and waveform, so several times as many fit on screen (about 50 on a laptop); click a pad to play it. Switch back to change a pad's settings
+- **As many columns as fit** — 2 at the smallest window, 3 on a laptop, 4 on a full-HD screen, 6 at 2560 (and the **PADS** zoom changes that)
 - **Drag & drop** audio files directly onto pads — drop several at once (or use **Fill Pads…**) to fill the next empty pads, sorted naturally (Cue 2 before Cue 10); non-audio files are skipped
 
 ### Playback & Transport
@@ -52,7 +65,9 @@ Click **More info** → **Run anyway**.
 - **Configurable fade duration** — set the default fade time in seconds (header control)
 - **A fade time per pad** — the small box next to a pad's **↓ FADE** button: type its own time (0.1 – 20 s; ↑ ↓ nudge it) and that pad fades in, fades out, stops, crossfades, loops and ends over *that* time. Leave it empty and the pad follows the header. Crossfading a 0.3 s sting out and a 6 s pad in works, and STOP ALL fades every pad over its own time
 - **Per-pad fade toggle** — enable or disable fade-in per pad independently
-- **Per-pad volume** — individual sliders plus a master volume control
+- **Per-pad volume, up to 200 %** — individual sliders plus a master volume control. 100 % sits at four fifths of the slider (a notch marks it); beyond it the pad is *boosted*, for files that were recorded too quietly. The pre-show check warns if a boosted pad will distort
+- **Headphone preview** — choose a second output (your headphones) in Settings → Audio output and every pad gets a headphones button that plays it there only: check a sound without the audience hearing it
+- **Level meter** — the status bar shows the level of what is playing and turns red when the mix clips (worked out from the files and the volumes; it does not measure the output device)
 - **Loop toggle** — loop any cue indefinitely
 - **Loops crossfade into themselves; OUT points fade out** — with a pad's **↓ FADE** on, a looping pad crossfades at the loop point (the start of the loop comes in under the fading tail, equal power, so you never hear it stop or restart), and a pad that plays to its OUT point fades out and lands on silence exactly at OUT. It uses the pad's own FADE time (or the header's), shortened automatically for a very short region. Pads with FADE off behave exactly as before
 - **Countdown** — while a pad plays it shows the time *remaining* (to the end, or the OUT point); the cue stack shows each cue's length and the running cue's countdown
@@ -73,11 +88,15 @@ Click **More info** → **Run anyway**.
 - **Active zone highlight** — the region between IN and OUT is shaded on the bar
 - **Click to seek** — click anywhere on the bar to jump to that position
 - **Live time display** — shows current position and total duration
-- **Waveforms** — each pad can show its waveform behind the bar, so IN / OUT points are easy to place (Settings → Appearance; skipped for very long files and on touch devices)
+- **Waveforms** — each pad shows its waveform behind the bar, in the pad's colour, so IN / OUT points are easy to place — on iPad too. WAV files of any length; compressed files (mp3, m4a, flac…) up to about 20 minutes, 4 on a tablet (Settings → Appearance switches them off)
 
 ### Cue Stack
 - **Drag cues into a sequence** and step through them with `SPACE` or the Next Cue button
 - **Click to select** — clicking a stack item selects it without playing (highlights in blue)
+- **NEXT CUE is the GO button** — the biggest button in the panel; it names the cue SPACE will fire and shows that cue's note
+- **Cue settings (the pencil on a cue row)** — a **note for the operator** ("GO on the blackout"), what happens **after** the cue (wait for SPACE · start the next cue when this one ends · start the next cue after a delay), and whether the cue **plays** its sound or **stops** it. A stop cue is how a LAYER bed is ended from the cue list; a delay of 0 starts two cues together
+- **`↑` / `↓`** — move the NEXT marker up and down the list without playing anything (jump back, skip ahead)
+- **Resizable** — drag the left edge of the cue list to make it wider (double-click: automatic)
 - **▶ PLAY CUE** — dedicated button plays the selected cue, stops all other audio first
 - **■ STOP CUE** — the same button transforms while playing; click again to stop with fade
 - **Multiple Scenes** — separate stacks per scene (e.g. Act 1, Act 2), tab-switched instantly
@@ -86,6 +105,8 @@ Click **More info** → **Run anyway**.
 - **Stack text scale** — independently resize the cue stack text with − / + buttons
 
 ### Live-show safety
+- **Status bar** — under the header: the **show's name** (with a ● while it has unsaved changes), the **time of day**, a **show timer** that starts with the first sound, and **every sound that is playing** with its countdown and a stop button — wherever its pad is on screen
+- **Asks before closing** — the desktop app asks Save / Don't Save / Cancel when you close a show with unsaved changes (a browser tab asks its own "leave this page?")
 - **Pre-show check (✔)** — one button verifies every sound opens, every cue has audio, IN/OUT points make sense, the output device is connected and the project is saved, and gives a clear **READY / NOT READY** with a "Go to pad" link for each problem
 - **Show lock (🔒)** — disables editing, loading and deleting so nothing changes by accident; playback, volume and STOP keep working (`Ctrl+Shift+L`)
 - **Undo (`Ctrl+Z`)** — restores cleared pads (with their sound, IN/OUT and cues), replaced sounds, removed cues, cleared stacks and deleted scenes
@@ -106,7 +127,7 @@ Click **More info** → **Run anyway**.
 - **NEXT marker** in the cue stack and a NEXT CUE button that says what SPACE will play; **toasts with Undo**; labelled **Settings**, **Check** and **Lock** buttons
 
 ### Interface & Scale
-- **Kcue app icon** — custom icon visible in taskbar, dock, title bar, and browser tab
+- **App icon** — the "N cue" mark in the taskbar, dock and title bar
 - **Header always fixed** — Save, Load, VOL, STOP ALL never scale or disappear
 - **PADS scale** — zoom the pad grid from 40% to 200% using the − / + controls (bottom-left, always visible)
 - **Stack + footer fixed** — cue stack panel and status bar stay at full size regardless of zoom level
@@ -123,12 +144,15 @@ Click **More info** → **Run anyway**.
 - **`Ctrl+Z`** — undo · **`Ctrl+Shift+L`** — lock / unlock the show
 
 ### Save / Load
-- **Save / Save As / Load** — project files store audio file paths (Windows app) or copies (browser)
+- **Save / Save As / Load** — project files store audio file paths (desktop app) or copies (browser)
+- **Export with audio (desktop)** — Settings → Show file makes one folder with the project and a copy of every audio file: move it to another computer and the show opens with nothing missing
+- **Movable show folders** — audio that sits in the project's own folder is linked relative to it, and a file that is not where it was is looked for next to the project before anything is reported missing
 - **Missing file recovery** — if audio has moved, a dialog lets you Locate each file or Browse Folder to reconnect all at once
 - **Session autosave** — recovers your layout automatically if you close without saving
 
 ### Auto-Update
-- On launch, the app silently checks GitHub for a newer version
+- On launch, the app silently checks GitHub for a newer version — **Settings → Updates** switches that off, and has a **Check now** button
+- **It never interrupts a show**: the update question waits until nothing is playing and the show is unlocked
 - If an update is available: a native dialog asks **Download Now** or **Later**
 - **Windows**: downloads the new `.exe` in the background and shows a progress bar in the app. When it's ready you choose **Restart Now** or **Later** — Later applies the update the next time you close the app, so it never interrupts a show
 - **Mac**: downloads the DMG for your chip (Apple Silicon or Intel), then copies the new `.app` over the old one, falling back to opening the DMG if it can't
@@ -150,17 +174,19 @@ Click **More info** → **Run anyway**.
 ## Getting Started
 
 ### Windows (Portable .exe)
-1. Download `Kostudio-Audio-Cue-x64.exe` from the [latest release](../../releases/latest)
+1. Download `Needit-Audio-Cue-x64.exe` from the [latest release](../../releases/latest)
 2. Double-click — no installation needed
 3. Drag audio files onto pads or click a pad to browse
 
 ### macOS (App)
 1. Download the `.dmg` for your chip from the table above
 2. Open the DMG, drag the app to **Applications**
-3. If macOS says "damaged and can't be opened", run in Terminal: `xattr -cr "/Applications/Kostudio Audio Cue.app"`
+3. If macOS says "damaged and can't be opened", run in Terminal: `xattr -cr "/Applications/Needit Audio Cue.app"`
+
+**Coming from Kostudio Audio Cue (v1.5.0 or older) on a Mac:** that version cannot finish the update to the renamed app by itself. It downloads the new disk image and opens it — drag **Needit Audio Cue** to Applications, run the command above once, and delete the old *Kostudio Audio Cue* app. Your settings are carried over the first time the new app starts, and later updates are automatic again. (On Windows the update simply replaces the app in place.)
 
 ### Browser / iPad (no install)
-Use the hosted web app at **https://unilordgr.github.io/kostudio-audio-cue/**, or download `Kostudio-Audio-Cue-iPad-Web.html` from the [latest release](../../releases/latest) and open it locally.
+Use the hosted web app at **https://unilordgr.github.io/kostudio-audio-cue/**, or download `Needit-Audio-Cue-iPad-Web.html` from the [latest release](../../releases/latest) and open it locally.
 
 | Browser | Save / Load |
 |---|---|
@@ -178,6 +204,7 @@ On iPad: open it in Safari, tap **Share → Add to Home Screen** to install it a
 | **Save As** | Saves a `.cuepro` file anywhere on disk; audio file paths are stored | Copies audio files into a project folder |
 | **Save** | Overwrites the last saved `.cuepro` instantly | Same as Save As |
 | **Load** | Opens a `.cuepro` file; missing audio can be re-linked | Opens a saved project folder |
+| **Export with audio** | Settings → Show file: a folder with the project and a copy of every audio file, to move to another computer | — (the browser version already keeps copies) |
 
 If audio files have moved since last save, a dialog lets you **Locate** each file individually or **Browse Folder** to reconnect all at once.
 
@@ -190,6 +217,7 @@ If audio files have moved since last save, a dialog lets you **Locate** each fil
 | `SPACE` | Next cue in stack; fades out everything else that is playing |
 | `Esc` | **Panic** — stop everything instantly (also closes a dialog) |
 | `1` – `8`, `Q` – `R` | Default pad shortcuts (crossfade play; press again while fading out to bring it back) |
+| `↑` / `↓` | Move the NEXT marker in the cue list (choose which cue SPACE fires) |
 | `Ctrl+Z` | Undo the last destructive action |
 | `Ctrl+Shift+L` | Lock / unlock the show |
 | Custom | Assign Ctrl/Alt/Shift combos via the Shortcuts panel |
@@ -225,11 +253,12 @@ xvfb-run -a npm test           # on a headless Linux box (the real-app test need
 ```
 
 Without the Electron binary or a display, `tests/electron.test.js` says SKIP and everything else still runs. To test the *packaged* app instead of the source:
-`npx electron-builder --linux --dir --publish never && KCUE_APP_BIN=dist/linux-unpacked/kostudio-audio-cue xvfb-run -a node tests/electron.test.js`
+`npx electron-builder --linux --dir --publish never && KCUE_APP_BIN=dist/linux-unpacked/needit-audio-cue xvfb-run -a node tests/electron.test.js`
 
 | Test file | What it covers |
 |---|---|
 | `tests/electron.test.js` | **The real desktop app**, headless: preload bridge, IPC allow-list, open / save through the real dialog IPC, a picked file keeping its disk path, playback, the remote server, permission handler, navigation guard, donate URL — also against the packaged build |
+| `tests/showtools.test.js` | v1.6: LAYER pads, cue settings (notes, auto-follow, delay, stop cues), ↑/↓, the status bar and level meter, compact view, show name / unsaved mark, volume above 100 %, headphone preview, and the layout at every window size |
 | `tests/space-cue.test.js` | SPACE / NEXT CUE fades out everything else that is playing (previous cue, key pads, loop beds) over each pad's own FADE time — real SPACE key, remote and auto-advance; what must not change (missing audio, paused pads, PLAY CUE) |
 | `tests/pads-move.test.js` | Moving pads: drag the grip or the card, swap on screen and in the saved order, keys / cues stay with the sound, playing pads keep playing, undo, lock, keyboard, saved / restored / repaired order, Fill Pads and "Pad N" follow the screen, touch |
 | `tests/padfade.test.js` | A fade time per pad: the box, clamping, fade in / out / crossfade / STOP ALL / loop crossfade measured on the real audio elements, saved with the show |
@@ -262,7 +291,7 @@ The same suite runs on every pull request via GitHub Actions (`.github/workflows
 
 ## Support
 
-Kostudio Audio Cue is free. If it helps your shows, you can support development:
+Needit Audio Cue is free. If it helps your shows, you can support development:
 
 [![Support me on Ko-fi](https://img.shields.io/badge/Support%20me%20on-Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/dkostoudis)
 
@@ -272,7 +301,7 @@ The app also has a **♥ Donate** button in the header.
 
 ## License
 
-[Kostudio Audio Cue Free Use License](LICENSE) © 2026 [needitcreative.com](https://needitcreative.com)
+[Needit Audio Cue Free Use License](LICENSE) © 2026 [needitcreative.com](https://needitcreative.com)
 
 - ✅ **Free to use — including commercially.** Run it at paid shows, events, productions and broadcasts, and get paid for your work.
 - ✅ Free to copy, modify and share (free of charge, keeping the licence and copyright notice).

@@ -11,6 +11,14 @@ const { createRemote } = require('./remote');
 const execFileP = promisify(execFile);
 
 let mainWindow = null;
+const APP_NAME = 'Needit Audio Cue';
+
+// What the page tells the main process about the show, so that nothing here interrupts it or loses work:
+let showDirty     = false;   // there are changes that are not saved → ask before the window closes
+let showBusy      = false;   // a sound is playing or the show is locked → no dialog may appear in front of it
+let closeApproved = false;   // the operator answered the "save before closing?" question
+let closeAsking   = false;
+const whenIdle = async () => { while (showBusy) await new Promise(r => setTimeout(r, 15000)); };
 
 // The only external link the app opens. It is a constant on purpose: the renderer just
 // asks "open the donate page" and never supplies a URL, so a compromised page can't
@@ -23,7 +31,7 @@ function createWindow() {
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    title: 'Kostudio Audio Cue',
+    title: 'Needit Audio Cue',
     icon: path.join(__dirname, 'build', 'icons', '256x256.png'),
     backgroundColor: '#0d0d0d',
     webPreferences: {
@@ -43,17 +51,83 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', e => e.preventDefault());
 
+  // Closing with unsaved changes asks first. (Quitting the app goes through here too, so Cmd+Q is covered.)
+  mainWindow.on('close', e => {
+    if (closeApproved || !showDirty) return;
+    e.preventDefault();
+    if (closeAsking) return;
+    closeAsking = true;
+    const win = mainWindow;
+    dialog.showMessageBox(win, {
+      type: 'warning', title: APP_NAME, noLink: true,
+      message: 'This show has changes that are not saved',
+      detail: 'Save them before closing?',
+      buttons: ['Save', "Don't Save", 'Cancel'], defaultId: 0, cancelId: 2,
+    }).then(({ response }) => {
+      closeAsking = false;
+      if (win.isDestroyed()) return;
+      if (response === 0) win.webContents.send('save-before-close');          // the page saves, then reports back (below)
+      else if (response === 1) { closeApproved = true; win.close(); }
+    }).catch(() => { closeAsking = false; });
+  });
+
   mainWindow.loadFile('index.html');
   mainWindow.setMenuBarVisibility(false);
 }
 
+ipcMain.on('show-dirty', (_, v) => { showDirty = v === true; });
+ipcMain.on('show-busy',  (_, v) => { showBusy  = v === true; });
+ipcMain.on('save-before-close-done', (_, ok) => {
+  if (ok !== true || !mainWindow || mainWindow.isDestroyed()) return;        // the save was cancelled or failed: stay open
+  closeApproved = true;
+  mainWindow.close();
+});
+
+// ── Settings the main process keeps (per machine) ─────────
+let appSettings = { checkUpdates: true };
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+function loadAppSettings() {
+  try { appSettings = { checkUpdates: JSON.parse(fs.readFileSync(settingsFile(), 'utf8'))?.checkUpdates !== false }; }
+  catch { /* first run / unreadable: defaults */ }
+}
+function saveAppSettings() {
+  try { fs.writeFileSync(settingsFile(), JSON.stringify(appSettings)); }
+  catch (e) { console.warn('Could not save settings:', e.message); }
+}
+const updatesSupported = () => process.platform === 'win32' || process.platform === 'darwin';
+ipcMain.handle('app-get-settings', async () => ({ ...appSettings, version: app.getVersion(), canUpdate: updatesSupported() }));
+ipcMain.handle('app-set-settings', async (_, s) => {
+  if (s && typeof s === 'object' && typeof s.checkUpdates === 'boolean') { appSettings.checkUpdates = s.checkUpdates; saveAppSettings(); }
+  return { ...appSettings };
+});
+ipcMain.handle('update-check-now', async () => checkForUpdates(true));
+
+// The app used to be called "Kostudio Audio Cue". Chromium keeps the per-machine settings (output device, MIDI map,
+// language, the remote-control token…) in a folder named after the app, so the first launch under a new name copies the
+// old folder across. Caches and lock files are left behind. Must run before the app is ready (nothing has the folder open yet).
+function migrateUserData(oldDir, newDir) {
+  try {
+    if (!oldDir || !newDir || path.resolve(oldDir) === path.resolve(newDir) || !fs.existsSync(oldDir)) return false;
+    if (fs.existsSync(path.join(newDir, 'Local Storage')) || fs.existsSync(path.join(newDir, 'remote.json'))) return false;   // already in use under the new name
+    const skip = /^(Cache|GPUCache|Code Cache|DawnCache|DawnGraphiteCache|DawnWebGPUCache|GrShaderCache|ShaderCache|blob_storage|Crashpad|SingletonLock|SingletonSocket|SingletonCookie|lockfile|LOCK)$/i;
+    fs.cpSync(oldDir, newDir, { recursive: true, filter: src => !skip.test(path.basename(src)) });
+    return true;
+  } catch (e) { console.warn('Could not carry the old settings over:', e.message); return false; }
+}
+const OLD_APP_NAMES = ['Kostudio Audio Cue', 'kostudio-audio-cue'];
+try {
+  const now = app.getPath('userData');
+  for (const old of OLD_APP_NAMES) if (migrateUserData(path.join(app.getPath('appData'), old), now)) break;
+} catch { /* no profile folder yet */ }
+
 app.whenReady().then(() => {
   restrictPermissions();
+  loadAppSettings();
   createWindow();
   initRemote();
   setTimeout(() => checkForUpdates(), 4000);
 });
-app.on('before-quit', () => { remote?.stop(); });
+app.on('will-quit', () => { remote?.stop(); });   // will-quit, not before-quit: a quit that is cancelled at the "save first?" question must leave remote control running
 
 // The page is a single local file that needs almost nothing from Chromium's permission system. Deny everything
 // except MIDI (controllers) and clipboard writes (the "Copy" buttons in Settings).
@@ -89,30 +163,35 @@ app.on('activate', () => {
 
 // ── Auto-update ───────────────────────────────────────────
 
-async function checkForUpdates() {
+// manual = the operator pressed "Check now" in Settings. The automatic check at start-up can be switched off there, and it
+// never puts its dialog in front of a running show: it waits until nothing is playing and the show is unlocked.
+async function checkForUpdates(manual = false) {
   // Only Windows (.exe) and macOS (.dmg) builds are published.
-  if (process.platform !== 'win32' && process.platform !== 'darwin') return;
+  if (!updatesSupported()) return { status: 'unsupported' };
+  if (!manual && !appSettings.checkUpdates) return { status: 'off' };
   try {
     const res = await net.fetch(
       'https://api.github.com/repos/unilordgr/kostudio-audio-cue/releases/latest',
-      { headers: { 'User-Agent': 'KostudioAudioCue-UpdateCheck' } }
+      { headers: { 'User-Agent': 'NeeditAudioCue-UpdateCheck' } }
     );
-    if (!res.ok) return;
+    if (!res.ok) return { status: 'error' };
     const data = await res.json();
 
     const latestTag = data.tag_name || '';
     const latestVer = latestTag.replace(/^v/, '');
     const currentVer = app.getVersion();
 
-    if (!latestVer || !isNewerVersion(latestVer, currentVer)) return;
+    if (!latestVer || !isNewerVersion(latestVer, currentVer)) return { status: 'current', version: currentVer };
 
     const win = BrowserWindow.getAllWindows()[0];
-    if (!win) return;
+    if (!win) return { status: 'error' };
+    if (!manual) await whenIdle();
+    if (win.isDestroyed()) return { status: 'error' };
 
     const { response } = await dialog.showMessageBox(win, {
       type: 'info',
       title: 'Update Available',
-      message: `Kostudio Audio Cue ${latestTag} is available`,
+      message: `Needit Audio Cue ${latestTag} is available`,
       detail: `You are running version ${currentVer}.\n\nThe update will download in the background — you can keep working.`,
       buttons: ['Download Now', 'Later'],
       defaultId: 0,
@@ -122,8 +201,10 @@ async function checkForUpdates() {
     if (response === 0) {
       downloadAndInstall(data, win);
     }
+    return { status: 'available', version: latestVer };
   } catch (e) {
     console.log('Update check skipped:', e.message);
+    return { status: 'error' };
   }
 }
 
@@ -187,7 +268,7 @@ async function installWindows(newExePath, win) {
   // The portable build runs from an extracted temp dir, so process.execPath is
   // NOT the .exe the user launched. electron-builder exposes the real path here.
   const currentExe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
-  const batPath    = path.join(os.tmpdir(), 'kostudio-updater.bat');
+  const batPath    = path.join(os.tmpdir(), 'needit-updater.bat');
 
   // Batch script:
   //  - waits up to 30 s for the app process to release the lock
@@ -232,7 +313,8 @@ exit /b 1
     }).unref();
   };
 
-  // Never force-quit: the operator may be mid-show with unsaved work.
+  // Never force-quit: the operator may be mid-show with unsaved work. And never ask in the middle of a show at all.
+  await whenIdle();
   const { response } = await dialog.showMessageBox(win, {
     type: 'info',
     title: 'Update Ready',
@@ -243,7 +325,11 @@ exit /b 1
     cancelId: 1,
   });
 
-  if (response === 0) {
+  if (response === 0 && showDirty) {
+    // Restarting would run into the "save before closing?" question with the updater already waiting behind it: apply on close instead.
+    win.webContents.send('update-ready', { platform: 'win32', message: 'Update downloaded — save your show, then close the app to apply it.' });
+    app.once('will-quit', () => launchUpdater(false));
+  } else if (response === 0) {
     win.webContents.send('update-ready', { platform: 'win32', message: 'Restarting to apply the update…' });
     // Let the renderer paint the message; the bat's retry loop covers any
     // extra time the process needs to fully exit.
@@ -255,15 +341,16 @@ exit /b 1
 }
 
 async function installMac(dmgPath, win) {
+  await whenIdle();                                       // nothing below may happen in the middle of a show
   // Copy DMG to ~/Downloads so it survives after tmp is cleaned
   const downloadsDir = path.join(os.homedir(), 'Downloads');
   const destDmg      = path.join(downloadsDir, path.basename(dmgPath));
   try { fs.copyFileSync(dmgPath, destDmg); } catch {}
 
   // Work out where the running .app lives so we replace it in-place.
-  // process.execPath = /some/path/Kostudio Audio Cue.app/Contents/MacOS/Kostudio Audio Cue
+  // process.execPath = /some/path/Needit Audio Cue.app/Contents/MacOS/Needit Audio Cue
   // Three dirname() calls up = the .app bundle itself.
-  const appName = 'Kostudio Audio Cue.app';
+  const appName = 'Needit Audio Cue.app';
 
   let targetApp = `/Applications/${appName}`;            // safe default
   if (app.isPackaged) {
@@ -291,7 +378,7 @@ async function installMac(dmgPath, win) {
     try {
       ({ stdout } = await execFileP('hdiutil', ['attach', destDmg, '-nobrowse', '-plist']));
     } catch {
-      manual('Could not auto-install. DMG opened — drag Kostudio Audio Cue to Applications to complete the update.');
+      manual('Could not auto-install. DMG opened — drag Needit Audio Cue to Applications to complete the update.');
       return;
     }
     const m = /<key>mount-point<\/key>\s*<string>([^<]+)<\/string>/.exec(stdout);
@@ -315,7 +402,7 @@ async function installMac(dmgPath, win) {
       message: `Update installed to ${path.dirname(targetApp)}.\nClose the app and reopen it from there to use the new version.`
     });
   } catch (cpErr) {
-    manual(`Auto-install failed (${cpErr.message}). DMG opened — drag Kostudio Audio Cue to Applications to complete the update.`);
+    manual(`Auto-install failed (${cpErr.message}). DMG opened — drag Needit Audio Cue to Applications to complete the update.`);
   } finally {
     await detach();
   }
@@ -339,7 +426,7 @@ function downloadFile(url, destPath, onProgress, expectedSize, expectedSha256 = 
       try { u = new URL(currentUrl); } catch (e) { fail(e); return; }
       if (u.protocol !== 'https:') { fail(new Error('Refusing non-HTTPS download')); return; }
 
-      const req = https.get(u, { headers: { 'User-Agent': 'KostudioAudioCue' } }, res => {
+      const req = https.get(u, { headers: { 'User-Agent': 'NeeditAudioCue' } }, res => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume();
           let next;
@@ -488,6 +575,47 @@ ipcMain.handle('fs-read-text', async (_, filePath) => {
 ipcMain.handle('path-join', async (_, ...parts) => {
   if (!parts.every(x => typeof x === 'string')) throw new Error('Invalid path');
   return path.join(...parts);
+});
+
+// ── IPC: Export a show with its audio ─────────────────────
+// Copies every audio file of the show into one folder, next to a copy of the project whose links point at those copies
+// (as paths relative to the project file), so the folder can be moved to another computer. The destination is picked in a
+// native dialog; the page can only name files it was already allowed to read (audio, by extension, network rule included).
+const safeFolderName = n => String(n ?? '').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/[. ]+$/, '').trim().slice(0, 80) || 'Show';
+ipcMain.handle('export-show', async (_, payload) => {
+  if (!payload || typeof payload.project !== 'string' || payload.project.length > MAX_PROJECT_BYTES) throw new Error('Invalid project');
+  let project;
+  try { project = JSON.parse(payload.project); } catch { throw new Error('Invalid project'); }
+  if (!project || !Array.isArray(project.pads)) throw new Error('Invalid project');
+  const result = await dialog.showOpenDialog({ title: 'Choose where to put the show folder', buttonLabel: 'Export here', properties: ['openDirectory', 'createDirectory'] });
+  if (result.canceled || !result.filePaths[0]) return null;
+  approveShare(result.filePaths[0]);
+  const name = safeFolderName(payload.name), dir = path.join(result.filePaths[0], name), audioDir = path.join(dir, 'audio');
+  await fs.promises.mkdir(audioDir, { recursive: true });
+  const copies = new Map(), used = new Set(), failed = [];
+  for (const pc of project.pads) {
+    const src = pc && typeof pc.audioPath === 'string' ? pc.audioPath : '';
+    if (!src) continue;
+    if (!copies.has(src)) {
+      try {
+        const p = resolvePath(src);
+        if (!isAudioFile(p) || !networkPathAllowed(src)) throw new Error('not an audio file');
+        const ext = path.extname(p), stem = path.basename(p, ext);
+        let base = stem + ext;
+        for (let n = 2; used.has(base.toLowerCase()); n++) base = `${stem} (${n})${ext}`;     // two different files with the same name
+        used.add(base.toLowerCase());
+        await fs.promises.copyFile(p, path.join(audioDir, base));
+        copies.set(src, 'audio/' + base);
+      } catch { copies.set(src, null); failed.push(src); }
+    }
+    if (copies.get(src)) pc.audioPath = copies.get(src);
+  }
+  project.name = name;
+  const projectPath = path.join(dir, name + '.cuepro'), tmp = projectPath + '.tmp';
+  await fs.promises.rm(tmp, { force: true });
+  await fs.promises.writeFile(tmp, JSON.stringify(project, null, 2), { encoding: 'utf8', flag: 'wx' });
+  await fs.promises.rename(tmp, projectPath);
+  return { dir, projectPath, copied: [...copies.values()].filter(Boolean).length, failed };
 });
 
 // ── IPC: Remote control settings + state ──────────────────

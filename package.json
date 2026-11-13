@@ -1,7 +1,7 @@
 {
-  "name": "kostudio-audio-cue",
-  "version": "1.5.0",
-  "description": "Kostudio Audio Cue — Live Performance Sound Manager",
+  "name": "needit-audio-cue",
+  "version": "1.6.0",
+  "description": "Needit Audio Cue — Live Performance Sound Manager",
   "author": "needitcreative.com",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -16,8 +16,8 @@
     "test": "node tests/run.js"
   },
   "build": {
-    "appId": "com.kostudio.audiocue",
-    "productName": "Kostudio Audio Cue",
+    "appId": "com.needitcreative.audiocue",
+    "productName": "Needit Audio Cue",
     "copyright": "Copyright © 2026 needitcreative.com",
     "icon": "build/icons/icon.png",
     "files": [
@@ -30,7 +30,7 @@
     ],
     "win": {
       "icon": "build/icons/256x256.png",
-      "artifactName": "Kostudio-Audio-Cue-${arch}.${ext}",
+      "artifactName": "Needit-Audio-Cue-${arch}.${ext}",
       "target": [
         {
           "target": "portable",
@@ -42,7 +42,7 @@
     },
     "mac": {
       "icon": "build/icons/icon.png",
-      "artifactName": "Kostudio-Audio-Cue-${arch}.${ext}",
+      "artifactName": "Needit-Audio-Cue-${arch}.${ext}",
       "identity": null,
       "hardenedRuntime": false,
       "target": [
@@ -57,7 +57,7 @@
       "category": "public.app-category.music"
     },
     "dmg": {
-      "title": "Kostudio Audio Cue ${version}${arch}",
+      "title": "Needit Audio Cue ${version}${arch}",
       "background": null
     }
   },

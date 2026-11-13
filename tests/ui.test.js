@@ -254,7 +254,7 @@ async function scenario(fn) {
       }), 200));
     });
     check('a hostile project cannot inject markup; values are clamped',
-      r.pwned === 0 && r.imgs === 0 && /^#/.test(r.color) && r.vol === 1 && r.fade === 20, JSON.stringify(r));
+      r.pwned === 0 && r.imgs === 0 && /^#/.test(r.color) && r.vol === 2 && r.fade === 20, JSON.stringify(r));   // vol: 200 % is the ceiling (boost)
     await page.close();
   });
   await scenario(async () => {
@@ -729,10 +729,16 @@ async function scenario(fn) {
       loadFile(1, mk('a.wav')); loadFile(1, new File([new Uint8Array(tone)], 'b.wav', { type: 'audio/wav' }));
       await new Promise(res => setTimeout(res, 1500));
       out.raceFile = pads[1].file.name; out.racePeaks = !!pads[1].peaks;
-      // huge files are skipped without error and without a waveform
-      const big = mk('big.wav'); Object.defineProperty(big, 'size', { value: 200 * 1024 * 1024 });
+      // a huge COMPRESSED file is skipped without error and without a waveform (it would have to be decoded whole)…
+      const big = new File([new Uint8Array(4000).fill(7)], 'big.mp3', { type: 'audio/mpeg' }); Object.defineProperty(big, 'size', { value: 200 * 1024 * 1024 });
       loadFile(2, big); await new Promise(res => setTimeout(res, 300));
-      out.bigSkipped = pads[2].peaks === null && !document.getElementById('pad2').classList.contains('has-wave');
+      out.bigSkipped = pads[2].peaks === null && !pads[2].env && !document.getElementById('pad2').classList.contains('has-wave');
+      // …but a WAV is read from the file in pieces, so its size does not matter: this one claims to be 200 MB and still gets its waveform
+      const bigWav = mk('big.wav'); Object.defineProperty(bigWav, 'size', { value: 200 * 1024 * 1024 });
+      loadFile(3, bigWav); await new Promise(res => setTimeout(res, 3200));
+      out.bigWav = pads[3].peaks?.length === 300 && Math.max(...pads[3].peaks.slice(200)) > 0.9 && Math.max(...pads[3].peaks.slice(0, 120)) < 0.05;
+      // the raw envelope (for the level meter) keeps the real level: this tone peaks at 100 / 128 of full scale
+      out.env = pads[0].env?.length === 1200 && Math.abs(pads[0].envTop - 100 / 128) < 0.02;
       // switching the preference off removes waveforms everywhere and restores the slim bar
       setWaveformPref(false); await new Promise(res => setTimeout(res, 100));
       out.offClears = pads.every(q => q.peaks === null) && !document.querySelector('.pad.has-wave') && !document.querySelector('.pad-wave');
@@ -740,9 +746,9 @@ async function scenario(fn) {
       out.onAgain = !!pads[0].peaks;
       return out;
     }, toneBytes);
-    check('Waveform: peaks are computed (silent half / loud half), drawn, stale results discarded, big files skipped, preference on/off works',
+    check('Waveform: peaks are computed (silent half / loud half), drawn, stale results discarded, big compressed files skipped, a big WAV still analysed, preference on/off works',
       r.pref === true && r.buckets === 300 && r.max === 1 && r.firstHalfQuiet && r.secondHalfLoud && r.hasWaveClass && r.barHeight >= 30 && r.painted > 200 &&
-      r.raceFile === 'b.wav' && r.racePeaks && r.bigSkipped && r.offClears && r.onAgain, JSON.stringify(r));
+      r.raceFile === 'b.wav' && r.racePeaks && r.bigSkipped && r.bigWav && r.env && r.offClears && r.onAgain, JSON.stringify(r));
     await page.screenshot({ path: process.env.KCUE_SHOT || '/dev/null', clip: { x: 0, y: 50, width: 700, height: 260 } }).catch(() => {});
     await page.close();
   });

@@ -27,9 +27,10 @@ async function scenario(fn) {
     return { page, ctx, errors };
   }
   // four named sounds on pads 0–3, a cue for each
-  const build = page => page.evaluate(() => {
+  const build = page => page.evaluate(async () => {
     ['Thunder', 'Rain', 'Door slam', 'Applause'].forEach((n, i) => { loadFile(i, mkFile(n + '.wav'), true); pads[i].name = n; refreshPad(i); });
     [0, 1, 2, 3].forEach(i => addToStack(i));
+    await new Promise(r => setTimeout(r, 450));                           // each card re-renders once when its file has been analysed (waveform): let that settle
   });
   const domOrder = page => page.evaluate(() => [...document.querySelectorAll('#padsGrid > .pad')].map(e => +e.id.slice(3)));
   const order = page => page.evaluate(() => [...padOrder]);
@@ -216,8 +217,8 @@ async function scenario(fn) {
     const { page } = await fresh({ width: 960, height: 720 });
     await build(page);
     await page.evaluate(() => { padsScale = 1.2; applyScales(); });
-    await drag(page, '#pad0 .pad-grip', '#pad3');
-    check('at a 960 px window with the pads zoomed to 120 % the drop still lands on the pad under the pointer', same((await domOrder(page)).slice(0, 4), [3, 1, 2, 0]), JSON.stringify(await domOrder(page)));
+    await drag(page, '#pad0 .pad-grip', '#pad1');                      // one column at this size: the pad underneath
+    check('at a 960 px window with the pads zoomed to 120 % the drop still lands on the pad under the pointer', same((await domOrder(page)).slice(0, 4), [1, 0, 2, 3]), JSON.stringify(await domOrder(page)));
     const grip = await page.evaluate(() => { const g = document.querySelector('#pad0 .pad-grip').getBoundingClientRect(), p = document.getElementById('pad0').getBoundingClientRect(); return { inside: g.right <= p.right + 0.5 && g.left >= p.left && g.width >= 20 }; });
     check('the grip is fully inside its card at that size', grip.inside, JSON.stringify(grip));
     await page.close();
