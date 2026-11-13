@@ -38,7 +38,9 @@ jobs:
           retention-days: 7
 
   build-mac:
-    runs-on: macos-14   # Sonoma / Apple Silicon — avoids macOS 15 hdiutil bug
+    # macOS 15 / Apple Silicon (builds both the arm64 and the x64 disk image). GitHub retired every macOS 14 image on
+    # 2 Nov 2026: a job that still asks for `macos-14` is cancelled the moment it is created, and no release is published.
+    runs-on: macos-15
 
     steps:
       - name: Checkout code
@@ -53,10 +55,10 @@ jobs:
         run: npm ci
 
       - name: Build Mac DMG
-        # macOS 15 (Sequoia) has a race in hdiutil detach that exits non-zero
-        # even after the DMG is fully written. We use macos-14 to avoid this,
-        # but also add a fallback: if electron-builder exits non-zero yet the
-        # .dmg files exist on disk, we treat the build as successful.
+        # macOS 15 (Sequoia) has a race in hdiutil detach that can exit non-zero
+        # even after the DMG is fully written. So: if electron-builder exits
+        # non-zero yet both .dmg files exist on disk, the build is treated as
+        # successful; anything else fails the job.
         run: |
           npm run dist-mac || {
             # Both architectures must exist: the README links to both, and the in-app updater
